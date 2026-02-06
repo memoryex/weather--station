@@ -1,25 +1,57 @@
 import os
 import webbrowser
 import sys
+import ctypes
+
+def show_error(message):
+    """Shows an error message. Uses a GUI message box on Windows if possible."""
+    try:
+        if os.name == 'nt':
+            ctypes.windll.user32.MessageBoxW(0, message, "Klaida", 0x10)
+        else:
+            print(f"ERROR: {message}")
+            if sys.stdin and sys.stdin.isatty():
+                input("Press Enter to exit...")
+    except Exception:
+        pass # Better to exit silently than crash in the error handler
 
 def main():
-    # Get the directory where the script is running
+    target_file = "GD_Linijos.html"
+    found_path = None
+
+    # Locations to search for the HTML file
+    search_paths = []
+
+    # 1. Bundled location (PyInstaller --onefile)
+    if hasattr(sys, '_MEIPASS'):
+        search_paths.append(os.path.join(sys._MEIPASS, target_file))
+
+    # 2. Next to the executable/script
     if getattr(sys, 'frozen', False):
-        # If run as exe
-        base_dir = os.path.dirname(sys.executable)
+        # Running as compiled exe
+        exe_dir = os.path.dirname(sys.executable)
+        search_paths.append(os.path.join(exe_dir, target_file))
     else:
-        # If run as script
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+        # Running as python script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        search_paths.append(os.path.join(script_dir, target_file))
 
-    html_file = os.path.join(base_dir, "GD_Linijos.html")
+    # Find the file
+    for path in search_paths:
+        if os.path.exists(path):
+            found_path = path
+            break
 
-    if not os.path.exists(html_file):
-        print(f"Error: {html_file} not found.")
-        input("Press Enter to exit...")
+    if not found_path:
+        locs_str = "\n".join(search_paths)
+        show_error(f"Nepavyko rasti '{target_file}'.\nIeškota čia:\n{locs_str}")
         return
 
-    print(f"Opening {html_file} in your default browser...")
-    webbrowser.open(f"file://{html_file}")
+    # Open the file
+    try:
+        webbrowser.open(f"file://{found_path}")
+    except Exception as e:
+        show_error(f"Nepavyko atidaryti naršyklės:\n{e}")
 
 if __name__ == "__main__":
     main()
