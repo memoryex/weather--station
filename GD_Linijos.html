@@ -4,15 +4,56 @@
 <meta charset="UTF-8" />
 <title>GD Linijos – Ataskaita ir Statusas</title>
 <style>
+  /* --- VARIABLES & THEME --- */
+  :root {
+    --bg-body: #121212;
+    --text-main: #e5e5e5;
+    --text-muted: #bbb;
+    --text-header: #fff;
+
+    --bg-panel: #1a1a1a;
+    --bg-input: #1c1c1c;
+    --bg-hover: #444;
+    --bg-card: #1a1a1a;
+
+    --border-color: #333;
+    --border-input: #444;
+
+    --accent-color: #0d6efd;
+    --viz-box-bg: #222;
+    --viz-box-border: #eee;
+    --viz-shadow: rgba(0,0,0,0.5);
+  }
+
+  .light-mode {
+    --bg-body: #f4f4f4;
+    --text-main: #333;
+    --text-muted: #666;
+    --text-header: #111;
+
+    --bg-panel: #fff;
+    --bg-input: #fff;
+    --bg-hover: #eee;
+    --bg-card: #fff;
+
+    --border-color: #ccc;
+    --border-input: #ccc;
+
+    --accent-color: #0d6efd;
+    --viz-box-bg: #fff;
+    --viz-box-border: #999;
+    --viz-shadow: rgba(0,0,0,0.15);
+  }
+
   /* --- GLOBAL & LAYOUT --- */
-  body { background:#121212; color:#e5e5e5; font-family:Arial,Helvetica,sans-serif; margin:0; padding:0; }
-  h1 { font-size:28px; text-align:center; margin:20px 0; color:#fff; }
+  body { background:var(--bg-body); color:var(--text-main); font-family:Arial,Helvetica,sans-serif; margin:0; padding:0; transition: background 0.3s, color 0.3s; }
+  h1 { font-size:28px; text-align:center; margin:20px 0; color:var(--text-header); }
 
   /* --- TABS --- */
-  .tab-nav { display:flex; gap:10px; background:#1a1a1a; padding:10px 20px; border-bottom:1px solid #333; justify-content:center; }
-  .tab-btn { padding:10px 20px; cursor:pointer; background:#333; color:#bbb; border:none; border-radius:4px; font-size:16px; transition:0.2s; }
-  .tab-btn:hover { background:#444; color:#fff; }
-  .tab-btn.active { background:#0d6efd; color:#fff; font-weight:bold; }
+  .tab-nav { display:flex; gap:10px; background:var(--bg-panel); padding:10px 20px; border-bottom:1px solid var(--border-color); justify-content:center; align-items:center; }
+  .tab-btn { padding:10px 20px; cursor:pointer; background:var(--bg-panel); color:var(--text-muted); border:1px solid transparent; border-radius:4px; font-size:16px; transition:0.2s; }
+  .tab-btn:hover { background:var(--bg-hover); color:var(--text-main); }
+  .tab-btn.active { background:var(--accent-color); color:#fff; font-weight:bold; }
 
   .tab-pane { display:none; padding:20px; animation:fadeIn 0.3s; }
   .tab-pane.active { display:block; }
@@ -20,10 +61,10 @@
 
   /* --- REPORT TAB STYLES --- */
   .wrap { width:95%; max-width:1200px; margin:0 auto; }
-  .report-label { font-size:13px; color:#bbb; display:block; margin-bottom:4px; }
-  .report-input, .report-select { padding:8px 10px; background:#1c1c1c; border:1px solid #444; color:#eee; border-radius:6px; width:100%; box-sizing:border-box; }
+  .report-label { font-size:13px; color:var(--text-muted); display:block; margin-bottom:4px; }
+  .report-input, .report-select { padding:8px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-main); border-radius:6px; width:100%; box-sizing:border-box; }
   .msg { font-size:14px; color:#9ad; margin-top:6px; }
-  .card { background:#1a1a1a; border:1px solid #333; border-radius:8px; padding:20px; margin-top:12px; }
+  .card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; padding:20px; margin-top:12px; }
 
   /* New Grid Layout for Report */
   .report-grid { display:flex; gap:30px; }
@@ -32,34 +73,34 @@
 
   .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
 
-  .file-section { background:#222; padding:15px; border-radius:6px; border:1px solid #333; }
+  .file-section { background:var(--bg-panel); padding:15px; border-radius:6px; border:1px solid var(--border-color); }
   .line-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
   .line-header label { margin:0; cursor:pointer; }
 
   /* --- STATUS TAB STYLES --- */
   #summaryBox { text-align:center; font-size:22px; margin-top:10px; color:#4fc3f7; }
-  #timerBox { text-align:center; font-size:20px; color:#ccc; margin-top:5px; }
+  #timerBox { text-align:center; font-size:20px; color:var(--text-muted); margin-top:5px; }
   .toolbar { width:95%; margin:10px auto 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center; }
 
   table { width:95%; margin:14px auto 20px; border-collapse:collapse; font-size:18px; }
-  th, td { padding:14px; border-bottom:1px solid #333; text-align:center; }
-  th { background:#222; color:#fff; font-size:20px; }
+  th, td { padding:14px; border-bottom:1px solid var(--border-color); text-align:center; }
+  th { background:var(--bg-panel); color:var(--text-header); font-size:20px; }
 
   .good { color:#00d67a; font-weight:bold; }
   .warn { color:#ffa726; font-weight:bold; }
   .bad  { color:#ff5252; font-weight:bold; }
   .bar  { color:#4fc3f7; font-weight:bold; }
-  .time { font-size:16px; color:#ccc; }
+  .time { font-size:16px; color:var(--text-muted); }
 
   .status-online  { color:#00d67a; font-weight:bold; }
   .status-offline { color:#ff5252; font-weight:bold; }
-  .loading { text-align:center; padding:20px; font-size:20px; color:#bbb; }
+  .loading { text-align:center; padding:20px; font-size:20px; color:var(--text-muted); }
 
   /* --- VISUALIZATION STYLES --- */
   .viz-container {
     position:relative; width:95%; max-width:1200px; margin:20px auto;
     min-height:1200px; /* Increased height to prevent overlap */
-    background:#181818; border-radius:12px; border:1px solid #333; padding:40px;
+    background:var(--bg-panel); border-radius:12px; border:1px solid var(--border-color); padding:40px;
   }
 
   /* Apply border-box locally to visualization to keep sizing predictable */
@@ -74,21 +115,21 @@
 
   .viz-box {
     width:180px; height:80px;
-    border:3px solid #eee; border-radius:20px;
-    background:#222;
+    border:3px solid var(--viz-box-border); border-radius:20px;
+    background:var(--viz-box-bg);
     display:flex; flex-direction:row; justify-content:space-around; align-items:center;
     padding:8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 10px var(--viz-shadow);
     position: relative;
   }
   /* Vertikalioje juostoje box'ai pailgi horizontaliai */
-  .viz-box-wide { width:220px; height:80px; }
+  .viz-box-wide { width:220px; height:100px; } /* Increased height for better text visibility */
   /* Horizontalioje juostoje box'ai aukšti vertikaliai */
-  .viz-box-tall { width:100px; height:200px; flex-direction:column; justify-content:center; gap:10px; }
+  .viz-box-tall { width:120px; height:200px; flex-direction:column; justify-content:center; gap:10px; }
 
-  .viz-label { font-size:16px; font-weight:bold; color:#ccc; }
+  .viz-label { font-size:16px; font-weight:bold; color:var(--text-muted); }
 
-  .viz-info { font-size:12px; text-align:center; line-height:1.4; color:#fff; }
+  .viz-info { font-size:12px; text-align:center; line-height:1.4; color:var(--text-main); }
   .viz-value-big { font-size:18px; font-weight:bold; display:block; }
 
   .viz-indicators { display:flex; flex-direction:column; gap:8px; align-items:center; }
@@ -120,6 +161,7 @@
   <button class="tab-btn active" onclick="openTab('status')">GD linijų statusas</button>
   <button class="tab-btn" onclick="openTab('visual')">Vizualizacija</button>
   <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
+  <button class="tab-btn" id="themeToggle" onclick="toggleTheme()" title="Keisti temą">🌙/☀️</button>
 </div>
 
 <!-- ========================= TAB: STATUSAS ========================= -->
@@ -133,6 +175,14 @@
     <div>
       <label class="report-label">Įkelti „Barcode list … .xlsx“:</label><br/>
       <input id="statusMapFile" type="file" accept=".xlsx,.xls" />
+    </div>
+    <div style="margin-left: 20px;">
+      <label class="report-label">Rikiuoti pagal:</label><br/>
+      <select id="sortBy" class="report-select" style="min-width:150px">
+        <option value="default">Numatytasis</option>
+        <option value="units">Pagaminta vnt.</option>
+        <option value="speed">Greitis</option>
+      </select>
     </div>
     <div id="statusMapInfo" class="msg"></div>
   </div>
@@ -281,14 +331,28 @@ function openTab(tabName) {
   }
   const btns = document.getElementsByClassName("tab-btn");
   for (let i = 0; i < btns.length; i++) {
-    btns[i].classList.remove("active");
+    // Skip theme toggle button which has class tab-btn but no specific active logic for tabs
+    if(btns[i].id !== 'themeToggle') btns[i].classList.remove("active");
   }
 
   document.getElementById("tab-" + tabName).classList.add("active");
-  // Find button that calls this function (rough approximation for simplicity)
-  const clickedBtn = Array.from(btns).find(b => b.getAttribute('onclick').includes(tabName));
+  const clickedBtn = Array.from(btns).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + tabName + "'"));
   if(clickedBtn) clickedBtn.classList.add("active");
 }
+
+/* ===================== THEME LOGIC ===================== */
+function toggleTheme() {
+  document.body.classList.toggle('light-mode');
+  const isLight = document.body.classList.contains('light-mode');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+
+(function initTheme(){
+  const saved = localStorage.getItem('theme');
+  if(saved === 'light') {
+    document.body.classList.add('light-mode');
+  }
+})();
 
 /* ===================== SHARED HELPERS ===================== */
 const pad2 = n => String(n).padStart(2,'0');
@@ -473,109 +537,170 @@ function renderVizPlaceholder(id, name, type) {
     // Expose refresh globally so file loader can call it
     window.refresh = async function() {
         const tbody = document.getElementById("data");
-        if(tbody) tbody.innerHTML = "<tr><td class='loading' colspan='9'>Kraunama...</td></tr>";
+        const sortSelect = document.getElementById("sortBy");
+        const sortBy = sortSelect ? sortSelect.value : "default";
 
-        let html = "";
+        if(tbody) tbody.innerHTML = "<tr><td class='loading' colspan='9'>Kraunama (gali užtrukti)…</td></tr>";
+
         let totalCount = 0;
         const now = Date.now();
+        const rowData = [];
 
-        for (const L of LINE_MAP) {
+        // Parallel fetch for all lines
+        const promises = LINE_MAP.map(async (L) => {
             const key = READ_KEYS[L.channel];
-            const [countData, barcodeData] = await Promise.all([
-                getFieldLast(L.channel, L.fieldCount, key),
-                getFieldLast(L.channel, L.fieldBarcode, key)
-            ]);
+            try {
+                const [countData, barcodeData, history] = await Promise.all([
+                    getFieldLast(L.channel, L.fieldCount, key),
+                    getFieldLast(L.channel, L.fieldBarcode, key),
+                    getFieldHistory(L.channel, L.fieldCount, key, 50)
+                ]);
 
-            const countVal   = countData?.[`field${L.fieldCount}`] ?? "-";
-            const barcodeVal = barcodeData?.[`field${L.fieldBarcode}`] ?? "-";
+                const countValRaw = countData?.[`field${L.fieldCount}`];
+                const countValStr = countValRaw ?? "-";
+                const countValNum = parseFloat(countValRaw);
+                const hasCount = isFinite(countValNum);
 
-            let productName = "—";
-            if (barcodeVal && barcodeVal !== "-") {
-                const code = normalizeCode(barcodeVal);
-                if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
-            }
+                const barcodeVal = barcodeData?.[`field${L.fieldBarcode}`] ?? "-";
 
-            const tStart = toLT(barcodeData?.created_at);
-            const tLast  = toLT(countData?.created_at);
-
-            if (!isNaN(Number(countVal))) totalCount += Number(countVal);
-
-            const latestIso = (new Date(barcodeData?.created_at||0) > new Date(countData?.created_at||0))
-                ? barcodeData?.created_at : countData?.created_at;
-
-            let status="NEAKTYVI", statusCls="status-offline";
-            if (latestIso) {
-                const mins = (now - new Date(latestIso).getTime())/60000;
-                if (mins <= OFFLINE_MINUTES) {
-                    status="AKTYVI"; statusCls="status-online";
+                let productName = "—";
+                if (barcodeVal && barcodeVal !== "-") {
+                    const code = normalizeCode(barcodeVal);
+                    if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
                 }
-            }
 
-            let spTxt="–", gapTxt="–", spClass="";
-            let speedVal = 0;
+                const tStart = toLT(barcodeData?.created_at);
+                const tLast  = toLT(countData?.created_at);
 
-            const history = await getFieldHistory(L.channel, L.fieldCount, key, 50);
-            const pair = getLastValidCountPair(history, L.fieldCount);
+                const latestIso = (new Date(barcodeData?.created_at||0) > new Date(countData?.created_at||0))
+                    ? barcodeData?.created_at : countData?.created_at;
 
-            if (pair) {
-                const dHours = (pair.t1 - pair.t0) / 3600000;
-                if (dHours > 0) {
-                    const speed = (pair.c1 - pair.c0) / dHours;
-                    speedVal = speed;
-                    if (speed > 10) spClass="good";
-                    else if (speed >= 5) spClass="warn";
-                    else spClass="bad";
-                    spTxt = speed.toFixed(2);
-                    gapTxt = formatDuration(pair.t1 - pair.t0);
+                let status="NEAKTYVI", statusCls="status-offline";
+                let active = false;
+                if (latestIso) {
+                    const mins = (now - new Date(latestIso).getTime())/60000;
+                    if (mins <= OFFLINE_MINUTES) {
+                        status="AKTYVI"; statusCls="status-online";
+                        active = true;
+                    }
                 }
-            }
 
+                let spTxt="–", gapTxt="–", spClass="";
+                let speedVal = 0;
+
+                const pair = getLastValidCountPair(history, L.fieldCount);
+                if (pair) {
+                    const dHours = (pair.t1 - pair.t0) / 3600000;
+                    if (dHours > 0) {
+                        const speed = (pair.c1 - pair.c0) / dHours;
+                        speedVal = speed;
+                        if (speed > 10) spClass="good";
+                        else if (speed >= 5) spClass="warn";
+                        else spClass="bad";
+                        spTxt = speed.toFixed(2);
+                        gapTxt = formatDuration(pair.t1 - pair.t0);
+                    }
+                }
+
+                // Return structured data for sorting
+                return {
+                    L,
+                    countValStr,
+                    countValNum: hasCount ? countValNum : 0,
+                    barcodeVal,
+                    productName,
+                    tStart,
+                    tLast,
+                    status,
+                    statusCls,
+                    gapTxt,
+                    spTxt,
+                    spClass,
+                    speedVal,
+                    active
+                };
+
+            } catch(e) {
+                console.error(L.name, e);
+                return null; // Handle error gracefully
+            }
+        });
+
+        const results = await Promise.all(promises);
+
+        // Filter out failed fetches
+        const validResults = results.filter(r => r !== null);
+
+        // Calculate Total
+        validResults.forEach(r => {
+            totalCount += r.countValNum;
+        });
+
+        // SORTING LOGIC
+        if (sortBy === 'units') {
+            validResults.sort((a, b) => b.countValNum - a.countValNum);
+        } else if (sortBy === 'speed') {
+            validResults.sort((a, b) => b.speedVal - a.speedVal);
+        }
+        // Default: keeps original order (LINE_MAP order) via Promise.all results index if we hadn't filtered,
+        // but since we did parallel fetch, results array order corresponds to input array order.
+
+        // Render HTML
+        let html = "";
+        validResults.forEach(r => {
             html += `
             <tr>
-                <td>${L.name}</td>
-                <td class="good">${countVal}</td>
-                <td class="bar">${barcodeVal}</td>
-                <td>${productName}</td>
-                <td class="time">${tStart}</td>
-                <td class="time">${tLast}</td>
-                <td class="${statusCls}">${status}</td>
-                <td class="time">${gapTxt}</td>
-                <td class="${spClass}">${spTxt}</td>
+                <td>${r.L.name}</td>
+                <td class="good">${r.countValStr}</td>
+                <td class="bar">${r.barcodeVal}</td>
+                <td>${r.productName}</td>
+                <td class="time">${r.tStart}</td>
+                <td class="time">${r.tLast}</td>
+                <td class="${r.statusCls}">${r.status}</td>
+                <td class="time">${r.gapTxt}</td>
+                <td class="${r.spClass}">${r.spTxt}</td>
             </tr>
             `;
 
-            // --- UPDATE VISUALIZATION ---
+            // --- UPDATE VISUALIZATION (Side Effect) ---
             try {
-                const elUnits = document.getElementById(`val-units-${L.name}`);
-                if(elUnits) elUnits.innerText = countVal;
+                const elUnits = document.getElementById(`val-units-${r.L.name}`);
+                if(elUnits) elUnits.innerText = r.countValStr;
 
-                const elSpeed = document.getElementById(`val-speed-${L.name}`);
-                if(elSpeed) elSpeed.innerText = (spTxt !== '–') ? Math.round(speedVal) : '-';
+                const elSpeed = document.getElementById(`val-speed-${r.L.name}`);
+                if(elSpeed) elSpeed.innerText = (r.spTxt !== '–') ? Math.round(r.speedVal) : '-';
 
-                const elGap = document.getElementById(`val-gap-${L.name}`);
-                if(elGap) elGap.innerText = gapTxt;
+                const elGap = document.getElementById(`val-gap-${r.L.name}`);
+                if(elGap) elGap.innerText = r.gapTxt;
 
-                const elIndAct = document.getElementById(`ind-act-${L.name}`);
+                const elIndAct = document.getElementById(`ind-act-${r.L.name}`);
                 if(elIndAct) {
-                   // Green if Active, Red if Inactive (requested)
                    elIndAct.classList.remove("on", "off");
-                   if(status === "AKTYVI") elIndAct.classList.add("on");
+                   if(r.active) elIndAct.classList.add("on");
                    else elIndAct.classList.add("off");
                 }
 
-                const elIndSpd = document.getElementById(`ind-spd-${L.name}`);
+                const elIndSpd = document.getElementById(`ind-spd-${r.L.name}`);
                 if(elIndSpd) {
-                   if(status === "AKTYVI" && speedVal < 5) elIndSpd.classList.add("bad");
+                   if(r.active && r.speedVal < 5) elIndSpd.classList.add("bad");
                    else elIndSpd.classList.remove("bad");
                 }
             } catch(e) { }
-        }
+        });
 
         if(tbody) tbody.innerHTML = html;
         const totalStr = new Intl.NumberFormat("lt-LT",{maximumFractionDigits:0}).format(totalCount);
         const sb = document.getElementById("summaryBox");
         if(sb) sb.innerText = `Bendras pagamintas kiekis: ${totalStr} vnt.`;
     };
+
+    // Re-trigger refresh when sorting changes
+    const sortEl = document.getElementById('sortBy');
+    if(sortEl) {
+        sortEl.addEventListener('change', () => {
+            window.refresh();
+        });
+    }
 
     function updateTimer() {
         const m = Math.floor(timer / 60);
