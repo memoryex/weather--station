@@ -173,10 +173,6 @@
 
   <div class="toolbar">
     <div>
-      <label class="report-label">Įkelti „Barcode list … .xlsx“:</label><br/>
-      <input id="statusMapFile" type="file" accept=".xlsx,.xls" />
-    </div>
-    <div style="margin-left: 20px;">
       <label class="report-label">Rikiuoti pagal:</label><br/>
       <select id="sortBy" class="report-select" style="min-width:150px">
         <option value="default">Numatytasis</option>
@@ -266,12 +262,6 @@
             </div>
           </div>
 
-          <div class="file-section">
-            <label class="report-label">Gaminio pavadinimų sąrašas (.xlsx)</label>
-            <input id="reportMapFile" type="file" accept=".xlsx,.xls" style="width:100%" />
-            <div id="reportMapInfo" class="msg"></div>
-          </div>
-
           <div style="margin-top:auto">
             <button id="go" class="action-btn" style="width:100%; font-size:16px; padding:12px;">Generuoti ataskaitą (XLSX)</button>
             <div id="repStatus" class="msg" style="text-align:center; margin-top:10px;">Paruošta.</div>
@@ -284,7 +274,7 @@
             <label class="report-label" style="margin-bottom:0">Linijos (Ctrl/Shift)</label>
             <div>
               <input type="checkbox" id="selectAllLines" style="vertical-align:middle;">
-              <label for="selectAllLines" class="report-label" style="display:inline; vertical-align:middle;">Visos</label>
+              <label for="selectAllLines" class="report-label" style="display:inline; vertical-align:middle;">Pažymėti visus</label>
             </div>
           </div>
           <select id="lineFilter" multiple class="report-select" style="flex:1; height:300px;"></select>
@@ -321,7 +311,85 @@ const LINES = [
 const LINE_MAP = LINES;
 
 // Shared Map: "090775" -> "PLX070E"
-const PRODUCT_MAP = new Map();
+const PRODUCT_MAP = new Map([
+  ["400001772", "NLTR 05 500W DX EU"],
+  ["400001773", "NLTR 10 1000W DX EU"],
+  ["400001774", "NLTR 15 1500W DX EU"],
+  ["400001775", "NLTR 20 2000W DX EU"],
+  ["400001221", "DTD4R 05 500W WiFi Alta UK"],
+  ["400001222", "DTD4R 07 750W WiFi Alta UK"],
+  ["400001223", "DTD4R 10 1000W WiFi Alta UK"],
+  ["400001224", "DTD4R 15 1500W WiFi Alta UK"],
+  ["400001225", "DTD4R 20 2000W WiFi Alta UK"],
+  ["376180", "E8 PLX050E - EU"],
+  ["376190", "E8 PLX075E - EU"],
+  ["376200", "E8 PLX100E - EU"],
+  ["376210", "E8 PLX150E - EU"],
+  ["376220", "E8 PLX200E - EU"],
+  ["376230", "E8 PLX300E - EU"],
+  ["090355", "HSDP1000 1.0kw Heatstore Inteli Pnl"],
+  ["090362", "HSDP1500 1.5kw Heatstore Inteli Pnl"],
+  ["090379", "HSDP2000 2.0kw Heatstore Inteli Pnl"],
+  ["090386", "HSDP3000 3.0kw Heatstore Inteli Pnl"],
+  ["091291", "HSDP500 0.5kw Heatstore Inteli Panel"],
+  ["090393", "HSDP750 0.75kw Heatstore Inteli Pnl"],
+  ["090768", "PLX050E 0.5kw Dimplex Panel Heater"],
+  ["090775", "PLX070E 0.75kw Dimplex Panel Heater"],
+  ["090713", "PLX100E 1.0kw Dimplex Panel Heater"],
+  ["090720", "PLX125E 1.25kw Dimplex Panel Heater"],
+  ["090737", "PLX150E 1.5kw Dimplex Panel Heater"],
+  ["090744", "PLX200E 2.0kw Dimplex Panel Heater"],
+  ["090751", "PLXC300E 3.0kw Dimplex Panel Heater"],
+  ["400001370", "PLX1250E 1.25KW DIMPLEX Panel Heater SDM"],
+  ["400001363", "PLX1250E 1.25KW DIMPLEX Panel Heater SDM TL"],
+  ["091741", "PLX50NC 0.5kw Dimplex Panel NO CONTROL"],
+  ["091758", "PLX750NC 7.5kw Dimplex Panel NO CONTROL"],
+  ["091765", "PLX100NC 1.00kw Dimplex Panel NO CONTROL"],
+  ["091772", "PLX125NC 1.25kw Dimplex Panel NO CONTROL"],
+  ["091789", "PLX150NC 1.5kw Dimplex Panel NO CONTROL"],
+  ["091796", "PLX200NC 2.00kw Dimplex Panel NO CONTROL"],
+  ["376180", "E8 PLX050E - EU"],
+  ["376190", "E8 PLX075E - EU"],
+  ["376200", "E8 PLX100E - EU"],
+  ["376210", "E8 PLX150E - EU"],
+  ["376220", "E8 PLX200E - EU"],
+  ["376230", "E8 PLX300E - EU"],
+  ["377610", "E8 PLX025E - EU"],
+  ["82820005", "DTD2R 05 500W WiFi Alta"],
+  ["82820007", "DTD2R 07 750W WiFi Alta"],
+  ["82820010", "DTD2R 10 1000W WiFi Alta"],
+  ["82840002", "DTD4R 02 250W WiFi Alta"],
+  ["82840005", "DTD4R 05 500W WiFi Alta"],
+  ["82840007", "DTD4R 07 750W WiFi Alta"],
+  ["82840010", "DTD4R 10 1000W WiFi Alta"],
+  ["400001367", "NTL4R 07 750W WiFi AUS"],
+  ["400001368", "NTL4R 10 1000W WiFi AUS"],
+  ["400001390", "NTL4R 12 1250W WiFi AUS"],
+  ["400001391", "NTL4R 15 1500W WiFi AUS"],
+  ["400001392", "NTL4R 20 2000W WiFi AUS"],
+  ["400001393", "NTL4R 24 2400W WiFi AUS"],
+  ["400001222", "DTD4R 07 750W WiFi Alta UK"],
+  ["400001223", "DTD4R 10 1000W WiFi Alta UK"],
+  ["400001224", "DTD4R 15 1500W WiFi Alta UK"],
+  ["400001225", "DTD4R 20 2000W WiFi Alta UK"],
+  ["82840012", "DTD4R 12 1250W 230-240V DX WiFi Alta"],
+  ["400000649", "DTD4R 15 1500W 230-240V DX WIFI ALTA"],
+  ["400000660", "DTD4R 20 2000W 230-240V DX WIFI ALTA"],
+  ["091208", "LST050E 500W Low Surface Temperature"],
+  ["091178", "LST075E 750W Low Surface Temperature"],
+  ["091185", "LST100E 1000W Low Surface Temperature"],
+  ["091192", "LST150E 1500W Low Surface Temperature"],
+  ["400001734", "HSDPD 05 500W 230-240V WiFi"],
+  ["400001726", "HSDPD 07 7500W 230-240V WiFi"],
+  ["400001727", "HSDPD 10 1000W 230-240V WiFi"],
+  ["400001728", "HSDPD 15 1500W 230-240V WiFi"],
+  ["400001729", "HSDPD 20 2000W 230-240V WiFi"],
+  ["081353", "QRAD050RF 500W Quantum Electric Rad"],
+  ["081360", "QRAD075RF 750W Quantum Electric Rad"],
+  ["081377", "QRAD100RF 1000W Quantum Electric Rad"],
+  ["081384", "QRAD150RF 1500W Quantum Electric Rad"],
+  ["081391", "QRAD200RF 2000W Quantum Electric Rad"]
+]);
 
 /* ===================== TAB LOGIC ===================== */
 function openTab(tabName) {
@@ -398,57 +466,6 @@ function normalizeCode(v){
 }
 
 /* ===================== SHARED FILE LOADER ===================== */
-async function loadProductMapFromXlsx(file, infoId){
-  PRODUCT_MAP.clear();
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type:'array' });
-
-  for(const sheetName of wb.SheetNames){
-    const ws = wb.Sheets[sheetName];
-    if(!ws) continue;
-    const A = XLSX.utils.sheet_to_json(ws, { header:1, blankrows:false });
-    if(!A.length) continue;
-
-    // 1) bandome rasti ItemID
-    let headerRow=-1, itemCol=-1, nameCol=-1, loadedNameCol=-1, barcodeCol=-1;
-    for(let r=0; r<Math.min(A.length, 10); r++){
-      const row=A[r];
-      for(let c=0;c<row.length;c++){
-        const v = String(row[c]??"").trim().toLowerCase();
-        if (v==="itemid" || v==="item id"){ headerRow=r; itemCol=c; nameCol=c+1; }
-        if (v==="loaded name") loadedNameCol=c;
-        if (v==="barcode") barcodeCol=c;
-      }
-      if(headerRow>=0) break;
-    }
-
-    // 2) užpildom žemėlapį:
-    for(let r=(headerRow>=0? headerRow+1:1); r<A.length; r++){
-      const row=A[r];
-      let code = null;
-      let name = null;
-
-      if(itemCol>=0 && headerRow>=0){
-        const idRaw = row[itemCol];
-        name  = (loadedNameCol>=0? row[loadedNameCol] : row[nameCol]);
-        code  = normalizeCode(idRaw);
-      }
-      if(!code && barcodeCol>=0){
-        const b  = row[barcodeCol];
-        name = (loadedNameCol>=0? row[loadedNameCol] : row[nameCol]);
-        code = normalizeCode(b);
-      }
-
-      if(code && name!=null && String(name).trim()!==""){
-        PRODUCT_MAP.set(code, String(name).trim());
-      }
-    }
-  }
-
-  const info = document.getElementById(infoId);
-  if(info) info.textContent = `Įkelta pavadinimų: ${PRODUCT_MAP.size}. (Kodai lyginami pagal 6 skaitmenis)`;
-  if(typeof refresh === 'function') refresh();
-}
 
 /* ================================================================================================
    LOGIC: VISUALIZATION INIT
@@ -716,19 +733,6 @@ function renderVizPlaceholder(id, name, type) {
     setInterval(updateTimer,1000);
     setInterval(() => { timer = REFRESH_MS/1000; window.refresh(); }, REFRESH_MS);
 
-    document.getElementById('statusMapFile').addEventListener('change', (ev)=>{
-        const f = ev.target.files?.[0];
-        const info = document.getElementById('statusMapInfo');
-        if(!f){ info.textContent = "Failas nepasirinktas."; return; }
-        info.textContent = "Kraunama…";
-        loadProductMapFromXlsx(f, 'statusMapInfo')
-            .then(()=>{ info.textContent += " (paruošta naudoti)"; })
-            .catch(err=>{
-                console.error(err);
-                info.textContent = "Klaida skaitant failą: " + (err?.message || err);
-            });
-    });
-
 })();
 
 /* ================================================================================================
@@ -914,16 +918,6 @@ function renderVizPlaceholder(id, name, type) {
             console.error(err);
             document.getElementById('repStatus').textContent = "Klaida: " + (err?.message||err);
             document.getElementById('go').disabled=false;
-        });
-    });
-    document.getElementById('reportMapFile').addEventListener('change', (ev)=>{
-        const f = ev.target.files?.[0];
-        const info = document.getElementById('reportMapInfo');
-        if(!f){ info.textContent = "Failas nepasirinktas."; return; }
-        info.textContent = "Kraunama…";
-        loadProductMapFromXlsx(f, 'reportMapInfo').catch(err=>{
-            console.error(err);
-            info.textContent = "Nepavyko perskaityti: " + (err?.message||err);
         });
     });
 
