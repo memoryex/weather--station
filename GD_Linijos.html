@@ -20,11 +20,21 @@
 
   /* --- REPORT TAB STYLES --- */
   .wrap { width:95%; max-width:1200px; margin:0 auto; }
-  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
-  .report-label { font-size:13px; color:#bbb; }
-  .report-input, .report-select { padding:6px 8px; background:#1c1c1c; border:1px solid #444; color:#eee; border-radius:6px; }
+  .report-label { font-size:13px; color:#bbb; display:block; margin-bottom:4px; }
+  .report-input, .report-select { padding:8px 10px; background:#1c1c1c; border:1px solid #444; color:#eee; border-radius:6px; width:100%; box-sizing:border-box; }
   .msg { font-size:14px; color:#9ad; margin-top:6px; }
-  .card { background:#1a1a1a; border:1px solid #333; border-radius:8px; padding:14px; margin-top:12px; }
+  .card { background:#1a1a1a; border:1px solid #333; border-radius:8px; padding:20px; margin-top:12px; }
+
+  /* New Grid Layout for Report */
+  .report-grid { display:flex; gap:30px; }
+  .report-left { flex:1; display:flex; flex-direction:column; gap:20px; }
+  .report-right { width:280px; display:flex; flex-direction:column; }
+
+  .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
+
+  .file-section { background:#222; padding:15px; border-radius:6px; border:1px solid #333; }
+  .line-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+  .line-header label { margin:0; cursor:pointer; }
 
   /* --- STATUS TAB STYLES --- */
   #summaryBox { text-align:center; font-size:22px; margin-top:10px; color:#4fc3f7; }
@@ -101,46 +111,59 @@
   <h1>GD linijų – Istorijos ataskaita</h1>
   <div class="wrap">
     <div class="card">
-      <div class="row">
-        <div>
-          <label class="report-label">Nuo</label><br/>
-          <input id="from" type="datetime-local" class="report-input"/>
+      <div class="report-grid">
+
+        <!-- Kairė pusė: Nustatymai, Laikas, Failas -->
+        <div class="report-left">
+          <div class="settings-grid">
+            <div>
+              <label class="report-label">Nuo</label>
+              <input id="from" type="datetime-local" class="report-input"/>
+            </div>
+            <div>
+              <label class="report-label">Iki</label>
+              <input id="to" type="datetime-local" class="report-input"/>
+            </div>
+            <div>
+              <label class="report-label">Laiko zona</label>
+              <select id="tz" class="report-select">
+                <option value="Europe/Vilnius" selected>Europe/Vilnius</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </div>
+            <div>
+              <label class="report-label">Laiko langas (dienomis)</label>
+              <select id="chunkDays" class="report-select">
+                <option>31</option><option selected>90</option><option>180</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="file-section">
+            <label class="report-label">Gaminio pavadinimų sąrašas (.xlsx)</label>
+            <input id="reportMapFile" type="file" accept=".xlsx,.xls" style="width:100%" />
+            <div id="reportMapInfo" class="msg"></div>
+          </div>
+
+          <div style="margin-top:auto">
+            <button id="go" class="action-btn" style="width:100%; font-size:16px; padding:12px;">Generuoti ataskaitą (XLSX)</button>
+            <div id="repStatus" class="msg" style="text-align:center; margin-top:10px;">Paruošta.</div>
+          </div>
         </div>
-        <div>
-          <label class="report-label">Iki</label><br/>
-          <input id="to" type="datetime-local" class="report-input"/>
+
+        <!-- Dešinė pusė: Linijų sąrašas -->
+        <div class="report-right">
+          <div class="line-header">
+            <label class="report-label" style="margin-bottom:0">Linijos (Ctrl/Shift)</label>
+            <div>
+              <input type="checkbox" id="selectAllLines" style="vertical-align:middle;">
+              <label for="selectAllLines" class="report-label" style="display:inline; vertical-align:middle;">Visos</label>
+            </div>
+          </div>
+          <select id="lineFilter" multiple class="report-select" style="flex:1; height:300px;"></select>
         </div>
-        <div>
-          <label class="report-label">Laiko zona</label><br/>
-          <select id="tz" class="report-select">
-            <option value="Europe/Vilnius" selected>Europe/Vilnius</option>
-            <option value="UTC">UTC</option>
-          </select>
-        </div>
-        <div>
-          <label class="report-label">Laiko langas (dienomis, kai dalijam istoriją)</label><br/>
-          <select id="chunkDays" class="report-select">
-            <option>31</option><option selected>90</option><option>180</option>
-          </select>
-        </div>
-        <div>
-          <label class="report-label">Linijos (Ctrl/Shift – keli pasirinkimai)</label>
-          <input type="checkbox" id="selectAllLines" style="margin-left: 8px; vertical-align: middle;">
-          <label for="selectAllLines" style="font-size:13px;color:#bbb; vertical-align: middle; cursor:pointer;">Pažymėti visus</label>
-          <br/>
-          <select id="lineFilter" multiple size="6" class="report-select" style="min-width:220px;"></select>
-        </div>
-        <div>
-          <label class="report-label">Gaminio pavadinimų sąrašas (.xlsx)</label><br/>
-          <input id="reportMapFile" type="file" accept=".xlsx,.xls" />
-          <div id="reportMapInfo" class="msg"></div>
-        </div>
-        <div>
-          <label class="report-label">&nbsp;</label><br/>
-          <button id="go" class="action-btn">Generuoti ataskaitą (XLSX)</button>
-        </div>
+
       </div>
-      <div id="repStatus" class="msg">Paruošta.</div>
     </div>
   </div>
 </div>
