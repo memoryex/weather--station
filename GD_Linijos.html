@@ -594,8 +594,11 @@ function renderVizPlaceholder(id, name, type) {
 
                 let status="NEAKTYVI", statusCls="status-offline";
                 let active = false;
+                let msSinceLast = 0;
+
                 if (latestIso) {
-                    const mins = (now - new Date(latestIso).getTime())/60000;
+                    msSinceLast = now - new Date(latestIso).getTime();
+                    const mins = msSinceLast/60000;
                     if (mins <= OFFLINE_MINUTES) {
                         status="AKTYVI"; statusCls="status-online";
                         active = true;
@@ -605,17 +608,23 @@ function renderVizPlaceholder(id, name, type) {
                 let spTxt="–", gapTxt="–", spClass="";
                 let speedVal = 0;
 
-                const pair = getLastValidCountPair(history, L.fieldCount);
-                if (pair) {
-                    const dHours = (pair.t1 - pair.t0) / 3600000;
-                    if (dHours > 0) {
-                        const speed = (pair.c1 - pair.c0) / dHours;
-                        speedVal = speed;
-                        if (speed > 10) spClass="good";
-                        else if (speed >= 5) spClass="warn";
-                        else spClass="bad";
-                        spTxt = speed.toFixed(2);
-                        gapTxt = formatDuration(pair.t1 - pair.t0);
+                // Check 24h limit
+                if (latestIso && msSinceLast > 24 * 3600 * 1000) {
+                    spTxt = "Nėra naujų duomenų >24h";
+                    spClass = "bad";
+                } else {
+                    const pair = getLastValidCountPair(history, L.fieldCount);
+                    if (pair) {
+                        const dHours = (pair.t1 - pair.t0) / 3600000;
+                        if (dHours > 0) {
+                            const speed = (pair.c1 - pair.c0) / dHours;
+                            speedVal = speed;
+                            if (speed > 10) spClass="good";
+                            else if (speed >= 5) spClass="warn";
+                            else spClass="bad";
+                            spTxt = speed.toFixed(2);
+                            gapTxt = formatDuration(pair.t1 - pair.t0);
+                        }
                     }
                 }
 
@@ -685,7 +694,21 @@ function renderVizPlaceholder(id, name, type) {
                 if(elUnits) elUnits.innerText = r.countValStr;
 
                 const elSpeed = document.getElementById(`val-speed-${r.L.name}`);
-                if(elSpeed) elSpeed.innerText = (r.spTxt !== '–') ? Math.round(r.speedVal) : '-';
+                if(elSpeed) {
+                    if (r.spTxt === "Nėra naujų duomenų >24h") {
+                        elSpeed.innerText = r.spTxt;
+                        elSpeed.style.fontSize = "10px";
+                        elSpeed.style.color = "#ff5252";
+                        // Also hide the "pcs/h" label if needed, but reducing font size might be enough.
+                        // To be cleaner, let's hide the next sibling element which is "pcs/h"
+                        if(elSpeed.nextElementSibling) elSpeed.nextElementSibling.style.display = 'none';
+                    } else {
+                        elSpeed.innerText = (r.spTxt !== '–') ? Math.round(r.speedVal) : '-';
+                        elSpeed.style.fontSize = ""; // reset
+                        elSpeed.style.color = ""; // reset
+                        if(elSpeed.nextElementSibling) elSpeed.nextElementSibling.style.display = '';
+                    }
+                }
 
                 const elGap = document.getElementById(`val-gap-${r.L.name}`);
                 if(elGap) elGap.innerText = r.gapTxt;
