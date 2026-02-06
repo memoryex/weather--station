@@ -55,6 +55,47 @@
   .status-offline { color:#ff5252; font-weight:bold; }
   .loading { text-align:center; padding:20px; font-size:20px; color:#bbb; }
 
+  /* --- VISUALIZATION STYLES --- */
+  .viz-container { position:relative; width:95%; max-width:1200px; margin:20px auto; min-height:800px; background:#181818; border-radius:12px; border:1px solid #333; padding:40px; }
+
+  .viz-group-vertical { display:flex; flex-direction:column; gap:20px; position:absolute; top:40px; left:40px; }
+  .viz-group-horizontal { display:flex; gap:30px; position:absolute; bottom:40px; left:40px; }
+
+  .viz-item { display:flex; align-items:center; gap:15px; }
+  .viz-item-v { flex-direction:row; } /* Label on right for vertical stack */
+  .viz-item-h { flex-direction:column-reverse; } /* Label on bottom for horizontal row */
+
+  .viz-box {
+    width:160px; height:70px;
+    border:3px solid #eee; border-radius:20px;
+    background:#222;
+    display:flex; flex-direction:row; justify-content:space-around; align-items:center;
+    padding:5px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    position: relative;
+  }
+  /* Vertikalioje juostoje box'ai pailgi horizontaliai */
+  .viz-box-wide { width:180px; height:60px; }
+  /* Horizontalioje juostoje box'ai aukšti vertikaliai */
+  .viz-box-tall { width:80px; height:160px; flex-direction:column; justify-content:center; gap:10px; }
+
+  .viz-label { font-size:16px; font-weight:bold; color:#ccc; }
+
+  .viz-info { font-size:12px; text-align:center; line-height:1.4; color:#fff; }
+  .viz-value-big { font-size:14px; font-weight:bold; display:block; }
+
+  .viz-indicators { display:flex; flex-direction:column; gap:8px; align-items:center; }
+  .ind-circle { width:16px; height:16px; border-radius:50%; border:2px solid #555; background:#333; transition:0.3s; }
+
+  .ind-active.on { background:#00d67a; border-color:#00d67a; box-shadow:0 0 8px #00d67a; }
+  .ind-active.off { background:#ff5252; border-color:#ff5252; box-shadow:0 0 8px #ff5252; }
+
+  .ind-speed.good { border-color:#00d67a; color:#00d67a; }
+  .ind-speed.bad { border-color:#ff5252; background:#ff5252; box-shadow:0 0 8px #ff5252; }
+
+  .viz-item-h .viz-box { border-width:4px; }
+  .viz-item-v .viz-box { border-width:4px; }
+
   /* --- SHARED BUTTONS --- */
   button.action-btn { padding:10px 14px; background:#0d6efd; border:none; border-radius:6px; color:#fff; cursor:pointer; }
   button.action-btn:disabled { opacity:0.5; cursor:not-allowed; }
@@ -70,6 +111,7 @@
 <!-- TAB NAVIGATION -->
 <div class="tab-nav">
   <button class="tab-btn active" onclick="openTab('status')">GD linijų statusas</button>
+  <button class="tab-btn" onclick="openTab('visual')">Vizualizacija</button>
   <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
 </div>
 
@@ -104,6 +146,34 @@
     </thead>
     <tbody id="data"></tbody>
   </table>
+</div>
+
+<!-- ========================= TAB: VIZUALIZACIJA ========================= -->
+<div id="tab-visual" class="tab-pane">
+  <h1>Linijų vizualizacija</h1>
+  <div class="viz-container">
+
+    <!-- VERTICAL STACK (Left): PLXE5, NOBO7...NOBO2 -->
+    <div class="viz-group-vertical">
+      <div id="viz-PLXE 5" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 7" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 6" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 5" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 4" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 3" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 2" class="viz-item viz-item-v"></div>
+    </div>
+
+    <!-- HORIZONTAL ROW (Bottom): NOBO1, PLXE4...PLXE1 -->
+    <div class="viz-group-horizontal">
+      <div id="viz-NOBO 1" class="viz-item viz-item-h"></div>
+      <div id="viz-PLXE 4" class="viz-item viz-item-h"></div>
+      <div id="viz-PLXE 3" class="viz-item viz-item-h"></div>
+      <div id="viz-PLXE 2" class="viz-item viz-item-h"></div>
+      <div id="viz-PLXE 1" class="viz-item viz-item-h"></div>
+    </div>
+
+  </div>
 </div>
 
 <!-- ========================= TAB: ATASKAITA ========================= -->
@@ -234,9 +304,6 @@ function toLT(iso) {
 // Alias for Report compatibility
 const toLTString = (iso, tz) => {
     if(!iso) return "";
-    // Note: 'tz' argument from Report is used to force TimeZone.
-    // toLT uses browser local time or default.
-    // Let's implement exact Report logic if 'tz' is passed, else default.
     return new Date(iso).toLocaleString('lt-LT',{
         timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit',
         hour:'2-digit', minute:'2-digit', second:'2-digit'
@@ -251,7 +318,6 @@ function formatDuration(ms) {
   const ss = s % 60;
   return `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
 }
-// Alias for Report compatibility
 const msToHMS = formatDuration;
 
 function normalizeCode(v){
@@ -291,13 +357,11 @@ async function loadProductMapFromXlsx(file, infoId){
       let code = null;
       let name = null;
 
-      // prioritetas 1: ItemID
       if(itemCol>=0 && headerRow>=0){
         const idRaw = row[itemCol];
         name  = (loadedNameCol>=0? row[loadedNameCol] : row[nameCol]);
         code  = normalizeCode(idRaw);
       }
-      // prioritetas 2: Barcode (jei neradom pagal ItemID arba nėra ItemID stulpelio)
       if(!code && barcodeCol>=0){
         const b  = row[barcodeCol];
         name = (loadedNameCol>=0? row[loadedNameCol] : row[nameCol]);
@@ -312,10 +376,50 @@ async function loadProductMapFromXlsx(file, infoId){
 
   const info = document.getElementById(infoId);
   if(info) info.textContent = `Įkelta pavadinimų: ${PRODUCT_MAP.size}. (Kodai lyginami pagal 6 skaitmenis)`;
-
-  // Update both interfaces if needed
-  if(typeof refresh === 'function') refresh(); // Update Status table
+  if(typeof refresh === 'function') refresh();
 }
+
+/* ================================================================================================
+   LOGIC: VISUALIZATION INIT
+   ================================================================================================ */
+function renderVizPlaceholder(id, name, type) {
+  const el = document.getElementById(id);
+  if(!el) return;
+
+  const boxClass = (type === 'v') ? 'viz-box-wide' : 'viz-box-tall';
+
+  el.innerHTML = `
+    <div class="viz-box ${boxClass}">
+       <div class="viz-indicators">
+         <div class="ind-circle ind-active" id="ind-act-${name}" title="Būsena"></div>
+         <div class="ind-circle ind-speed" id="ind-spd-${name}" title="Greitis"></div>
+       </div>
+       <div class="viz-info">
+         <div style="line-height:1.2">
+           <span class="viz-value-big" id="val-speed-${name}" style="font-size:16px">-</span>
+           <span style="font-size:9px;color:#888">pcs/h</span>
+         </div>
+         <div style="line-height:1.2; margin-top:2px">
+           <span class="viz-value-big" id="val-units-${name}" style="font-size:16px">-</span>
+           <span style="font-size:9px;color:#888">vnt</span>
+         </div>
+         <div style="margin-top:2px; font-size:10px; color:#bbb;" id="val-gap-${name}">-</div>
+       </div>
+    </div>
+    <div class="viz-label">${name}</div>
+  `;
+}
+
+(function InitVizLayout(){
+  // Vertical Stack
+  ['PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2'].forEach(n => {
+    renderVizPlaceholder(`viz-${n}`, n, 'v');
+  });
+  // Horizontal Row
+  ['NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1'].forEach(n => {
+    renderVizPlaceholder(`viz-${n}`, n, 'h');
+  });
+})();
 
 /* ================================================================================================
    LOGIC: STATUS TAB
@@ -362,8 +466,7 @@ async function loadProductMapFromXlsx(file, infoId){
     // Expose refresh globally so file loader can call it
     window.refresh = async function() {
         const tbody = document.getElementById("data");
-        if(!tbody) return;
-        tbody.innerHTML = "<tr><td class='loading' colspan='9'>Kraunama...</td></tr>";
+        if(tbody) tbody.innerHTML = "<tr><td class='loading' colspan='9'>Kraunama...</td></tr>";
 
         let html = "";
         let totalCount = 0;
@@ -402,6 +505,8 @@ async function loadProductMapFromXlsx(file, infoId){
             }
 
             let spTxt="–", gapTxt="–", spClass="";
+            let speedVal = 0;
+
             const history = await getFieldHistory(L.channel, L.fieldCount, key, 50);
             const pair = getLastValidCountPair(history, L.fieldCount);
 
@@ -409,6 +514,7 @@ async function loadProductMapFromXlsx(file, infoId){
                 const dHours = (pair.t1 - pair.t0) / 3600000;
                 if (dHours > 0) {
                     const speed = (pair.c1 - pair.c0) / dHours;
+                    speedVal = speed;
                     if (speed > 10) spClass="good";
                     else if (speed >= 5) spClass="warn";
                     else spClass="bad";
@@ -430,8 +536,35 @@ async function loadProductMapFromXlsx(file, infoId){
                 <td class="${spClass}">${spTxt}</td>
             </tr>
             `;
+
+            // --- UPDATE VISUALIZATION ---
+            try {
+                const elUnits = document.getElementById(`val-units-${L.name}`);
+                if(elUnits) elUnits.innerText = countVal;
+
+                const elSpeed = document.getElementById(`val-speed-${L.name}`);
+                if(elSpeed) elSpeed.innerText = (spTxt !== '–') ? Math.round(speedVal) : '-';
+
+                const elGap = document.getElementById(`val-gap-${L.name}`);
+                if(elGap) elGap.innerText = gapTxt;
+
+                const elIndAct = document.getElementById(`ind-act-${L.name}`);
+                if(elIndAct) {
+                   // Green if Active, Red if Inactive (requested)
+                   elIndAct.classList.remove("on", "off");
+                   if(status === "AKTYVI") elIndAct.classList.add("on");
+                   else elIndAct.classList.add("off");
+                }
+
+                const elIndSpd = document.getElementById(`ind-spd-${L.name}`);
+                if(elIndSpd) {
+                   if(status === "AKTYVI" && speedVal < 5) elIndSpd.classList.add("bad");
+                   else elIndSpd.classList.remove("bad");
+                }
+            } catch(e) { }
         }
-        tbody.innerHTML = html;
+
+        if(tbody) tbody.innerHTML = html;
         const totalStr = new Intl.NumberFormat("lt-LT",{maximumFractionDigits:0}).format(totalCount);
         const sb = document.getElementById("summaryBox");
         if(sb) sb.innerText = `Bendras pagamintas kiekis: ${totalStr} vnt.`;
