@@ -153,7 +153,7 @@
   .viz-icon {
     width: 16px;
     height: 16px;
-    fill: currentColor; /* Ima spalvą iš teksto (pilka) */
+    object-fit: contain; /* Užtikrina, kad paveikslėlis neišsikraipytų */
     opacity: 0.7;
   }
 
@@ -508,12 +508,9 @@ function renderVizPlaceholder(id, name, type) {
 
   const boxClass = (type === 'v') ? 'viz-box-wide' : 'viz-box-tall';
 
-  // SVG Ikonėlės: Pulse (Būsena) ir Gauge (Greitis)
-  const iconStatus = `<svg class="viz-icon" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,16.5L6,11.5L7.41,10.09L11,13.67L16.59,8.09L18,9.5L11,16.5Z" /></svg>`; // Checkmark circle (Active) or Pulse
-  // Keičiame į "Pulse" (širdies ritmą), kad labiau atitiktų "Live" būseną:
-  const iconPulse = `<svg class="viz-icon" viewBox="0 0 24 24"><path d="M3,13H5.79L8.25,6.5L11.7,18.5L14.25,9.5L16.38,13H21V11H17.21L15.25,18L11.75,6L8.8,16.5L7.22,11H3V13Z" /></svg>`;
-
-  const iconSpeed = `<svg class="viz-icon" viewBox="0 0 24 24"><path d="M12,16A3,3 0 0,1 9,13C9,11.88 9.61,10.9 10.5,10.39L20.21,4.77L21.21,6.5L11.5,12.11C11.81,12.04 12.14,12 12.5,12A3,3 0 0,1 15.5,15C15.5,16.66 14.16,18 12.5,18C10.84,18 9.5,16.66 9.5,15C9.5,14.73 9.54,14.47 9.61,14.22L12,16M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z" /></svg>`;
+  // Ikonėlės (paveikslėliai): Pulse (Būsena) ir Gauge (Greitis)
+  const iconPulse = `<img src="icons/pulse.png" class="viz-icon" alt="Status" />`;
+  const iconSpeed = `<img src="icons/speed.jpg" class="viz-icon" alt="Speed" />`;
 
   el.innerHTML = `
     <div class="viz-box ${boxClass}">
