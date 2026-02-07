@@ -107,7 +107,7 @@
   .viz-container, .viz-container * { box-sizing: border-box; }
 
   .viz-group-vertical { display:flex; flex-direction:column; gap:20px; position:absolute; top:40px; left:40px; }
-  .viz-group-horizontal { display:flex; gap:30px; position:absolute; bottom:40px; left:40px; }
+  .viz-group-horizontal { display:flex; gap:30px; position:absolute; bottom:450px; left:350px; }
 
   .viz-item { display:flex; align-items:center; gap:15px; }
   .viz-item-v { flex-direction:row; } /* Label on right for vertical stack */
@@ -136,7 +136,8 @@
   .ind-circle { width:16px; height:16px; border-radius:50%; border:2px solid #555; background:#333; transition:0.3s; }
 
   .ind-active.on { background:#00d67a; border-color:#00d67a; box-shadow:0 0 8px #00d67a; }
-  .ind-active.off { background:#ff5252; border-color:#ff5252; box-shadow:0 0 8px #ff5252; }
+  /* When offline: solid red circle */
+  .ind-active.off { background:#ff5252; border-color:#ff5252; box-shadow:none; }
 
   .ind-speed.good { border-color:#00d67a; color:#00d67a; }
   .ind-speed.bad { border-color:#ff5252; background:#ff5252; box-shadow:0 0 8px #ff5252; }
