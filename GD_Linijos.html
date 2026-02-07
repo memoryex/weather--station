@@ -538,6 +538,7 @@ function renderVizPlaceholder(id, name, type) {
            <span style="font-size:9px;color:#888">vnt</span>
          </div>
          <div style="margin-top:2px; font-size:10px; color:#bbb;" id="val-gap-${name}">-</div>
+         <div style="margin-top:2px; font-size:9px; line-height:1.1; color:#9ad; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80px;" id="val-prod-${name}">-</div>
        </div>
     </div>
     <div class="viz-label">${name}</div>
@@ -758,6 +759,22 @@ function renderVizPlaceholder(id, name, type) {
 
                 const elGap = document.getElementById(`val-gap-${r.L.name}`);
                 if(elGap) elGap.innerText = r.gapTxt;
+
+                const elProd = document.getElementById(`val-prod-${r.L.name}`);
+                // Naudojame productName (iš map) arba barcodeVal (jei nėra map'e) arba "-", jei tuščia
+                // Tačiau r.productName jau turi logiką: "—" arba product name.
+                // Jei norime tikslią logiką: Jei barcodeVal yra, bet neradom map'e -> rodyti barkodą?
+                // r.productName kode yra: "—" arba tikras pavadinimas.
+                // Jei barkodas yra, bet nerasta -> "—". Pakeiskime logiką viršuje, kad rodytų barkodą, jei nėra pavadinimo?
+                // Ne, paliekame r.productName, bet jei jis "—" ir barkodas yra, galime rodyti barkodą.
+                let displayProd = r.productName;
+                if((displayProd === "—" || displayProd === "-") && r.barcodeVal && r.barcodeVal !== "-") {
+                   displayProd = r.barcodeVal;
+                }
+                if(elProd) {
+                   elProd.innerText = displayProd;
+                   elProd.title = displayProd; // Tooltip jei netelpa
+                }
 
                 const elIndAct = document.getElementById(`ind-act-${r.L.name}`);
                 if(elIndAct) {
