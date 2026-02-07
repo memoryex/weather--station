@@ -139,7 +139,8 @@
   /* When offline: solid red circle */
   .ind-active.off { background:#ff5252; border-color:#ff5252; box-shadow:none; }
 
-  .ind-speed.good { border-color:#00d67a; color:#00d67a; }
+  .ind-speed.good { border-color:#00d67a; background:#00d67a; box-shadow:0 0 8px #00d67a; }
+  .ind-speed.warn { border-color:#ffa726; background:#ffa726; box-shadow:0 0 8px #ffa726; }
   .ind-speed.bad { border-color:#ff5252; background:#ff5252; box-shadow:0 0 8px #ff5252; }
 
   .viz-item-h .viz-box { border-width:4px; }
@@ -723,8 +724,12 @@ function renderVizPlaceholder(id, name, type) {
 
                 const elIndSpd = document.getElementById(`ind-spd-${r.L.name}`);
                 if(elIndSpd) {
-                   if(r.active && r.speedVal < 5) elIndSpd.classList.add("bad");
-                   else elIndSpd.classList.remove("bad");
+                   elIndSpd.classList.remove("good", "warn", "bad");
+                   if(r.active) {
+                      if(r.speedVal > 10) elIndSpd.classList.add("good");
+                      else if(r.speedVal >= 5) elIndSpd.classList.add("warn");
+                      else elIndSpd.classList.add("bad");
+                   }
                 }
             } catch(e) { }
         });
