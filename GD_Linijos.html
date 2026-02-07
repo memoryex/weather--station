@@ -132,16 +132,46 @@
   .viz-info { font-size:12px; text-align:center; line-height:1.4; color:var(--text-main); }
   .viz-value-big { font-size:18px; font-weight:bold; display:block; }
 
-  .viz-indicators { display:flex; flex-direction:column; gap:8px; align-items:center; }
-  .ind-circle { width:16px; height:16px; border-radius:50%; border:2px solid #555; background:#333; transition:0.3s; }
+  /* --- VISUALIZATION INDICATORS & ICONS --- */
+  .viz-indicators {
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    align-items:flex-start; /* Lygiuojame į kairę */
+    justify-content:center;
+  }
 
-  .ind-active.on { background:#00d67a; border-color:#00d67a; box-shadow:0 0 8px #00d67a; }
-  /* When offline: solid red circle */
-  .ind-active.off { background:#ff5252; border-color:#ff5252; box-shadow:none; }
+  /* Nauja eilutė: Ikonėlė + Taškas */
+  .viz-ind-row {
+    display: flex;
+    align-items: center;
+    gap: 6px; /* Tarpas tarp ikonėlės ir taško */
+    color: var(--text-muted);
+  }
 
-  .ind-speed.good { border-color:#00d67a; background:#00d67a; box-shadow:0 0 8px #00d67a; }
-  .ind-speed.warn { border-color:#ffa726; background:#ffa726; box-shadow:0 0 8px #ffa726; }
-  .ind-speed.bad { border-color:#ff5252; background:#ff5252; box-shadow:0 0 8px #ff5252; }
+  /* SVG Ikonėlės stilius */
+  .viz-icon {
+    width: 16px;
+    height: 16px;
+    fill: currentColor; /* Ima spalvą iš teksto (pilka) */
+    opacity: 0.7;
+  }
+
+  .ind-circle {
+    width:12px; height:12px; /* Šiek tiek pamažinau, kad tilptų */
+    border-radius:50%;
+    border:2px solid #555;
+    background:#333;
+    transition:0.3s;
+  }
+
+  /* Statusų spalvos išlieka tos pačios */
+  .ind-active.on { background:#00d67a; border-color:#00d67a; box-shadow:0 0 6px #00d67a; }
+  .ind-active.off { background:#ff5252; border-color:#ff5252; }
+
+  .ind-speed.good { border-color:#00d67a; background:#00d67a; box-shadow:0 0 6px #00d67a; }
+  .ind-speed.warn { border-color:#ffa726; background:#ffa726; box-shadow:0 0 6px #ffa726; }
+  .ind-speed.bad { border-color:#ff5252; background:#ff5252; box-shadow:0 0 6px #ff5252; }
 
   .viz-item-h .viz-box { border-width:4px; }
   .viz-item-v .viz-box { border-width:4px; }
@@ -478,18 +508,35 @@ function renderVizPlaceholder(id, name, type) {
 
   const boxClass = (type === 'v') ? 'viz-box-wide' : 'viz-box-tall';
 
+  // SVG Ikonėlės: Pulse (Būsena) ir Gauge (Greitis)
+  const iconStatus = `<svg class="viz-icon" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,16.5L6,11.5L7.41,10.09L11,13.67L16.59,8.09L18,9.5L11,16.5Z" /></svg>`; // Checkmark circle (Active) or Pulse
+  // Keičiame į "Pulse" (širdies ritmą), kad labiau atitiktų "Live" būseną:
+  const iconPulse = `<svg class="viz-icon" viewBox="0 0 24 24"><path d="M3,13H5.79L8.25,6.5L11.7,18.5L14.25,9.5L16.38,13H21V11H17.21L15.25,18L11.75,6L8.8,16.5L7.22,11H3V13Z" /></svg>`;
+
+  const iconSpeed = `<svg class="viz-icon" viewBox="0 0 24 24"><path d="M12,16A3,3 0 0,1 9,13C9,11.88 9.61,10.9 10.5,10.39L20.21,4.77L21.21,6.5L11.5,12.11C11.81,12.04 12.14,12 12.5,12A3,3 0 0,1 15.5,15C15.5,16.66 14.16,18 12.5,18C10.84,18 9.5,16.66 9.5,15C9.5,14.73 9.54,14.47 9.61,14.22L12,16M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z" /></svg>`;
+
   el.innerHTML = `
     <div class="viz-box ${boxClass}">
        <div class="viz-indicators">
-         <div class="ind-circle ind-active" id="ind-act-${name}" title="Būsena"></div>
-         <div class="ind-circle ind-speed" id="ind-spd-${name}" title="Greitis"></div>
+
+         <div class="viz-ind-row" title="Linijos būsena (Online/Offline)">
+            ${iconPulse}
+            <div class="ind-circle ind-active" id="ind-act-${name}"></div>
+         </div>
+
+         <div class="viz-ind-row" title="Gamybos greitis">
+            ${iconSpeed}
+            <div class="ind-circle ind-speed" id="ind-spd-${name}"></div>
+         </div>
+
        </div>
+
        <div class="viz-info">
          <div style="line-height:1.2">
            <span class="viz-value-big" id="val-speed-${name}" style="font-size:16px">-</span>
            <span style="font-size:9px;color:#888">pcs/h</span>
          </div>
-         <div style="line-height:1.2; margin-top:2px">
+         <div style="line-height:1.2; margin-top:4px">
            <span class="viz-value-big" id="val-units-${name}" style="font-size:16px">-</span>
            <span style="font-size:9px;color:#888">vnt</span>
          </div>
