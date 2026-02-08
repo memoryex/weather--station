@@ -1066,7 +1066,7 @@ function renderVizPlaceholder(id, name, type) {
                 data: points,
                 borderColor: color,
                 backgroundColor: color,
-                showLine: true, // Required for scatter plot to behave as line chart
+                // showLine: true, // Not needed for type: 'line'
                 fill: false,
                 tension: 0.1,
                 stepped: true // Step interpolation for better production view
@@ -1075,12 +1075,13 @@ function renderVizPlaceholder(id, name, type) {
 
         if(datasets.length === 0) return;
 
-        // Config using scatter type which handles {x, y} robustly
+        // Config using line type which handles {x, y} robustly if scale is linear
         const ctx = ctxEl.getContext('2d');
         productionChartInstance = new Chart(ctx, {
-            type: 'scatter', // Use scatter with showLine: true
+            type: 'line',
             data: { datasets },
             options: {
+                animation: false, // Disable animation to force render
                 responsive: true,
                 maintainAspectRatio: false,
                 interaction: {
@@ -1132,54 +1133,65 @@ function renderVizPlaceholder(id, name, type) {
     async function generateReport(){
         const btn=document.getElementById('go');
         const st =document.getElementById('repStatus');
-        const tz =document.getElementById('tz').value;
-        const chunkDays=parseInt(document.getElementById('chunkDays').value,10)||90;
 
-        const fromInp=document.getElementById('from').value;
-        const toInp  =document.getElementById('to').value;
-        const now=new Date();
-        let from= fromInp? new Date(fromInp) : new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0);
-        let to  = toInp  ? new Date(toInp)   : now;
-        if(!(from instanceof Date)||!(to instanceof Date)||isNaN(from)||isNaN(to)||from>=to){
-            st.textContent="Klaida: patikrink datų intervalą (Nuo < Iki)."; return;
+        try {
+            debugLog("Pradedamas ataskaitos generavimas...");
+            const tz =document.getElementById('tz').value;
+            const chunkDays=parseInt(document.getElementById('chunkDays').value,10)||90;
+
+            const fromInp=document.getElementById('from').value;
+            const toInp  =document.getElementById('to').value;
+            const now=new Date();
+            let from= fromInp? new Date(fromInp) : new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0);
+            let to  = toInp  ? new Date(toInp)   : now;
+            if(!(from instanceof Date)||!(to instanceof Date)||isNaN(from)||isNaN(to)||from>=to){
+                st.textContent="Klaida: patikrink datų intervalą (Nuo < Iki)."; return;
+            }
+
+            const sel = Array.from(document.getElementById('lineFilter').selectedOptions).map(o=>o.value);
+            const useLines = sel.length ? LINES.filter(L=>sel.includes(L.name)) : LINES;
+
+            btn.disabled=true; st.textContent="Startuojam…";
+            const out=[];
+
+            for(const L of useLines){
+                const key=READ_KEYS[L.channel];
+                st.textContent=`${L.name}: barkodai…`;
+                debugLog(`Siunčiama užklausa linijai ${L.name}...`);
+                const bar = await fetchWholePeriodText   (L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
+                st.textContent=`${L.name}: COUNT…`;
+                const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount  , key, tz, from, to, chunkDays);
+                st.textContent=`${L.name}: skaičiuojam…`;
+                const segs=buildSegments(bar, cnt, tz);
+
+                segs.forEach(s=>{
+                out.push({
+                    line: L.name,
+                    barcode: s.barcode,
+                    product: s.product,
+                    start: s.startLT, end: s.endLT,
+                    duration: s.duration, units: s.units, avg: s.avg,
+                    // Pass raw timestamps for chart sorting/plotting
+                    startTs: s.startTs, endTs: s.endTs
+                });
+                });
+            }
+
+            debugLog(`Duomenys surinkti. Eilučių: ${out.length}. Kviečiamas renderChart...`);
+            // Render Chart before export
+            st.textContent=`Generuojame grafiką…`;
+            renderChart(out, from, to);
+
+            st.textContent=`Kuriame XLSX (${out.length} eilučių)…`;
+            await exportXLSX(out);
+            st.textContent=`✓ Baigta. Eilučių: ${out.length}`;
+        } catch(err) {
+            console.error(err);
+            debugLog("KLAIDA generateReport: " + err.message);
+            st.textContent = "Klaida: " + (err?.message||err);
+        } finally {
+            btn.disabled=false;
         }
-
-        const sel = Array.from(document.getElementById('lineFilter').selectedOptions).map(o=>o.value);
-        const useLines = sel.length ? LINES.filter(L=>sel.includes(L.name)) : LINES;
-
-        btn.disabled=true; st.textContent="Startuojam…";
-        const out=[];
-
-        for(const L of useLines){
-            const key=READ_KEYS[L.channel];
-            st.textContent=`${L.name}: barkodai…`;
-            const bar = await fetchWholePeriodText   (L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
-            st.textContent=`${L.name}: COUNT…`;
-            const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount  , key, tz, from, to, chunkDays);
-            st.textContent=`${L.name}: skaičiuojam…`;
-            const segs=buildSegments(bar, cnt, tz);
-
-            segs.forEach(s=>{
-            out.push({
-                line: L.name,
-                barcode: s.barcode,
-                product: s.product,
-                start: s.startLT, end: s.endLT,
-                duration: s.duration, units: s.units, avg: s.avg,
-                // Pass raw timestamps for chart sorting/plotting
-                startTs: s.startTs, endTs: s.endTs
-            });
-            });
-        }
-
-        // Render Chart before export
-        st.textContent=`Generuojame grafiką…`;
-        renderChart(out, from, to);
-
-        st.textContent=`Kuriame XLSX (${out.length} eilučių)…`;
-        await exportXLSX(out);
-        st.textContent=`✓ Baigta. Eilučių: ${out.length}`;
-        btn.disabled=false;
     }
 
     // Init Logic for Report
