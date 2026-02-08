@@ -342,10 +342,20 @@
              </select>
            </div>
            <div style="flex:1; min-width:200px;">
-             <label class="report-label">Linijos (Grafikui)</label>
+             <div style="display:flex; justify-content:space-between;">
+                <label class="report-label">Linijos (Grafikui)</label>
+                <div style="font-size:12px;">
+                    <input type="checkbox" id="selectAllChartLines" style="vertical-align:middle;">
+                    <label for="selectAllChartLines" style="vertical-align:middle; cursor:pointer;">Visos</label>
+                </div>
+             </div>
              <select id="chartLines" multiple class="report-select" size="4" style="height:auto;" title="Pasirinkite linijas (Ctrl/Shift)"></select>
            </div>
-           <div>
+           <div style="display:flex; flex-direction:column; gap:8px;">
+             <div>
+                <input type="checkbox" id="chartCumulative" style="vertical-align:middle;">
+                <label for="chartCumulative" style="font-size:13px; color:var(--text-muted); cursor:pointer; vertical-align:middle;">Kaupiamasis</label>
+             </div>
              <button id="updateChartBtn" class="action-btn">Atnaujinti grafiką</button>
            </div>
         </div>
@@ -1118,6 +1128,9 @@ function renderVizPlaceholder(id, name, type) {
         const selectedType = typeEl ? typeEl.value : 'line';
         const isStep = (selectedType === 'line'); // only use step:true logic if strictly trendline
 
+        // Check cumulative toggle
+        const isCumulative = document.getElementById('chartCumulative')?.checked ?? false;
+
         const lines = [...new Set(allData.map(d => d.line))];
         const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
 
@@ -1133,9 +1146,10 @@ function renderVizPlaceholder(id, name, type) {
             lineData.forEach(seg => {
                 if(seg.units > 0) {
                    cumulative += seg.units;
+                   const val = isCumulative ? cumulative : seg.units;
                    const t = seg.endTs || seg.startTs;
                    if(isFinite(t)) {
-                       points.push([t, cumulative]);
+                       points.push([t, val]);
                    }
                 }
             });
@@ -1330,6 +1344,23 @@ function renderVizPlaceholder(id, name, type) {
         }
         sa.checked = all;
     });
+
+    // Checkbox "Pažymėti visus" (Chart) logika
+    const csa = document.getElementById('selectAllChartLines');
+    if(csa && clf) {
+        csa.addEventListener('change', () => {
+            for(let i=0; i<clf.options.length; i++){
+                clf.options[i].selected = csa.checked;
+            }
+        });
+        clf.addEventListener('change', () => {
+            let all=true;
+            for(let i=0; i<clf.options.length; i++){
+                if(!clf.options[i].selected){ all=false; break; }
+            }
+            csa.checked = all;
+        });
+    }
 
 })();
 
