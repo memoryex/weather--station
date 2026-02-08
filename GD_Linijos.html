@@ -1009,7 +1009,9 @@ function renderVizPlaceholder(id, name, type) {
             lineData.forEach(seg => {
                 if(seg.units > 0) {
                    cumulative += seg.units;
-                   points.push({ x: seg.endDate || seg.startDate, y: cumulative });
+                   // Use numeric timestamp for X-axis (linear scale)
+                   const t = (seg.endDate || seg.startDate || new Date()).getTime();
+                   points.push({ x: t, y: cumulative });
                 }
             });
 
@@ -1048,35 +1050,31 @@ function renderVizPlaceholder(id, name, type) {
                 },
                 scales: {
                     x: {
-                        type: 'time', // Requires chartjs-adapter-date-fns or moment. But we didn't include adapter.
-                                      // Fallback: use linear scale with labels or just simple category if we binned.
-                                      // Better: since we don't have adapter, let's map X to readable string and sort?
-                                      // Actually, without adapter, time scale won't work easily.
-                                      // Alternative: Add chartjs-adapter-date-fns to <head> OR implement custom bucket logic.
-                        // Let's add adapter-date-fns in next step? Or proceed with simple labels?
-                        // Simple labels approach: create a unified timeline of buckets.
-                        // Wait, user asked for "trends".
-                        // Let's just use numeric time and callback for ticks to format date.
                         type: 'linear',
                         position: 'bottom',
                         ticks: {
+                            color: '#bbb', // Light text for ticks
                             callback: function(value) {
                                 const d = new Date(value);
-                                // Simple format
                                 return d.toLocaleDateString('lt-LT') + ' ' + d.toLocaleTimeString('lt-LT', {hour:'2-digit', minute:'2-digit'});
                             },
                             maxRotation: 45,
                             minRotation: 45
                         },
-                        title: { display: true, text: 'Laikas' }
+                        title: { display: true, text: 'Laikas', color: '#fff' },
+                        grid: { color: '#444' }
                     },
                     y: {
                         beginAtZero: true,
-                        title: { display: true, text: 'Pagaminta (vnt.)' }
+                        ticks: { color: '#bbb' },
+                        title: { display: true, text: 'Pagaminta (vnt.)', color: '#fff' },
+                        grid: { color: '#444' }
                     }
                 },
                 plugins: {
-                    title: { display: false },
+                    legend: {
+                        labels: { color: '#fff' }
+                    },
                     tooltip: {
                          callbacks: {
                              title: (ctx) => {
