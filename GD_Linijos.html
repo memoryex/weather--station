@@ -1286,10 +1286,12 @@ function renderVizPlaceholder(id, name, type) {
     }
     // --- INSIGHTS LOGIC START ---
     function getInsightText(minutes) {
-        if (minutes >= 60) return "Linija buvo neaktyvi / ilga pertrauka";
-        if (minutes >= 33) return "Nebuvo detalių / ruošimasis kitam gaminiui";
-        if (minutes >= 25) return "Pietų pertrauka";
-        if (minutes >= 8) return "Pertrauka";
+        const m = Math.round(minutes);
+        if (m >= 61) return "Linija neaktyvi";
+        if (m >= 34) return "Nėra detalių arba ruošiamasi kitam gaminiui";
+        if (m >= 25) return "Pietų pertrauka";
+        if (m >= 13) return "Nenumatyta prastova";
+        if (m >= 8) return "Pertrauka";
         return "";
     }
 
