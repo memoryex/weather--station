@@ -1004,17 +1004,29 @@ function renderVizPlaceholder(id, name, type) {
             productionChartInstance = null;
         }
 
-        if(!allData || allData.length === 0) {
-             debugLog("Nėra duomenų grafikui (allData tuščias).");
-             const ctx = ctxEl.getContext('2d');
-             ctx.clearRect(0, 0, ctxEl.width, ctxEl.height);
-             ctx.fillStyle = '#888';
-             ctx.font = '16px Arial';
-             ctx.fillText("Nėra duomenų grafikui", ctxEl.width/2 - 50, ctxEl.height/2);
-             return;
+        // DEBUG: Log first item
+        if(allData && allData.length > 0) {
+            debugLog(`Pirmas duomenų elementas: ${JSON.stringify(allData[0])}`);
+        } else {
+            debugLog("Nėra duomenų grafikui (allData tuščias).");
         }
 
-        debugLog(`Gauta ${allData.length} įrašų grafikui.`);
+        // --- TEST MODE FORCE ---
+        // Force a dummy dataset to verify Chart.js works
+        const now = Date.now();
+        const testDatasets = [{
+            label: "TEST DATA",
+            data: [
+                {x: now, y: 0},
+                {x: now + 3600000, y: 50},
+                {x: now + 7200000, y: 100}
+            ],
+            borderColor: '#ff0000',
+            backgroundColor: '#ff0000',
+            fill: false
+        }];
+        debugLog("Naudojami TESTINIAI duomenys grafikui.");
+        // -----------------------
 
         // Determine Theme Colors
         const isLight = document.body.classList.contains('light-mode');
@@ -1022,64 +1034,15 @@ function renderVizPlaceholder(id, name, type) {
         const gridColor = isLight ? '#ccc' : '#444';
         const tickColor = isLight ? '#666' : '#bbb';
 
-        const lines = [...new Set(allData.map(d => d.line))];
-        debugLog(`Rastos linijos: ${lines.join(', ')}`);
-
-        const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
-
-        const datasets = [];
-
-        lines.forEach((lineName, idx) => {
-            const lineData = sortedData.filter(d => d.line === lineName && d.startTs);
-            if(!lineData.length) {
-                debugLog(`Linija ${lineName}: nėra validžių duomenų su startTs.`);
-                return;
-            }
-
-            const points = [];
-            let cumulative = 0;
-
-            lineData.forEach(seg => {
-                if(seg.units > 0) {
-                   cumulative += seg.units;
-                   const t = seg.endTs || seg.startTs;
-                   if(isFinite(t)) {
-                       points.push({ x: t, y: cumulative });
-                   }
-                }
-            });
-
-            debugLog(`Linija ${lineName}: sugeneruota ${points.length} taškų. Galutinis kiekis: ${cumulative}`);
-
-            if(points.length === 0) return;
-
-            const colors = [
-              '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
-              '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',
-              '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000',
-              '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'
-            ];
-            const color = colors[idx % colors.length];
-
-            datasets.push({
-                label: lineName,
-                data: points,
-                borderColor: color,
-                backgroundColor: color,
-                // showLine: true, // Not needed for type: 'line'
-                fill: false,
-                tension: 0.1,
-                stepped: true // Step interpolation for better production view
-            });
-        });
-
-        if(datasets.length === 0) return;
-
         // Config using line type which handles {x, y} robustly if scale is linear
         const ctx = ctxEl.getContext('2d');
+        // Force white background for test
+        ctx.fillStyle = isLight ? '#fff' : '#222';
+        ctx.fillRect(0, 0, ctxEl.width, ctxEl.height);
+
         productionChartInstance = new Chart(ctx, {
             type: 'line',
-            data: { datasets },
+            data: { datasets: testDatasets },
             options: {
                 animation: false, // Disable animation to force render
                 responsive: true,
