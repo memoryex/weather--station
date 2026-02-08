@@ -297,7 +297,6 @@
 
           <div style="margin-top:auto">
             <button id="go" class="action-btn" style="width:100%; font-size:16px; padding:12px;">Generuoti ataskaitą (XLSX)</button>
-            <button id="testChartBtn" class="action-btn" style="width:100%; font-size:14px; padding:8px; margin-top:10px; background:#444;">Testuoti Grafiką (Debug)</button>
             <div id="repStatus" class="msg" style="text-align:center; margin-top:10px;">Paruošta.</div>
           </div>
         </div>
@@ -318,11 +317,31 @@
     </div>
 
     <!-- Chart Section -->
-    <!-- Chart Section -->
     <div class="card" style="margin-top:20px;">
         <h2 style="text-align:center;">Gamybos Progresas (Tendencijos)</h2>
+
+        <!-- CHART CONTROLS -->
+        <div style="display:flex; gap:15px; flex-wrap:wrap; align-items:flex-end; border-bottom:1px solid var(--border-color); padding-bottom:15px; margin-bottom:15px;">
+           <div>
+             <label class="report-label">Nuo</label>
+             <input id="chartFrom" type="datetime-local" class="report-input"/>
+           </div>
+           <div>
+             <label class="report-label">Iki</label>
+             <input id="chartTo" type="datetime-local" class="report-input"/>
+           </div>
+           <div style="flex:1; min-width:200px;">
+             <label class="report-label">Linijos (Grafikui)</label>
+             <select id="chartLines" multiple class="report-select" style="height:38px; overflow:hidden;" title="Pasirinkite linijas (Ctrl/Shift)"></select>
+           </div>
+           <div>
+             <button id="updateChartBtn" class="action-btn">Atnaujinti grafiką</button>
+           </div>
+        </div>
+
         <div id="productionChart" style="width:100%; height:400px;"></div>
-        <div id="debugLog" style="margin-top:10px; font-size:12px; color:#0f0; background:#000; font-family:monospace; max-height:200px; overflow-y:auto; border:1px solid #555; padding:10px;"></div>
+        <div id="chartStatus" class="msg" style="text-align:center;">Laukiama duomenų...</div>
+        <div id="debugLog" style="margin-top:10px; font-size:12px; color:#0f0; background:#000; font-family:monospace; max-height:200px; overflow-y:auto; border:1px solid #555; padding:10px; display:none;"></div>
     </div>
 
   </div>
@@ -978,30 +997,103 @@ function renderVizPlaceholder(id, name, type) {
         console.log(msg);
     }
 
+    async function updateChartOnly() {
+        const btn = document.getElementById('updateChartBtn');
+        const st = document.getElementById('chartStatus');
+        btn.disabled = true;
+        st.textContent = "Kraunami duomenys grafikui...";
+        st.style.color = "#9ad";
+
+        try {
+            debugLog("Pradedamas grafiko atnaujinimas...");
+            const tz = document.getElementById('tz').value;
+            const chunkDays = parseInt(document.getElementById('chunkDays').value,10)||90;
+
+            const fromInp = document.getElementById('chartFrom').value;
+            const toInp   = document.getElementById('chartTo').value;
+            const now = new Date();
+            let from = fromInp ? new Date(fromInp) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0);
+            let to   = toInp   ? new Date(toInp)   : now;
+
+            if (from >= to) {
+                 st.textContent = "Klaida: Data 'Nuo' turi būti ankstesnė už 'Iki'.";
+                 st.style.color = "#ff5252";
+                 return;
+            }
+
+            const sel = Array.from(document.getElementById('chartLines').selectedOptions).map(o=>o.value);
+            const useLines = sel.length ? LINES.filter(L=>sel.includes(L.name)) : LINES;
+
+            debugLog(`Pasirinkta linijų: ${useLines.length} (${useLines.map(l=>l.name).join(', ')})`);
+
+            const allSegments = [];
+
+            // Parallel fetch for chart speed
+            const promises = useLines.map(async (L) => {
+                const key = READ_KEYS[L.channel];
+                // For chart we only need COUNTS to calculate progress, but we need Segments logic to know valid production chunks
+                // Reusing the same logic as report for consistency:
+                // 1. Get Barcodes (to split by product)
+                // 2. Get Counts
+                // 3. Build segments
+                try {
+                    const [bar, cnt] = await Promise.all([
+                        fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays),
+                        fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays)
+                    ]);
+                    const segs = buildSegments(bar, cnt, tz);
+
+                    return segs.map(s => ({
+                        line: L.name,
+                        units: s.units,
+                        startTs: s.startTs,
+                        endTs: s.endTs
+                    }));
+                } catch(e) {
+                    console.error(e);
+                    debugLog(`Klaida linijai ${L.name}: ${e.message}`);
+                    return [];
+                }
+            });
+
+            const results = await Promise.all(promises);
+            results.forEach(r => allSegments.push(...r));
+
+            debugLog(`Surinkta ${allSegments.length} segmentų iš viso.`);
+            const success = renderChart(allSegments, from, to);
+            if(success) {
+                st.textContent = "Grafikas atnaujintas.";
+                st.style.color = "#00d67a";
+            }
+
+        } catch(e) {
+            console.error(e);
+            st.textContent = "Klaida: " + e.message;
+            st.style.color = "#ff5252";
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
     function renderChart(allData, from, to) {
         debugLog("Pradedamas renderChart...");
 
         if(typeof Highcharts === 'undefined') {
             debugLog("KLAIDA: Highcharts biblioteka nerasta!");
-            document.getElementById('repStatus').textContent = "Klaida: Highcharts nerastas.";
-            return;
+            document.getElementById('chartStatus').textContent = "Klaida: Highcharts nerastas.";
+            document.getElementById('chartStatus').style.color = "#ff5252";
+            return false;
         }
 
         const container = document.getElementById('productionChart');
-        if(!container) {
-            debugLog("KLAIDA: Konteineris productionChart nerastas.");
-            return;
-        }
+        if(!container) return false;
 
         if(!allData || allData.length === 0) {
              debugLog("Nėra duomenų grafikui (allData tuščias).");
              container.innerHTML = '<p style="text-align:center; padding-top:180px; color:#888;">Nėra duomenų grafikui</p>';
-             return;
-        }
-
-        debugLog(`Gauta ${allData.length} įrašų grafikui.`);
-        if(allData.length > 0) {
-            debugLog(`Pirmas įrašas: ${JSON.stringify(allData[0])}`);
+             document.getElementById('chartStatus').textContent = "Nėra duomenų pasirinktam laikotarpiui.";
+             document.getElementById('chartStatus').style.color = "#ffa726";
+             return false;
         }
 
         // Determine Theme Colors
@@ -1011,21 +1103,20 @@ function renderVizPlaceholder(id, name, type) {
         const bgColor = 'transparent';
 
         const lines = [...new Set(allData.map(d => d.line))];
-        debugLog(`Rastos linijos: ${lines.join(', ')}`);
-
         const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
 
         const series = [];
 
         lines.forEach((lineName, idx) => {
             const lineData = sortedData.filter(d => d.line === lineName && d.startTs);
-            if(!lineData.length) {
-                debugLog(`Linija ${lineName}: nėra duomenų su validžiais timestamp.`);
-                return;
-            }
+            if(!lineData.length) return;
 
             const points = [];
             let cumulative = 0;
+
+            // Start from 0 at the beginning of the first segment?
+            // Or just cumulative over the period?
+            // Usually cumulative over the selected period.
 
             lineData.forEach(seg => {
                 if(seg.units > 0) {
@@ -1036,8 +1127,6 @@ function renderVizPlaceholder(id, name, type) {
                    }
                 }
             });
-
-            debugLog(`Linija ${lineName}: ${points.length} taškų. Galutinis: ${cumulative}`);
 
             if(points.length === 0) return;
 
@@ -1058,29 +1147,18 @@ function renderVizPlaceholder(id, name, type) {
             });
         });
 
-        // --- TEST SERIES ---
-        const now = Date.now();
-        series.push({
-            name: "TEST DATA",
-            data: [[now, 0], [now+3600000, 50], [now+7200000, 100]],
-            color: '#ff0000',
-            dashStyle: 'ShortDash',
-            step: true
-        });
-        debugLog("Pridėta TEST DATA serija patikrinimui.");
-        // -------------------
-
         if(series.length === 0) {
-             debugLog("KLAIDA: Sugeneruota 0 serijų (net po testinės serijos pridejimo?).");
              container.innerHTML = '<p style="text-align:center; padding-top:180px; color:#888;">Nėra duomenų</p>';
-             return;
+             document.getElementById('chartStatus').textContent = "Nėra duomenų.";
+             return false;
         }
 
         try {
             Highcharts.chart('productionChart', {
                 chart: {
                     backgroundColor: bgColor,
-                    type: 'line'
+                    type: 'line',
+                    zoomType: 'x'
                 },
                 title: { text: null },
                 xAxis: {
@@ -1088,12 +1166,15 @@ function renderVizPlaceholder(id, name, type) {
                     labels: { style: { color: textColor } },
                     gridLineColor: gridColor,
                     lineColor: gridColor,
-                    tickColor: gridColor
+                    tickColor: gridColor,
+                    min: from.getTime(),
+                    max: to.getTime()
                 },
                 yAxis: {
                     title: { text: 'Pagaminta (vnt.)', style: { color: textColor } },
                     labels: { style: { color: textColor } },
-                    gridLineColor: gridColor
+                    gridLineColor: gridColor,
+                    min: 0
                 },
                 legend: {
                     itemStyle: { color: textColor },
@@ -1112,9 +1193,11 @@ function renderVizPlaceholder(id, name, type) {
                 series: series
             });
             debugLog("Highcharts.chart sėkmingai inicijuotas.");
+            return true;
         } catch(e) {
             debugLog("KLAIDA Highcharts.chart: " + e.message);
             console.error(e);
+            return false;
         }
     }
     // --- CHART LOGIC END ---
@@ -1143,10 +1226,12 @@ function renderVizPlaceholder(id, name, type) {
             btn.disabled=true; st.textContent="Startuojam…";
             const out=[];
 
+            // Serial fetch for report to avoid rate limits if list is huge,
+            // but parallel is faster if we trust ThingSpeak handling.
+            // Staying safe with serial for report generation as it was.
             for(const L of useLines){
                 const key=READ_KEYS[L.channel];
                 st.textContent=`${L.name}: barkodai…`;
-                debugLog(`Siunčiama užklausa linijai ${L.name}...`);
                 const bar = await fetchWholePeriodText   (L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
                 st.textContent=`${L.name}: COUNT…`;
                 const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount  , key, tz, from, to, chunkDays);
@@ -1160,23 +1245,16 @@ function renderVizPlaceholder(id, name, type) {
                     product: s.product,
                     start: s.startLT, end: s.endLT,
                     duration: s.duration, units: s.units, avg: s.avg,
-                    // Pass raw timestamps for chart sorting/plotting
                     startTs: s.startTs, endTs: s.endTs
                 });
                 });
             }
-
-            debugLog(`Duomenys surinkti. Eilučių: ${out.length}. Kviečiamas renderChart...`);
-            // Render Chart before export
-            st.textContent=`Generuojame grafiką…`;
-            renderChart(out, from, to);
 
             st.textContent=`Kuriame XLSX (${out.length} eilučių)…`;
             await exportXLSX(out);
             st.textContent=`✓ Baigta. Eilučių: ${out.length}`;
         } catch(err) {
             console.error(err);
-            debugLog("KLAIDA generateReport: " + err.message);
             st.textContent = "Klaida: " + (err?.message||err);
         } finally {
             btn.disabled=false;
@@ -1192,20 +1270,12 @@ function renderVizPlaceholder(id, name, type) {
         });
     });
 
-    // TEST CHART BUTTON LOGIC
-    document.getElementById('testChartBtn').addEventListener('click', () => {
-        debugLog("--- TEST CHART CLICKED ---");
-        const now = Date.now();
-        // Create dummy data mimicking 'out' structure
-        const dummyData = [
-            { line: "TEST LINE 1", startTs: now, endTs: now + 3600000, units: 10 },
-            { line: "TEST LINE 1", startTs: now + 3600000, endTs: now + 7200000, units: 20 },
-            { line: "TEST LINE 2", startTs: now, endTs: now + 3600000, units: 5 },
-            { line: "TEST LINE 2", startTs: now + 3600000, endTs: now + 7200000, units: 15 }
-        ];
-        debugLog(`Generuojamas grafikas su ${dummyData.length} testiniais įrašais...`);
-        renderChart(dummyData, new Date(now), new Date(now + 86400000));
+    // Init Chart Button
+    document.getElementById('updateChartBtn').addEventListener('click', () => {
+        updateChartOnly();
     });
+
+    // Remove Test Chart Button listener (button is removed from HTML)
 
     // Init date inputs
     const now=new Date(), start=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0);
@@ -1220,9 +1290,17 @@ function renderVizPlaceholder(id, name, type) {
 
     // Init Line Filter
     const lf=document.getElementById('lineFilter');
+    const clf=document.getElementById('chartLines');
     LINES.forEach(L=>{
+        // Populate Report Filter
         const opt=document.createElement('option');
         opt.value=L.name; opt.textContent=L.name; lf.appendChild(opt);
+
+        // Populate Chart Filter
+        if(clf) {
+            const opt2=document.createElement('option');
+            opt2.value=L.name; opt2.textContent=L.name; clf.appendChild(opt2);
+        }
     });
 
     // Checkbox "Pažymėti visus" logika
