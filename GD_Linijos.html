@@ -185,7 +185,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 </head>
 <body>
 
@@ -969,8 +969,8 @@ function renderVizPlaceholder(id, name, type) {
 
     // --- CHART LOGIC START ---
     function renderChart(allData, from, to) {
-        const ctx = document.getElementById('productionChart');
-        if(!ctx) return;
+        const ctxEl = document.getElementById('productionChart');
+        if(!ctxEl) return;
 
         // Destroy old chart
         if(productionChartInstance) {
@@ -978,10 +978,10 @@ function renderVizPlaceholder(id, name, type) {
             productionChartInstance = null;
         }
 
-        // Prepare data: Group by Hour or Day?
-        // If range > 3 days -> Day, else -> Hour
-        const diffDays = (to - from) / (1000 * 3600 * 24);
-        const isDaily = diffDays > 3;
+        if(!allData || allData.length === 0) {
+            // No data handling if needed, currently canvas just stays blank or old one removed
+            return;
+        }
 
         // Determine Theme Colors
         const isLight = document.body.classList.contains('light-mode');
@@ -989,15 +989,12 @@ function renderVizPlaceholder(id, name, type) {
         const gridColor = isLight ? '#ccc' : '#444';
         const tickColor = isLight ? '#666' : '#bbb';
 
-        // Create buckets
-        // Bucket key: timestamp of bucket start
-        // Map: LineName -> { [bucketTime]: cumulativeUnits }
-
         // 1. Get all unique lines
         const lines = [...new Set(allData.map(d => d.line))];
 
         // 2. Sort data by time
-        allData.sort((a,b) => {
+        // Create a copy to sort
+        const sortedData = [...allData].sort((a,b) => {
            const tA = a.startDate ? a.startDate.getTime() : 0;
            const tB = b.startDate ? b.startDate.getTime() : 0;
            return tA - tB;
@@ -1007,21 +1004,32 @@ function renderVizPlaceholder(id, name, type) {
         const datasets = [];
 
         lines.forEach((lineName, idx) => {
-            const lineData = allData.filter(d => d.line === lineName && d.startDate);
+            const lineData = sortedData.filter(d => d.line === lineName && d.startDate);
+
+            // If line has no segments with valid date, skip? No, keep it but empty
+            if(!lineData.length) return;
+
             const points = [];
             let cumulative = 0;
 
             // We'll iterate through line segments and add points at the END of each segment
+            // To make step chart look correct starting from 0, we might need an initial point?
+            // Let's add first point at tStart with 0 if needed, but let's stick to simple accumulation.
+
             lineData.forEach(seg => {
                 if(seg.units > 0) {
                    cumulative += seg.units;
                    // Use numeric timestamp for X-axis (linear scale)
-                   const t = (seg.endDate || seg.startDate || new Date()).getTime();
-                   points.push({ x: t, y: cumulative });
+                   const t = (seg.endDate || seg.startDate).getTime();
+                   if(!isNaN(t)) {
+                       points.push({ x: t, y: cumulative });
+                   }
                 }
             });
 
-            // Use a color for each line (simple hash or predefined list)
+            if(points.length === 0) return;
+
+            // Use a color for each line
             const colors = [
               '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
               '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',
@@ -1032,17 +1040,19 @@ function renderVizPlaceholder(id, name, type) {
 
             datasets.push({
                 label: lineName,
-                data: points, // Chart.js can handle {x, y} objects if 'time' scale is used, but simple scatter/line works too.
-                              // Actually, for better timeline, let's use 'scatter' with showLine: true or 'line'.
+                data: points,
                 borderColor: color,
                 backgroundColor: color,
                 fill: false,
                 tension: 0.1,
-                stepped: true // Step chart shows production clearly
+                stepped: true
             });
         });
 
+        if(datasets.length === 0) return;
+
         // Config
+        const ctx = ctxEl.getContext('2d');
         productionChartInstance = new Chart(ctx, {
             type: 'line',
             data: { datasets },
@@ -1062,6 +1072,7 @@ function renderVizPlaceholder(id, name, type) {
                             color: tickColor,
                             callback: function(value) {
                                 const d = new Date(value);
+                                // Format: YYYY-MM-DD HH:mm
                                 return d.toLocaleDateString('lt-LT') + ' ' + d.toLocaleTimeString('lt-LT', {hour:'2-digit', minute:'2-digit'});
                             },
                             maxRotation: 45,
