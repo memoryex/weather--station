@@ -74,7 +74,7 @@
   .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
 
   .file-section { background:var(--bg-panel); padding:15px; border-radius:6px; border:1px solid var(--border-color); }
-  .line-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+  .line-header { display:flex; justify-content:flex-start; gap:15px; align-items:center; margin-bottom:5px; }
   .line-header label { margin:0; cursor:pointer; }
 
   /* --- STATUS TAB STYLES --- */
@@ -305,7 +305,7 @@
         <!-- Dešinė pusė: Linijų sąrašas -->
         <div class="report-right">
           <div class="line-header">
-            <label class="report-label" style="margin-bottom:0">Linijos (Ctrl/Shift)</label>
+            <label class="report-label" style="margin-bottom:0">Linijos (Ctrl/Shift – keli pasirinkimai)</label>
             <div>
               <input type="checkbox" id="selectAllLines" style="vertical-align:middle;">
               <label for="selectAllLines" class="report-label" style="display:inline; vertical-align:middle;">Pažymėti visus</label>
