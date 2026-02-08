@@ -1140,8 +1140,9 @@ function renderVizPlaceholder(id, name, type) {
 
         // Determine Theme Colors
         const isLight = document.body.classList.contains('light-mode');
-        const textColor = isLight ? '#333' : '#fff';
-        const gridColor = isLight ? '#ccc' : '#333';
+        // Make text brighter in dark mode (#eee) and grid lighter (#444) for better contrast
+        const textColor = isLight ? '#333' : '#eee';
+        const gridColor = isLight ? '#ccc' : '#444';
         const bgColor = 'transparent';
 
         // Get selected chart type
