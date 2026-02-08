@@ -185,6 +185,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -314,6 +315,15 @@
 
       </div>
     </div>
+
+    <!-- Chart Section -->
+    <div class="card" style="margin-top:20px;">
+        <h2 style="text-align:center; color:#fff;">Gamybos Progresas (Tendencijos)</h2>
+        <div style="position: relative; height:400px; width:100%">
+            <canvas id="productionChart"></canvas>
+        </div>
+    </div>
+
   </div>
 </div>
 
@@ -830,6 +840,8 @@ function renderVizPlaceholder(id, name, type) {
    ================================================================================================ */
 (function InitReport(){
 
+    let productionChartInstance = null; // Global for chart instance
+
     async function fetchFieldWindow(channel, field, readKey, startStr, endStr, tz){
         const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
         const qs=new URLSearchParams({ api_key:readKey, results:'8000', start:startStr, end:endStr, timezone:tz });
@@ -955,6 +967,130 @@ function renderVizPlaceholder(id, name, type) {
         saveAs(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), fname);
     }
 
+    // --- CHART LOGIC START ---
+    function renderChart(allData, from, to) {
+        const ctx = document.getElementById('productionChart');
+        if(!ctx) return;
+
+        // Destroy old chart
+        if(productionChartInstance) {
+            productionChartInstance.destroy();
+            productionChartInstance = null;
+        }
+
+        // Prepare data: Group by Hour or Day?
+        // If range > 3 days -> Day, else -> Hour
+        const diffDays = (to - from) / (1000 * 3600 * 24);
+        const isDaily = diffDays > 3;
+
+        // Create buckets
+        // Bucket key: timestamp of bucket start
+        // Map: LineName -> { [bucketTime]: cumulativeUnits }
+
+        // 1. Get all unique lines
+        const lines = [...new Set(allData.map(d => d.line))];
+
+        // 2. Sort data by time
+        allData.sort((a,b) => {
+           const tA = a.startDate ? a.startDate.getTime() : 0;
+           const tB = b.startDate ? b.startDate.getTime() : 0;
+           return tA - tB;
+        });
+
+        // 3. Process cumulative counts
+        const datasets = [];
+
+        lines.forEach((lineName, idx) => {
+            const lineData = allData.filter(d => d.line === lineName && d.startDate);
+            const points = [];
+            let cumulative = 0;
+
+            // We'll iterate through line segments and add points at the END of each segment
+            lineData.forEach(seg => {
+                if(seg.units > 0) {
+                   cumulative += seg.units;
+                   points.push({ x: seg.endDate || seg.startDate, y: cumulative });
+                }
+            });
+
+            // Use a color for each line (simple hash or predefined list)
+            const colors = [
+              '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
+              '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',
+              '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000',
+              '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'
+            ];
+            const color = colors[idx % colors.length];
+
+            datasets.push({
+                label: lineName,
+                data: points, // Chart.js can handle {x, y} objects if 'time' scale is used, but simple scatter/line works too.
+                              // Actually, for better timeline, let's use 'scatter' with showLine: true or 'line'.
+                borderColor: color,
+                backgroundColor: color,
+                fill: false,
+                tension: 0.1,
+                stepped: true // Step chart shows production clearly
+            });
+        });
+
+        // Config
+        productionChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                },
+                scales: {
+                    x: {
+                        type: 'time', // Requires chartjs-adapter-date-fns or moment. But we didn't include adapter.
+                                      // Fallback: use linear scale with labels or just simple category if we binned.
+                                      // Better: since we don't have adapter, let's map X to readable string and sort?
+                                      // Actually, without adapter, time scale won't work easily.
+                                      // Alternative: Add chartjs-adapter-date-fns to <head> OR implement custom bucket logic.
+                        // Let's add adapter-date-fns in next step? Or proceed with simple labels?
+                        // Simple labels approach: create a unified timeline of buckets.
+                        // Wait, user asked for "trends".
+                        // Let's just use numeric time and callback for ticks to format date.
+                        type: 'linear',
+                        position: 'bottom',
+                        ticks: {
+                            callback: function(value) {
+                                const d = new Date(value);
+                                // Simple format
+                                return d.toLocaleDateString('lt-LT') + ' ' + d.toLocaleTimeString('lt-LT', {hour:'2-digit', minute:'2-digit'});
+                            },
+                            maxRotation: 45,
+                            minRotation: 45
+                        },
+                        title: { display: true, text: 'Laikas' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Pagaminta (vnt.)' }
+                    }
+                },
+                plugins: {
+                    title: { display: false },
+                    tooltip: {
+                         callbacks: {
+                             title: (ctx) => {
+                                 const val = ctx[0].parsed.x;
+                                 return new Date(val).toLocaleString('lt-LT');
+                             }
+                         }
+                    }
+                }
+            }
+        });
+    }
+    // --- CHART LOGIC END ---
+
     async function generateReport(){
         const btn=document.getElementById('go');
         const st =document.getElementById('repStatus');
@@ -996,6 +1132,11 @@ function renderVizPlaceholder(id, name, type) {
             });
             });
         }
+
+        // Render Chart before export
+        st.textContent=`Generuojame grafiką…`;
+        renderChart(out, from, to);
+
         st.textContent=`Kuriame XLSX (${out.length} eilučių)…`;
         await exportXLSX(out);
         st.textContent=`✓ Baigta. Eilučių: ${out.length}`;
