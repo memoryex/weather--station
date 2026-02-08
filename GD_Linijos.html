@@ -969,6 +969,11 @@ function renderVizPlaceholder(id, name, type) {
 
     // --- CHART LOGIC START ---
     function renderChart(allData, from, to) {
+        if(typeof Chart === 'undefined') {
+            document.getElementById('repStatus').textContent = "Klaida: Chart.js nerastas.";
+            return;
+        }
+
         const ctxEl = document.getElementById('productionChart');
         if(!ctxEl) return;
 
@@ -979,8 +984,12 @@ function renderVizPlaceholder(id, name, type) {
         }
 
         if(!allData || allData.length === 0) {
-            // No data handling if needed, currently canvas just stays blank or old one removed
-            return;
+             const ctx = ctxEl.getContext('2d');
+             ctx.clearRect(0, 0, ctxEl.width, ctxEl.height);
+             ctx.fillStyle = '#888';
+             ctx.font = '16px Arial';
+             ctx.fillText("Nėra duomenų grafikui", ctxEl.width/2 - 50, ctxEl.height/2);
+             return;
         }
 
         // Determine Theme Colors
@@ -989,24 +998,13 @@ function renderVizPlaceholder(id, name, type) {
         const gridColor = isLight ? '#ccc' : '#444';
         const tickColor = isLight ? '#666' : '#bbb';
 
-        // 1. Get all unique lines
         const lines = [...new Set(allData.map(d => d.line))];
+        const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
 
-        // 2. Sort data by time using raw timestamps
-        // Create a copy to sort
-        const sortedData = [...allData].sort((a,b) => {
-           const tA = a.startTs || 0;
-           const tB = b.startTs || 0;
-           return tA - tB;
-        });
-
-        // 3. Process cumulative counts
         const datasets = [];
 
         lines.forEach((lineName, idx) => {
-            // Filter by line name. Note: seg.startTs should be present.
             const lineData = sortedData.filter(d => d.line === lineName && d.startTs);
-
             if(!lineData.length) return;
 
             const points = [];
@@ -1015,8 +1013,6 @@ function renderVizPlaceholder(id, name, type) {
             lineData.forEach(seg => {
                 if(seg.units > 0) {
                    cumulative += seg.units;
-                   // Use numeric timestamp for X-axis (linear scale)
-                   // Fallback: if endTs is missing, use startTs.
                    const t = seg.endTs || seg.startTs;
                    if(isFinite(t)) {
                        points.push({ x: t, y: cumulative });
@@ -1026,7 +1022,6 @@ function renderVizPlaceholder(id, name, type) {
 
             if(points.length === 0) return;
 
-            // Use a color for each line
             const colors = [
               '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
               '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',
@@ -1040,18 +1035,19 @@ function renderVizPlaceholder(id, name, type) {
                 data: points,
                 borderColor: color,
                 backgroundColor: color,
+                showLine: true, // Required for scatter plot to behave as line chart
                 fill: false,
                 tension: 0.1,
-                stepped: true
+                stepped: true // Step interpolation for better production view
             });
         });
 
         if(datasets.length === 0) return;
 
-        // Config
+        // Config using scatter type which handles {x, y} robustly
         const ctx = ctxEl.getContext('2d');
         productionChartInstance = new Chart(ctx, {
-            type: 'line',
+            type: 'scatter', // Use scatter with showLine: true
             data: { datasets },
             options: {
                 responsive: true,
@@ -1069,7 +1065,6 @@ function renderVizPlaceholder(id, name, type) {
                             color: tickColor,
                             callback: function(value) {
                                 const d = new Date(value);
-                                // Format: YYYY-MM-DD HH:mm
                                 return d.toLocaleDateString('lt-LT') + ' ' + d.toLocaleTimeString('lt-LT', {hour:'2-digit', minute:'2-digit'});
                             },
                             maxRotation: 45,
