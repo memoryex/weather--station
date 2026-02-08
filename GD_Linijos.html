@@ -1286,10 +1286,10 @@ function renderVizPlaceholder(id, name, type) {
     }
     // --- INSIGHTS LOGIC START ---
     function getInsightText(minutes) {
-        if (minutes >= 60) return "Linija buvo neaktyvi";
-        if (minutes >= 35) return "Galimai nebuvo detalių";
-        if (minutes >= 30) return "Galimai buvo pietų pertrauka";
-        if (minutes >= 10) return "Galimai buvo pertrauka";
+        if (minutes >= 60) return "Linija buvo neaktyvi / ilga pertrauka";
+        if (minutes >= 33) return "Nebuvo detalių / ruošimasis kitam gaminiui";
+        if (minutes >= 25) return "Pietų pertrauka";
+        if (minutes >= 8) return "Pertrauka";
         return "";
     }
 
@@ -1509,18 +1509,32 @@ function renderVizPlaceholder(id, name, type) {
         updateChartOnly();
     });
 
-    // Remove Test Chart Button listener (button is removed from HTML)
+    // Configure Highcharts to use local time (matches browser)
+    if(typeof Highcharts !== 'undefined') {
+        Highcharts.setOptions({
+            time: { useUTC: false }
+        });
+    }
 
-    // Init date inputs
-    const now=new Date(), start=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0);
+    // Init date inputs (Last 24 hours)
+    const now=new Date();
+    // Default: 24h ago
+    const start=new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
     const fmt=d=>{
         const y=d.getFullYear(), M=String(d.getMonth()+1).padStart(2,'0'),
             D=String(d.getDate()).padStart(2,'0'), h=String(d.getHours()).padStart(2,'0'),
             m=String(d.getMinutes()).padStart(2,'0');
         return `${y}-${M}-${D}T${h}:${m}`;
     };
+
+    // Set default values for Report tab inputs
     document.getElementById('from').value=fmt(start);
     document.getElementById('to').value  =fmt(now);
+
+    // Set default values for Chart inputs (same logic)
+    if(document.getElementById('chartFrom')) document.getElementById('chartFrom').value=fmt(start);
+    if(document.getElementById('chartTo'))   document.getElementById('chartTo').value=fmt(now);
 
     // Init Line Filter
     const lf=document.getElementById('lineFilter');
@@ -1580,6 +1594,12 @@ function renderVizPlaceholder(id, name, type) {
             }
             csa.checked = all;
         });
+
+        // Auto-load chart on init (after filters are populated)
+        // Give a small delay to ensure DOM is ready and filters are selected
+        setTimeout(() => {
+            updateChartOnly();
+        }, 500);
     }
 
 })();
