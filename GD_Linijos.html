@@ -915,8 +915,8 @@ function renderVizPlaceholder(id, name, type) {
             segs.push({
             barcode:B0.val, product: prodName,
             startLT, endLT, duration: formatDuration(durationMs), units, avg,
-            startDate: startLT ? new Date(startLT) : null,
-            endDate:   endLT   ? new Date(endLT)   : null
+            startTs: B0.t, // Raw timestamp for chart sorting
+            endTs: lastT || null // Raw timestamp for chart sorting
             });
         }
         return segs;
@@ -992,11 +992,11 @@ function renderVizPlaceholder(id, name, type) {
         // 1. Get all unique lines
         const lines = [...new Set(allData.map(d => d.line))];
 
-        // 2. Sort data by time
+        // 2. Sort data by time using raw timestamps
         // Create a copy to sort
         const sortedData = [...allData].sort((a,b) => {
-           const tA = a.startDate ? a.startDate.getTime() : 0;
-           const tB = b.startDate ? b.startDate.getTime() : 0;
+           const tA = a.startTs || 0;
+           const tB = b.startTs || 0;
            return tA - tB;
         });
 
@@ -1004,24 +1004,21 @@ function renderVizPlaceholder(id, name, type) {
         const datasets = [];
 
         lines.forEach((lineName, idx) => {
-            const lineData = sortedData.filter(d => d.line === lineName && d.startDate);
+            // Filter by line name. Note: seg.startTs should be present.
+            const lineData = sortedData.filter(d => d.line === lineName && d.startTs);
 
-            // If line has no segments with valid date, skip? No, keep it but empty
             if(!lineData.length) return;
 
             const points = [];
             let cumulative = 0;
 
-            // We'll iterate through line segments and add points at the END of each segment
-            // To make step chart look correct starting from 0, we might need an initial point?
-            // Let's add first point at tStart with 0 if needed, but let's stick to simple accumulation.
-
             lineData.forEach(seg => {
                 if(seg.units > 0) {
                    cumulative += seg.units;
                    // Use numeric timestamp for X-axis (linear scale)
-                   const t = (seg.endDate || seg.startDate).getTime();
-                   if(!isNaN(t)) {
+                   // Fallback: if endTs is missing, use startTs.
+                   const t = seg.endTs || seg.startTs;
+                   if(isFinite(t)) {
                        points.push({ x: t, y: cumulative });
                    }
                 }
@@ -1143,7 +1140,8 @@ function renderVizPlaceholder(id, name, type) {
                 product: s.product,
                 start: s.startLT, end: s.endLT,
                 duration: s.duration, units: s.units, avg: s.avg,
-                startDate: s.startDate, endDate: s.endDate
+                // Pass raw timestamps for chart sorting/plotting
+                startTs: s.startTs, endTs: s.endTs
             });
             });
         }
