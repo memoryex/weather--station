@@ -297,6 +297,7 @@
 
           <div style="margin-top:auto">
             <button id="go" class="action-btn" style="width:100%; font-size:16px; padding:12px;">Generuoti ataskaitą (XLSX)</button>
+            <button id="testChartBtn" class="action-btn" style="width:100%; font-size:14px; padding:8px; margin-top:10px; background:#444;">Testuoti Grafiką (Debug)</button>
             <div id="repStatus" class="msg" style="text-align:center; margin-top:10px;">Paruošta.</div>
           </div>
         </div>
@@ -1189,6 +1190,21 @@ function renderVizPlaceholder(id, name, type) {
             document.getElementById('repStatus').textContent = "Klaida: " + (err?.message||err);
             document.getElementById('go').disabled=false;
         });
+    });
+
+    // TEST CHART BUTTON LOGIC
+    document.getElementById('testChartBtn').addEventListener('click', () => {
+        debugLog("--- TEST CHART CLICKED ---");
+        const now = Date.now();
+        // Create dummy data mimicking 'out' structure
+        const dummyData = [
+            { line: "TEST LINE 1", startTs: now, endTs: now + 3600000, units: 10 },
+            { line: "TEST LINE 1", startTs: now + 3600000, endTs: now + 7200000, units: 20 },
+            { line: "TEST LINE 2", startTs: now, endTs: now + 3600000, units: 5 },
+            { line: "TEST LINE 2", startTs: now + 3600000, endTs: now + 7200000, units: 15 }
+        ];
+        debugLog(`Generuojamas grafikas su ${dummyData.length} testiniais įrašais...`);
+        renderChart(dummyData, new Date(now), new Date(now + 86400000));
     });
 
     // Init date inputs
