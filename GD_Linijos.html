@@ -321,6 +321,7 @@
     <div class="card" style="margin-top:20px;">
         <h2 style="text-align:center;">Gamybos Progresas (Tendencijos)</h2>
         <div id="productionChart" style="width:100%; height:400px;"></div>
+        <div id="debugLog" style="margin-top:10px; font-size:12px; color:#0f0; background:#000; font-family:monospace; max-height:200px; overflow-y:auto; border:1px solid #555; padding:10px;"></div>
     </div>
 
   </div>
@@ -967,18 +968,39 @@ function renderVizPlaceholder(id, name, type) {
     }
 
     // --- CHART LOGIC START ---
+    function debugLog(msg) {
+        const el = document.getElementById('debugLog');
+        if(el) {
+            el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+        }
+        console.log(msg);
+    }
+
     function renderChart(allData, from, to) {
+        debugLog("Pradedamas renderChart...");
+
         if(typeof Highcharts === 'undefined') {
+            debugLog("KLAIDA: Highcharts biblioteka nerasta!");
             document.getElementById('repStatus').textContent = "Klaida: Highcharts nerastas.";
             return;
         }
 
         const container = document.getElementById('productionChart');
-        if(!container) return;
+        if(!container) {
+            debugLog("KLAIDA: Konteineris productionChart nerastas.");
+            return;
+        }
 
         if(!allData || allData.length === 0) {
+             debugLog("Nėra duomenų grafikui (allData tuščias).");
              container.innerHTML = '<p style="text-align:center; padding-top:180px; color:#888;">Nėra duomenų grafikui</p>';
              return;
+        }
+
+        debugLog(`Gauta ${allData.length} įrašų grafikui.`);
+        if(allData.length > 0) {
+            debugLog(`Pirmas įrašas: ${JSON.stringify(allData[0])}`);
         }
 
         // Determine Theme Colors
@@ -988,13 +1010,18 @@ function renderVizPlaceholder(id, name, type) {
         const bgColor = 'transparent';
 
         const lines = [...new Set(allData.map(d => d.line))];
+        debugLog(`Rastos linijos: ${lines.join(', ')}`);
+
         const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
 
         const series = [];
 
         lines.forEach((lineName, idx) => {
             const lineData = sortedData.filter(d => d.line === lineName && d.startTs);
-            if(!lineData.length) return;
+            if(!lineData.length) {
+                debugLog(`Linija ${lineName}: nėra duomenų su validžiais timestamp.`);
+                return;
+            }
 
             const points = [];
             let cumulative = 0;
@@ -1004,11 +1031,12 @@ function renderVizPlaceholder(id, name, type) {
                    cumulative += seg.units;
                    const t = seg.endTs || seg.startTs;
                    if(isFinite(t)) {
-                       // Highcharts expects [timestamp, value]
                        points.push([t, cumulative]);
                    }
                 }
             });
+
+            debugLog(`Linija ${lineName}: ${points.length} taškų. Galutinis: ${cumulative}`);
 
             if(points.length === 0) return;
 
@@ -1025,50 +1053,68 @@ function renderVizPlaceholder(id, name, type) {
                 name: lineName,
                 data: points,
                 color: color,
-                step: true // Stepped line
+                step: true
             });
         });
 
+        // --- TEST SERIES ---
+        const now = Date.now();
+        series.push({
+            name: "TEST DATA",
+            data: [[now, 0], [now+3600000, 50], [now+7200000, 100]],
+            color: '#ff0000',
+            dashStyle: 'ShortDash',
+            step: true
+        });
+        debugLog("Pridėta TEST DATA serija patikrinimui.");
+        // -------------------
+
         if(series.length === 0) {
+             debugLog("KLAIDA: Sugeneruota 0 serijų (net po testinės serijos pridejimo?).");
              container.innerHTML = '<p style="text-align:center; padding-top:180px; color:#888;">Nėra duomenų</p>';
              return;
         }
 
-        // Render Highchart
-        Highcharts.chart('productionChart', {
-            chart: {
-                backgroundColor: bgColor,
-                type: 'line'
-            },
-            title: { text: null },
-            xAxis: {
-                type: 'datetime',
-                labels: { style: { color: textColor } },
-                gridLineColor: gridColor,
-                lineColor: gridColor,
-                tickColor: gridColor
-            },
-            yAxis: {
-                title: { text: 'Pagaminta (vnt.)', style: { color: textColor } },
-                labels: { style: { color: textColor } },
-                gridLineColor: gridColor
-            },
-            legend: {
-                itemStyle: { color: textColor },
-                itemHoverStyle: { color: textColor }
-            },
-            tooltip: {
-                xDateFormat: '%Y-%m-%d %H:%M:%S',
-                shared: true
-            },
-            plotOptions: {
-                line: {
-                    marker: { enabled: false }
-                }
-            },
-            credits: { enabled: false },
-            series: series
-        });
+        try {
+            Highcharts.chart('productionChart', {
+                chart: {
+                    backgroundColor: bgColor,
+                    type: 'line'
+                },
+                title: { text: null },
+                xAxis: {
+                    type: 'datetime',
+                    labels: { style: { color: textColor } },
+                    gridLineColor: gridColor,
+                    lineColor: gridColor,
+                    tickColor: gridColor
+                },
+                yAxis: {
+                    title: { text: 'Pagaminta (vnt.)', style: { color: textColor } },
+                    labels: { style: { color: textColor } },
+                    gridLineColor: gridColor
+                },
+                legend: {
+                    itemStyle: { color: textColor },
+                    itemHoverStyle: { color: textColor }
+                },
+                tooltip: {
+                    xDateFormat: '%Y-%m-%d %H:%M:%S',
+                    shared: true
+                },
+                plotOptions: {
+                    line: {
+                        marker: { enabled: false }
+                    }
+                },
+                credits: { enabled: false },
+                series: series
+            });
+            debugLog("Highcharts.chart sėkmingai inicijuotas.");
+        } catch(e) {
+            debugLog("KLAIDA Highcharts.chart: " + e.message);
+            console.error(e);
+        }
     }
     // --- CHART LOGIC END ---
 
