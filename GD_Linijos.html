@@ -362,6 +362,13 @@
 
         <div id="productionChart" style="width:100%; height:400px;"></div>
         <div id="chartStatus" class="msg" style="text-align:center;">Laukiama duomenų...</div>
+
+        <!-- INSIGHTS SECTION -->
+        <div id="insightsSection" style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:15px; display:none;">
+            <h3 style="margin:0 0 10px 0; font-size:18px; color:var(--text-header);">Gamybos įžvalgos (Prastovos)</h3>
+            <div id="insightsContent" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
         <div id="debugLog" style="margin-top:10px; font-size:12px; color:#0f0; background:#000; font-family:monospace; max-height:200px; overflow-y:auto; border:1px solid #555; padding:10px; display:none;"></div>
     </div>
 
@@ -1092,6 +1099,10 @@ function renderVizPlaceholder(id, name, type) {
 
             debugLog(`Surinkta ${allSegments.length} segmentų iš viso.`);
             const success = renderChart(allSegments, from, to);
+
+            // Generate Insights
+            generateInsights(allSegments, useLines);
+
             if(success) {
                 st.textContent = "Grafikas atnaujintas.";
                 st.style.color = "#00d67a";
@@ -1258,6 +1269,157 @@ function renderVizPlaceholder(id, name, type) {
             return false;
         }
     }
+    // --- INSIGHTS LOGIC START ---
+    function getInsightText(minutes) {
+        if (minutes >= 60) return "Linija buvo neaktyvi";
+        if (minutes >= 35) return "Galimai nebuvo detalių";
+        if (minutes >= 30) return "Galimai buvo pietų pertrauka";
+        if (minutes >= 10) return "Galimai buvo pertrauka";
+        return "";
+    }
+
+    function generateInsights(allData, selectedLines) {
+        const container = document.getElementById('insightsSection');
+        const content = document.getElementById('insightsContent');
+        if (!container || !content) return;
+
+        content.innerHTML = "";
+        let hasInsights = false;
+
+        // Group data by line
+        const lines = selectedLines.map(l => l.name);
+
+        lines.forEach(lineName => {
+            // Filter data for this line, sorted by time
+            // In "Raw" mode, allData has {line, startTs, val}
+            // In "Calculated" mode, allData has {line, startTs, endTs, units...}
+            // We need to normalize or detect.
+            // Actually, updateChartOnly pushes standardized objects?
+            // Wait, updateChartOnly pushes different objects based on mode!
+            // Raw: {line, startTs, val}
+            // Calc: {line, units, startTs, endTs}
+
+            // Let's inspect the data structure passed.
+            // If raw, we have points (t, v). We look for gaps where v is constant.
+            // If calc, we have segments (start, end, units). Gaps are between segments?
+            // Actually, calculated segments are "production events".
+            // If there's a gap between segments, that's idle time.
+
+            // Let's handle both.
+            const isRaw = document.getElementById('chartCumulative')?.checked ?? false;
+            let gaps = [];
+
+            const lineData = allData.filter(d => d.line === lineName).sort((a,b) => (a.startTs||0) - (b.startTs||0));
+            if (lineData.length < 2) return;
+
+            if (isRaw) {
+                // RAW MODE: Look for flat regions in (t, v)
+                // If v[i] == v[i-1], potential gap?
+                // Actually, if v increases, production happened.
+                // If v stays same for long time, that's a gap.
+                // We iterate points.
+                // t[i] - t[i-1] is the sampling interval (usually 1-5 mins).
+                // If v[i] == v[i-1], no production in that interval.
+                // We chain these intervals.
+
+                let gapStart = null;
+
+                for(let i=1; i<lineData.length; i++) {
+                    const prev = lineData[i-1];
+                    const curr = lineData[i];
+
+                    // Check if value changed
+                    if (curr.val > prev.val) {
+                        // Production happened. Gap ended (if any).
+                        if (gapStart !== null) {
+                            const duration = (curr.startTs - gapStart) / 60000; // minutes
+                            if (duration >= 10) {
+                                gaps.push({ start: gapStart, end: curr.startTs, duration });
+                            }
+                            gapStart = null;
+                        }
+                    } else {
+                        // No production (val same or reset).
+                        // If reset (curr < prev), we probably shouldn't count it as a "gap" in the same sense, or maybe we should?
+                        // Let's assume reset is instantaneous.
+                        if (curr.val < prev.val) {
+                            gapStart = null; // Reset state
+                        } else {
+                            // Value matches.
+                            if (gapStart === null) gapStart = prev.startTs;
+                        }
+                    }
+                }
+                // Check trailing gap
+                if (gapStart !== null) {
+                    const last = lineData[lineData.length-1];
+                    const duration = (last.startTs - gapStart) / 60000;
+                    if (duration >= 10) {
+                        gaps.push({ start: gapStart, end: last.startTs, duration });
+                    }
+                }
+
+            } else {
+                // CALCULATED MODE: Segments of production.
+                // Gaps are the time between end of segment[i] and start of segment[i+1].
+                // segment[i].endTs is the last production time of that segment.
+                // segment[i+1].startTs is the first production time of next segment.
+
+                for(let i=0; i<lineData.length-1; i++) {
+                    const seg1 = lineData[i];
+                    const seg2 = lineData[i+1];
+
+                    // Gap is between seg1.endTs and seg2.startTs
+                    // Note: buildSegments logic:
+                    // seg.startTs = First barcode time
+                    // seg.endTs = Last count update time in that barcode group
+
+                    // Ideally, the gap is (seg2.startTs - seg1.endTs).
+                    // If seg1.endTs is missing (single point?), use seg1.startTs.
+                    const t1 = seg1.endTs || seg1.startTs;
+                    const t2 = seg2.startTs;
+
+                    if (t1 && t2 && t2 > t1) {
+                        const duration = (t2 - t1) / 60000;
+                        if (duration >= 10) {
+                            gaps.push({ start: t1, end: t2, duration });
+                        }
+                    }
+                }
+            }
+
+            // Render gaps for this line
+            if (gaps.length > 0) {
+                hasInsights = true;
+                const lineDiv = document.createElement('div');
+                lineDiv.style.background = 'var(--bg-input)';
+                lineDiv.style.padding = '10px';
+                lineDiv.style.borderRadius = '6px';
+                lineDiv.style.borderLeft = '4px solid var(--accent-color)';
+
+                let html = `<div style="font-weight:bold; margin-bottom:4px; color:var(--text-main);">${lineName}</div>`;
+                gaps.forEach(g => {
+                    const reason = getInsightText(g.duration);
+                    if (!reason) return; // Should not happen given >=10 check
+                    const timeStr = `${toLT(g.start).slice(11,16)} - ${toLT(g.end).slice(11,16)}`;
+                    const durStr = Math.round(g.duration) + " min";
+                    html += `<div style="font-size:13px; color:var(--text-muted); margin-left:10px;">
+                               • <b>${timeStr}</b> (${durStr}): <span style="color:#ffa726">${reason}</span>
+                             </div>`;
+                });
+                lineDiv.innerHTML = html;
+                content.appendChild(lineDiv);
+            }
+        });
+
+        if (hasInsights) {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    }
+    // --- INSIGHTS LOGIC END ---
+
     // --- CHART LOGIC END ---
 
     async function generateReport(){
