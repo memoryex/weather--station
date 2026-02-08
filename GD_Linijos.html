@@ -330,9 +330,20 @@
              <label class="report-label">Iki</label>
              <input id="chartTo" type="datetime-local" class="report-input"/>
            </div>
+           <div>
+             <label class="report-label">Grafiko tipas</label>
+             <select id="chartType" class="report-select">
+               <option value="line" selected>Trendline (Line)</option>
+               <option value="spline">Spline (Curved)</option>
+               <option value="bar">Bar (Horizontal)</option>
+               <option value="column">Column (Vertical)</option>
+               <option value="area">Area</option>
+               <option value="scatter">Scatter</option>
+             </select>
+           </div>
            <div style="flex:1; min-width:200px;">
              <label class="report-label">Linijos (Grafikui)</label>
-             <select id="chartLines" multiple class="report-select" style="height:38px; overflow:hidden;" title="Pasirinkite linijas (Ctrl/Shift)"></select>
+             <select id="chartLines" multiple class="report-select" size="4" style="height:auto;" title="Pasirinkite linijas (Ctrl/Shift)"></select>
            </div>
            <div>
              <button id="updateChartBtn" class="action-btn">Atnaujinti grafiką</button>
@@ -1102,6 +1113,11 @@ function renderVizPlaceholder(id, name, type) {
         const gridColor = isLight ? '#ccc' : '#333';
         const bgColor = 'transparent';
 
+        // Get selected chart type
+        const typeEl = document.getElementById('chartType');
+        const selectedType = typeEl ? typeEl.value : 'line';
+        const isStep = (selectedType === 'line'); // only use step:true logic if strictly trendline
+
         const lines = [...new Set(allData.map(d => d.line))];
         const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
 
@@ -1113,10 +1129,6 @@ function renderVizPlaceholder(id, name, type) {
 
             const points = [];
             let cumulative = 0;
-
-            // Start from 0 at the beginning of the first segment?
-            // Or just cumulative over the period?
-            // Usually cumulative over the selected period.
 
             lineData.forEach(seg => {
                 if(seg.units > 0) {
@@ -1143,7 +1155,7 @@ function renderVizPlaceholder(id, name, type) {
                 name: lineName,
                 data: points,
                 color: color,
-                step: true
+                step: isStep
             });
         });
 
@@ -1157,7 +1169,7 @@ function renderVizPlaceholder(id, name, type) {
             Highcharts.chart('productionChart', {
                 chart: {
                     backgroundColor: bgColor,
-                    type: 'line',
+                    type: selectedType === 'line' ? 'line' : selectedType,
                     zoomType: 'x'
                 },
                 title: { text: null },
