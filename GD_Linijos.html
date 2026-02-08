@@ -353,7 +353,7 @@
            </div>
            <div style="display:flex; flex-direction:column; gap:8px;">
              <div>
-                <input type="checkbox" id="chartCumulative" style="vertical-align:middle;">
+                <input type="checkbox" id="chartCumulative" style="vertical-align:middle;" checked>
                 <label for="chartCumulative" style="font-size:13px; color:var(--text-muted); cursor:pointer; vertical-align:middle;">Kaupiamasis</label>
              </div>
              <button id="updateChartBtn" class="action-btn">Atnaujinti grafiką</button>
@@ -1331,23 +1331,35 @@ function renderVizPlaceholder(id, name, type) {
 
     // Checkbox "Pažymėti visus" logika
     const sa = document.getElementById('selectAllLines');
-    sa.addEventListener('change', () => {
-        for(let i=0; i<lf.options.length; i++){
-        lf.options[i].selected = sa.checked;
-        }
-    });
+    // Numatytasis: pažymėta
+    if(sa) {
+        sa.checked = true;
+        for(let i=0; i<lf.options.length; i++) lf.options[i].selected = true;
+
+        sa.addEventListener('change', () => {
+            for(let i=0; i<lf.options.length; i++){
+            lf.options[i].selected = sa.checked;
+            }
+        });
+    }
     // Jei vartotojas ranka nužymi kažką, nuimam varnelę "visus"
-    lf.addEventListener('change', () => {
-        let all=true;
-        for(let i=0; i<lf.options.length; i++){
-        if(!lf.options[i].selected){ all=false; break; }
-        }
-        sa.checked = all;
-    });
+    if(lf && sa) {
+        lf.addEventListener('change', () => {
+            let all=true;
+            for(let i=0; i<lf.options.length; i++){
+            if(!lf.options[i].selected){ all=false; break; }
+            }
+            sa.checked = all;
+        });
+    }
 
     // Checkbox "Pažymėti visus" (Chart) logika
     const csa = document.getElementById('selectAllChartLines');
     if(csa && clf) {
+        // Numatytasis: pažymėta
+        csa.checked = true;
+        for(let i=0; i<clf.options.length; i++) clf.options[i].selected = true;
+
         csa.addEventListener('change', () => {
             for(let i=0; i<clf.options.length; i++){
                 clf.options[i].selected = csa.checked;

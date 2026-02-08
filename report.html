@@ -49,7 +49,7 @@
         </div>
         <div>
           <label>Linijos (Ctrl/Shift – keli pasirinkimai)</label>
-          <input type="checkbox" id="selectAllLines" style="margin-left: 8px; vertical-align: middle;">
+          <input type="checkbox" id="selectAllLines" style="margin-left: 8px; vertical-align: middle;" checked>
           <label for="selectAllLines" style="font-size:13px;color:#bbb; vertical-align: middle; cursor:pointer;">Pažymėti visus</label>
           <br/>
           <select id="lineFilter" multiple size="6" style="min-width:220px;"></select>
@@ -407,6 +407,10 @@ document.getElementById('mapFile').addEventListener('change', (ev)=>{
 
   // Checkbox "Pažymėti visus" logika
   const sa = document.getElementById('selectAllLines');
+  // Numatytasis: pažymėta
+  sa.checked = true;
+  for(let i=0; i<lf.options.length; i++) lf.options[i].selected = true;
+
   sa.addEventListener('change', () => {
     for(let i=0; i<lf.options.length; i++){
       lf.options[i].selected = sa.checked;
