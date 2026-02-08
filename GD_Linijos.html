@@ -317,11 +317,14 @@
     </div>
 
     <!-- Chart Section -->
+    <!-- Chart Section -->
     <div class="card" style="margin-top:20px;">
         <h2 style="text-align:center;">Gamybos Progresas (Tendencijos)</h2>
         <div style="position: relative; height:400px; width:100%">
             <canvas id="productionChart"></canvas>
         </div>
+        <!-- Debug Log Area -->
+        <div id="debugLog" style="margin-top:10px; font-size:10px; color:#666; font-family:monospace; max-height:100px; overflow-y:auto; border-top:1px solid #333; padding:5px;"></div>
     </div>
 
   </div>
@@ -968,22 +971,41 @@ function renderVizPlaceholder(id, name, type) {
     }
 
     // --- CHART LOGIC START ---
+    function debugLog(msg) {
+        const el = document.getElementById('debugLog');
+        if(el) {
+            el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+        }
+        console.log(msg);
+    }
+
     function renderChart(allData, from, to) {
+        debugLog("Pradedamas renderChart...");
+
         if(typeof Chart === 'undefined') {
+            debugLog("KLAIDA: Chart.js biblioteka nerasta!");
             document.getElementById('repStatus').textContent = "Klaida: Chart.js nerastas.";
             return;
+        } else {
+            debugLog("Chart.js rasta, versija: " + Chart.version);
         }
 
         const ctxEl = document.getElementById('productionChart');
-        if(!ctxEl) return;
+        if(!ctxEl) {
+            debugLog("KLAIDA: Canvas elementas nerastas!");
+            return;
+        }
 
         // Destroy old chart
         if(productionChartInstance) {
+            debugLog("Naikinamas senas grafikas...");
             productionChartInstance.destroy();
             productionChartInstance = null;
         }
 
         if(!allData || allData.length === 0) {
+             debugLog("Nėra duomenų grafikui (allData tuščias).");
              const ctx = ctxEl.getContext('2d');
              ctx.clearRect(0, 0, ctxEl.width, ctxEl.height);
              ctx.fillStyle = '#888';
@@ -992,6 +1014,8 @@ function renderVizPlaceholder(id, name, type) {
              return;
         }
 
+        debugLog(`Gauta ${allData.length} įrašų grafikui.`);
+
         // Determine Theme Colors
         const isLight = document.body.classList.contains('light-mode');
         const textColor = isLight ? '#333' : '#fff';
@@ -999,13 +1023,18 @@ function renderVizPlaceholder(id, name, type) {
         const tickColor = isLight ? '#666' : '#bbb';
 
         const lines = [...new Set(allData.map(d => d.line))];
+        debugLog(`Rastos linijos: ${lines.join(', ')}`);
+
         const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
 
         const datasets = [];
 
         lines.forEach((lineName, idx) => {
             const lineData = sortedData.filter(d => d.line === lineName && d.startTs);
-            if(!lineData.length) return;
+            if(!lineData.length) {
+                debugLog(`Linija ${lineName}: nėra validžių duomenų su startTs.`);
+                return;
+            }
 
             const points = [];
             let cumulative = 0;
@@ -1019,6 +1048,8 @@ function renderVizPlaceholder(id, name, type) {
                    }
                 }
             });
+
+            debugLog(`Linija ${lineName}: sugeneruota ${points.length} taškų. Galutinis kiekis: ${cumulative}`);
 
             if(points.length === 0) return;
 
