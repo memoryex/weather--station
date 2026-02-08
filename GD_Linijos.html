@@ -354,7 +354,7 @@
            <div style="display:flex; flex-direction:column; gap:8px;">
              <div>
                 <input type="checkbox" id="chartCumulative" style="vertical-align:middle;" checked>
-                <label for="chartCumulative" style="font-size:13px; color:var(--text-muted); cursor:pointer; vertical-align:middle;">Kaupiamasis</label>
+                <label for="chartCumulative" style="font-size:13px; color:var(--text-muted); cursor:pointer; vertical-align:middle;">Rodyti skaitiklio reikšmę (Raw)</label>
              </div>
              <button id="updateChartBtn" class="action-btn">Atnaujinti grafiką</button>
            </div>
@@ -1049,27 +1049,37 @@ function renderVizPlaceholder(id, name, type) {
 
             const allSegments = [];
 
+            // Check mode
+            const isRaw = document.getElementById('chartCumulative')?.checked ?? false;
+
             // Parallel fetch for chart speed
             const promises = useLines.map(async (L) => {
                 const key = READ_KEYS[L.channel];
-                // For chart we only need COUNTS to calculate progress, but we need Segments logic to know valid production chunks
-                // Reusing the same logic as report for consistency:
-                // 1. Get Barcodes (to split by product)
-                // 2. Get Counts
-                // 3. Build segments
                 try {
-                    const [bar, cnt] = await Promise.all([
-                        fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays),
-                        fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays)
-                    ]);
-                    const segs = buildSegments(bar, cnt, tz);
+                    if (isRaw) {
+                        // Raw mode: Only numeric
+                        const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays);
+                        // Map directly to {line, startTs, val}
+                        return cnt.map(pt => ({
+                            line: L.name,
+                            startTs: pt.t,
+                            val: pt.v
+                        }));
+                    } else {
+                        // Calculated mode: Both
+                        const [bar, cnt] = await Promise.all([
+                            fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays),
+                            fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays)
+                        ]);
+                        const segs = buildSegments(bar, cnt, tz);
 
-                    return segs.map(s => ({
-                        line: L.name,
-                        units: s.units,
-                        startTs: s.startTs,
-                        endTs: s.endTs
-                    }));
+                        return segs.map(s => ({
+                            line: L.name,
+                            units: s.units,
+                            startTs: s.startTs,
+                            endTs: s.endTs
+                        }));
+                    }
                 } catch(e) {
                     console.error(e);
                     debugLog(`Klaida linijai ${L.name}: ${e.message}`);
@@ -1128,8 +1138,8 @@ function renderVizPlaceholder(id, name, type) {
         const selectedType = typeEl ? typeEl.value : 'line';
         const isStep = (selectedType === 'line'); // only use step:true logic if strictly trendline
 
-        // Check cumulative toggle
-        const isCumulative = document.getElementById('chartCumulative')?.checked ?? false;
+        // Check raw/cumulative toggle
+        const isRaw = document.getElementById('chartCumulative')?.checked ?? false;
 
         const lines = [...new Set(allData.map(d => d.line))];
         const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
@@ -1141,18 +1151,40 @@ function renderVizPlaceholder(id, name, type) {
             if(!lineData.length) return;
 
             const points = [];
-            let cumulative = 0;
 
-            lineData.forEach(seg => {
-                if(seg.units > 0) {
-                   cumulative += seg.units;
-                   const val = isCumulative ? cumulative : seg.units;
-                   const t = seg.endTs || seg.startTs;
-                   if(isFinite(t)) {
-                       points.push([t, val]);
-                   }
-                }
-            });
+            if (isRaw) {
+                // Raw mode: Plot t vs v directly
+                lineData.forEach(pt => {
+                    if (isFinite(pt.startTs) && isFinite(pt.val)) {
+                        points.push([pt.startTs, pt.val]);
+                    }
+                });
+            } else {
+                // Calculated/Segment mode
+                // Note: The previous logic was "Cumulative or Interval" based on checkbox.
+                // Now checkbox means "Raw" vs "Calculated Interval".
+                // If unchecked (Calculated), let's stick to Interval (non-cumulative) or maybe Cumulative?
+                // The user complained about spikes in Interval mode, so maybe Cumulative Calculated is better if Raw is unchecked?
+                // But Raw is basically Cumulative (until reset).
+                // Let's implement Calculated Cumulative if Raw is unchecked, to be safe.
+
+                let cumulative = 0;
+                lineData.forEach(seg => {
+                    if(seg.units > 0) {
+                       cumulative += seg.units;
+                       // Default to Cumulative Calculated if Raw is unchecked?
+                       // Or maybe Interval? The user really wanted Raw.
+                       // Let's assume unchecked = Interval (Speed/Flow) for now, as that's distinct.
+                       // If they want cumulative, they use Raw.
+
+                       const val = seg.units; // Interval
+                       const t = seg.endTs || seg.startTs;
+                       if(isFinite(t)) {
+                           points.push([t, val]);
+                       }
+                    }
+                });
+            }
 
             if(points.length === 0) return;
 
