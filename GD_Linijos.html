@@ -318,7 +318,7 @@
 
     <!-- Chart Section -->
     <div class="card" style="margin-top:20px;">
-        <h2 style="text-align:center; color:#fff;">Gamybos Progresas (Tendencijos)</h2>
+        <h2 style="text-align:center;">Gamybos Progresas (Tendencijos)</h2>
         <div style="position: relative; height:400px; width:100%">
             <canvas id="productionChart"></canvas>
         </div>
@@ -983,6 +983,12 @@ function renderVizPlaceholder(id, name, type) {
         const diffDays = (to - from) / (1000 * 3600 * 24);
         const isDaily = diffDays > 3;
 
+        // Determine Theme Colors
+        const isLight = document.body.classList.contains('light-mode');
+        const textColor = isLight ? '#333' : '#fff';
+        const gridColor = isLight ? '#ccc' : '#444';
+        const tickColor = isLight ? '#666' : '#bbb';
+
         // Create buckets
         // Bucket key: timestamp of bucket start
         // Map: LineName -> { [bucketTime]: cumulativeUnits }
@@ -1053,7 +1059,7 @@ function renderVizPlaceholder(id, name, type) {
                         type: 'linear',
                         position: 'bottom',
                         ticks: {
-                            color: '#bbb', // Light text for ticks
+                            color: tickColor,
                             callback: function(value) {
                                 const d = new Date(value);
                                 return d.toLocaleDateString('lt-LT') + ' ' + d.toLocaleTimeString('lt-LT', {hour:'2-digit', minute:'2-digit'});
@@ -1061,19 +1067,19 @@ function renderVizPlaceholder(id, name, type) {
                             maxRotation: 45,
                             minRotation: 45
                         },
-                        title: { display: true, text: 'Laikas', color: '#fff' },
-                        grid: { color: '#444' }
+                        title: { display: true, text: 'Laikas', color: textColor },
+                        grid: { color: gridColor }
                     },
                     y: {
                         beginAtZero: true,
-                        ticks: { color: '#bbb' },
-                        title: { display: true, text: 'Pagaminta (vnt.)', color: '#fff' },
-                        grid: { color: '#444' }
+                        ticks: { color: tickColor },
+                        title: { display: true, text: 'Pagaminta (vnt.)', color: textColor },
+                        grid: { color: gridColor }
                     }
                 },
                 plugins: {
                     legend: {
-                        labels: { color: '#fff' }
+                        labels: { color: textColor }
                     },
                     tooltip: {
                          callbacks: {
