@@ -888,7 +888,16 @@ function renderVizPlaceholder(id, name, type) {
    ================================================================================================ */
 (function InitReport(){
 
+    let lastChartData = null;
+    let lastChartRange = {from:null, to:null};
     let productionChartInstance = null; // Global for chart instance
+
+    // Expose reRenderChart globally for theme toggling
+    window.reRenderChart = function() {
+        if(lastChartData && lastChartRange.from && lastChartRange.to) {
+            renderChart(lastChartData, lastChartRange.from, lastChartRange.to);
+        }
+    };
 
     async function fetchFieldWindow(channel, field, readKey, startStr, endStr, tz){
         const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
@@ -1098,10 +1107,15 @@ function renderVizPlaceholder(id, name, type) {
             results.forEach(r => allSegments.push(...r));
 
             debugLog(`Surinkta ${allSegments.length} segmentų iš viso.`);
+
+            // Save for re-render
+            lastChartData = allSegments;
+            lastChartRange = { from: from, to: to };
+
             const success = renderChart(allSegments, from, to);
 
             // Generate Insights
-            generateInsights(allSegments, useLines);
+            generateInsights(allSegments, useLines, to);
 
             if(success) {
                 st.textContent = "Grafikas atnaujintas.";
@@ -1279,7 +1293,7 @@ function renderVizPlaceholder(id, name, type) {
         return "";
     }
 
-    function generateInsights(allData, selectedLines) {
+    function generateInsights(allData, selectedLines, chartEndTime) {
         const container = document.getElementById('insightsSection');
         const content = document.getElementById('insightsContent');
         if (!container || !content) return;
@@ -1291,45 +1305,25 @@ function renderVizPlaceholder(id, name, type) {
         const lines = selectedLines.map(l => l.name);
 
         lines.forEach(lineName => {
-            // Filter data for this line, sorted by time
-            // In "Raw" mode, allData has {line, startTs, val}
-            // In "Calculated" mode, allData has {line, startTs, endTs, units...}
-            // We need to normalize or detect.
-            // Actually, updateChartOnly pushes standardized objects?
-            // Wait, updateChartOnly pushes different objects based on mode!
-            // Raw: {line, startTs, val}
-            // Calc: {line, units, startTs, endTs}
-
-            // Let's inspect the data structure passed.
-            // If raw, we have points (t, v). We look for gaps where v is constant.
-            // If calc, we have segments (start, end, units). Gaps are between segments?
-            // Actually, calculated segments are "production events".
-            // If there's a gap between segments, that's idle time.
-
-            // Let's handle both.
             const isRaw = document.getElementById('chartCumulative')?.checked ?? false;
             let gaps = [];
 
             const lineData = allData.filter(d => d.line === lineName).sort((a,b) => (a.startTs||0) - (b.startTs||0));
-            if (lineData.length < 2) return;
+
+            // Check if we have ANY data
+            if (lineData.length === 0) {
+                 return;
+            }
 
             if (isRaw) {
-                // RAW MODE: Look for flat regions in (t, v)
-                // If v[i] == v[i-1], potential gap?
-                // Actually, if v increases, production happened.
-                // If v stays same for long time, that's a gap.
-                // We iterate points.
-                // t[i] - t[i-1] is the sampling interval (usually 1-5 mins).
-                // If v[i] == v[i-1], no production in that interval.
-                // We chain these intervals.
-
+                // RAW MODE
                 let gapStart = null;
 
                 for(let i=1; i<lineData.length; i++) {
                     const prev = lineData[i-1];
                     const curr = lineData[i];
 
-                    // Check if value changed
+                    // Check if value changed (increased)
                     if (curr.val > prev.val) {
                         // Production happened. Gap ended (if any).
                         if (gapStart !== null) {
@@ -1341,42 +1335,47 @@ function renderVizPlaceholder(id, name, type) {
                         }
                     } else {
                         // No production (val same or reset).
-                        // If reset (curr < prev), we probably shouldn't count it as a "gap" in the same sense, or maybe we should?
-                        // Let's assume reset is instantaneous.
                         if (curr.val < prev.val) {
                             gapStart = null; // Reset state
                         } else {
-                            // Value matches.
+                            // Value matches (flat). Start gap if not started.
                             if (gapStart === null) gapStart = prev.startTs;
                         }
                     }
                 }
-                // Check trailing gap
+
+                // Trailing Gap (after last flat region)
+                const last = lineData[lineData.length-1];
                 if (gapStart !== null) {
-                    const last = lineData[lineData.length-1];
+                    // Check gap until last point
                     const duration = (last.startTs - gapStart) / 60000;
                     if (duration >= 10) {
                         gaps.push({ start: gapStart, end: last.startTs, duration });
                     }
                 }
 
-            } else {
-                // CALCULATED MODE: Segments of production.
-                // Gaps are the time between end of segment[i] and start of segment[i+1].
-                // segment[i].endTs is the last production time of that segment.
-                // segment[i+1].startTs is the first production time of next segment.
+                // Extra Trailing Gap (from last point to Chart End Time)
+                if (chartEndTime) {
+                    const lastTs = last.startTs;
+                    const endTs = chartEndTime.getTime();
+                    // Allow 1 minute buffer
+                    if (endTs > lastTs + 60000) {
+                        const duration = (endTs - lastTs) / 60000;
+                        if (duration >= 10) {
+                            // If gapStart was active, we might double count?
+                            // No, gapStart logic handled up to lastTs.
+                            // This is strictly post-data gap.
+                            gaps.push({ start: lastTs, end: endTs, duration });
+                        }
+                    }
+                }
 
+            } else {
+                // CALCULATED MODE
                 for(let i=0; i<lineData.length-1; i++) {
                     const seg1 = lineData[i];
                     const seg2 = lineData[i+1];
 
-                    // Gap is between seg1.endTs and seg2.startTs
-                    // Note: buildSegments logic:
-                    // seg.startTs = First barcode time
-                    // seg.endTs = Last count update time in that barcode group
-
-                    // Ideally, the gap is (seg2.startTs - seg1.endTs).
-                    // If seg1.endTs is missing (single point?), use seg1.startTs.
                     const t1 = seg1.endTs || seg1.startTs;
                     const t2 = seg2.startTs;
 
@@ -1385,6 +1384,20 @@ function renderVizPlaceholder(id, name, type) {
                         if (duration >= 10) {
                             gaps.push({ start: t1, end: t2, duration });
                         }
+                    }
+                }
+
+                // Extra Trailing Gap for Calculated Mode
+                if (chartEndTime && lineData.length > 0) {
+                    const lastSeg = lineData[lineData.length-1];
+                    const lastTs = lastSeg.endTs || lastSeg.startTs;
+                    const endTs = chartEndTime.getTime();
+
+                    if (endTs > lastTs + 60000) {
+                         const duration = (endTs - lastTs) / 60000;
+                         if (duration >= 10) {
+                             gaps.push({ start: lastTs, end: endTs, duration });
+                         }
                     }
                 }
             }
