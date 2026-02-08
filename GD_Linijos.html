@@ -185,7 +185,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
 </head>
 <body>
 
@@ -320,11 +320,7 @@
     <!-- Chart Section -->
     <div class="card" style="margin-top:20px;">
         <h2 style="text-align:center;">Gamybos Progresas (Tendencijos)</h2>
-        <div style="position: relative; height:400px; width:100%">
-            <canvas id="productionChart"></canvas>
-        </div>
-        <!-- Debug Log Area -->
-        <div id="debugLog" style="margin-top:10px; font-size:12px; color:#0f0; background:#000; font-family:monospace; max-height:200px; overflow-y:auto; border:1px solid #555; padding:10px;"></div>
+        <div id="productionChart" style="width:100%; height:400px;"></div>
     </div>
 
   </div>
@@ -971,124 +967,107 @@ function renderVizPlaceholder(id, name, type) {
     }
 
     // --- CHART LOGIC START ---
-    function debugLog(msg) {
-        const el = document.getElementById('debugLog');
-        if(el) {
-            el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
-            el.scrollTop = el.scrollHeight;
-        }
-        console.log(msg);
-    }
-
     function renderChart(allData, from, to) {
-        debugLog("Pradedamas renderChart...");
-
-        if(typeof Chart === 'undefined') {
-            debugLog("KLAIDA: Chart.js biblioteka nerasta!");
-            document.getElementById('repStatus').textContent = "Klaida: Chart.js nerastas.";
-            return;
-        } else {
-            debugLog("Chart.js rasta, versija: " + Chart.version);
-        }
-
-        const ctxEl = document.getElementById('productionChart');
-        if(!ctxEl) {
-            debugLog("KLAIDA: Canvas elementas nerastas!");
+        if(typeof Highcharts === 'undefined') {
+            document.getElementById('repStatus').textContent = "Klaida: Highcharts nerastas.";
             return;
         }
 
-        // Destroy old chart
-        if(productionChartInstance) {
-            debugLog("Naikinamas senas grafikas...");
-            productionChartInstance.destroy();
-            productionChartInstance = null;
-        }
+        const container = document.getElementById('productionChart');
+        if(!container) return;
 
-        // DEBUG: Log first item
-        if(allData && allData.length > 0) {
-            debugLog(`Pirmas duomenų elementas: ${JSON.stringify(allData[0])}`);
-        } else {
-            debugLog("Nėra duomenų grafikui (allData tuščias).");
+        if(!allData || allData.length === 0) {
+             container.innerHTML = '<p style="text-align:center; padding-top:180px; color:#888;">Nėra duomenų grafikui</p>';
+             return;
         }
-
-        // --- TEST MODE FORCE ---
-        // Force a dummy dataset to verify Chart.js works
-        const now = Date.now();
-        const testDatasets = [{
-            label: "TEST DATA",
-            data: [
-                {x: now, y: 0},
-                {x: now + 3600000, y: 50},
-                {x: now + 7200000, y: 100}
-            ],
-            borderColor: '#ff0000',
-            backgroundColor: '#ff0000',
-            fill: false
-        }];
-        debugLog("Naudojami TESTINIAI duomenys grafikui.");
-        // -----------------------
 
         // Determine Theme Colors
         const isLight = document.body.classList.contains('light-mode');
         const textColor = isLight ? '#333' : '#fff';
-        const gridColor = isLight ? '#ccc' : '#444';
-        const tickColor = isLight ? '#666' : '#bbb';
+        const gridColor = isLight ? '#ccc' : '#333';
+        const bgColor = 'transparent';
 
-        // Config using line type which handles {x, y} robustly if scale is linear
-        const ctx = ctxEl.getContext('2d');
-        // Force white background for test
-        ctx.fillStyle = isLight ? '#fff' : '#222';
-        ctx.fillRect(0, 0, ctxEl.width, ctxEl.height);
+        const lines = [...new Set(allData.map(d => d.line))];
+        const sortedData = [...allData].sort((a,b) => (a.startTs||0) - (b.startTs||0));
 
-        productionChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: { datasets: testDatasets },
-            options: {
-                animation: false, // Disable animation to force render
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                },
-                scales: {
-                    x: {
-                        type: 'linear',
-                        position: 'bottom',
-                        ticks: {
-                            color: tickColor,
-                            callback: function(value) {
-                                const d = new Date(value);
-                                return d.toLocaleDateString('lt-LT') + ' ' + d.toLocaleTimeString('lt-LT', {hour:'2-digit', minute:'2-digit'});
-                            },
-                            maxRotation: 45,
-                            minRotation: 45
-                        },
-                        title: { display: true, text: 'Laikas', color: textColor },
-                        grid: { color: gridColor }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { color: tickColor },
-                        title: { display: true, text: 'Pagaminta (vnt.)', color: textColor },
-                        grid: { color: gridColor }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: { color: textColor }
-                    },
-                    tooltip: {
-                         callbacks: {
-                             title: (ctx) => {
-                                 const val = ctx[0].parsed.x;
-                                 return new Date(val).toLocaleString('lt-LT');
-                             }
-                         }
-                    }
+        const series = [];
+
+        lines.forEach((lineName, idx) => {
+            const lineData = sortedData.filter(d => d.line === lineName && d.startTs);
+            if(!lineData.length) return;
+
+            const points = [];
+            let cumulative = 0;
+
+            lineData.forEach(seg => {
+                if(seg.units > 0) {
+                   cumulative += seg.units;
+                   const t = seg.endTs || seg.startTs;
+                   if(isFinite(t)) {
+                       // Highcharts expects [timestamp, value]
+                       points.push([t, cumulative]);
+                   }
                 }
-            }
+            });
+
+            if(points.length === 0) return;
+
+            // Colors
+            const colors = [
+              '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
+              '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',
+              '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000',
+              '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'
+            ];
+            const color = colors[idx % colors.length];
+
+            series.push({
+                name: lineName,
+                data: points,
+                color: color,
+                step: true // Stepped line
+            });
+        });
+
+        if(series.length === 0) {
+             container.innerHTML = '<p style="text-align:center; padding-top:180px; color:#888;">Nėra duomenų</p>';
+             return;
+        }
+
+        // Render Highchart
+        Highcharts.chart('productionChart', {
+            chart: {
+                backgroundColor: bgColor,
+                type: 'line'
+            },
+            title: { text: null },
+            xAxis: {
+                type: 'datetime',
+                labels: { style: { color: textColor } },
+                gridLineColor: gridColor,
+                lineColor: gridColor,
+                tickColor: gridColor
+            },
+            yAxis: {
+                title: { text: 'Pagaminta (vnt.)', style: { color: textColor } },
+                labels: { style: { color: textColor } },
+                gridLineColor: gridColor
+            },
+            legend: {
+                itemStyle: { color: textColor },
+                itemHoverStyle: { color: textColor }
+            },
+            tooltip: {
+                xDateFormat: '%Y-%m-%d %H:%M:%S',
+                shared: true
+            },
+            plotOptions: {
+                line: {
+                    marker: { enabled: false }
+                }
+            },
+            credits: { enabled: false },
+            series: series
         });
     }
     // --- CHART LOGIC END ---
