@@ -408,22 +408,26 @@ document.getElementById('mapFile').addEventListener('change', (ev)=>{
   // Checkbox "Pažymėti visus" logika
   const sa = document.getElementById('selectAllLines');
   // Numatytasis: pažymėta
-  sa.checked = true;
-  for(let i=0; i<lf.options.length; i++) lf.options[i].selected = true;
+  if(sa) {
+    sa.checked = true;
+    for(let i=0; i<lf.options.length; i++) lf.options[i].selected = true;
 
-  sa.addEventListener('change', () => {
-    for(let i=0; i<lf.options.length; i++){
-      lf.options[i].selected = sa.checked;
-    }
-  });
-  // Jei vartotojas ranka nužymi kažką, nuimam varnelę "visus"
-  lf.addEventListener('change', () => {
-    let all=true;
-    for(let i=0; i<lf.options.length; i++){
-      if(!lf.options[i].selected){ all=false; break; }
-    }
-    sa.checked = all;
-  });
+    sa.addEventListener('change', () => {
+        for(let i=0; i<lf.options.length; i++){
+        lf.options[i].selected = sa.checked;
+        }
+    });
+  }
+  if(lf && sa) {
+    // Jei vartotojas ranka nužymi kažką, nuimam varnelę "visus"
+    lf.addEventListener('change', () => {
+        let all=true;
+        for(let i=0; i<lf.options.length; i++){
+        if(!lf.options[i].selected){ all=false; break; }
+        }
+        sa.checked = all;
+    });
+  }
 })();
 </script>
 </body>
