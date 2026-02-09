@@ -194,7 +194,7 @@
   <button class="tab-btn active" onclick="openTab('status')">GD linijų statusas</button>
   <button class="tab-btn" onclick="openTab('visual')">Vizualizacija</button>
   <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
-  <button class="tab-btn" id="themeToggle" type="button" onclick="toggleTheme()" title="Keisti temą">🌙/☀️</button>
+  <button class="tab-btn" id="themeToggle" type="button" title="Keisti temą">🌙/☀️</button>
 </div>
 
 <!-- ========================= TAB: STATUSAS ========================= -->
@@ -500,9 +500,10 @@ function openTab(tabName) {
 
 /* ===================== THEME LOGIC ===================== */
 let themeDebounce = 0;
-function toggleTheme() {
+function toggleTheme(e) {
+  if (e && e.preventDefault) e.preventDefault();
   const now = Date.now();
-  if (now - themeDebounce < 300) return; // Prevent double-clicks
+  if (now - themeDebounce < 500) return; // Prevent double-clicks
   themeDebounce = now;
 
   try {
@@ -524,6 +525,9 @@ function toggleTheme() {
   if(saved === 'light') {
     document.body.classList.add('light-mode');
   }
+  // Attach listener safely
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.addEventListener('click', toggleTheme);
 })();
 
 /* ===================== SHARED HELPERS ===================== */

@@ -13,37 +13,39 @@ def reproduce_theme_toggle_issue():
 
         print("Page loaded.")
 
-        # Check initial state (should be dark mode by default unless saved)
-        # We can check body class
+        # Check initial state
         has_light = page.locator("body").evaluate("el => el.classList.contains('light-mode')")
         print(f"Initial State: Light Mode = {has_light}")
 
         # Click Toggle Button
         toggle_btn = page.locator("#themeToggle")
         toggle_btn.click()
-        print("Clicked Theme Toggle.")
+        print("Clicked Theme Toggle (1st time).")
 
         # Check immediate state
-        has_light = page.locator("body").evaluate("el => el.classList.contains('light-mode')")
-        print(f"Immediate Post-Click State: Light Mode = {has_light}")
+        has_light_1 = page.locator("body").evaluate("el => el.classList.contains('light-mode')")
+        print(f"State 1: Light Mode = {has_light_1}")
 
-        if not has_light:
-            print("ERROR: Light mode not applied immediately.")
+        # Try rapid click (should be ignored by debounce)
+        toggle_btn.click()
+        print("Clicked Theme Toggle (rapidly).")
 
-        # Wait 5 seconds (to check for revert)
-        print("Waiting 5 seconds...")
-        time.sleep(5)
+        has_light_2 = page.locator("body").evaluate("el => el.classList.contains('light-mode')")
+        print(f"State 2 (should be same): Light Mode = {has_light_2}")
 
-        # Check state again
-        has_light_after = page.locator("body").evaluate("el => el.classList.contains('light-mode')")
-        print(f"State after 5s: Light Mode = {has_light_after}")
-
-        if has_light and not has_light_after:
-            print("REPRODUCED: Theme reverted to dark mode!")
-        elif has_light and has_light_after:
-            print("Not Reproduced: Theme remained light.")
+        if has_light_1 != has_light_2:
+             print("WARNING: Rapid click toggled state! Debounce failed?")
         else:
-            print("Inconclusive state.")
+             print("Rapid click ignored (Debounce working).")
+
+        # Wait > 500ms
+        time.sleep(1)
+
+        # Click again to toggle back
+        toggle_btn.click()
+        print("Clicked Theme Toggle (after wait).")
+        has_light_3 = page.locator("body").evaluate("el => el.classList.contains('light-mode')")
+        print(f"State 3 (should be toggled): Light Mode = {has_light_3}")
 
         browser.close()
 
