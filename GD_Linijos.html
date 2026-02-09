@@ -194,6 +194,7 @@
   <button class="tab-btn active" onclick="openTab('status')">GD linijų statusas</button>
   <button class="tab-btn" onclick="openTab('visual')">Vizualizacija</button>
   <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
+  <button class="tab-btn" onclick="openTab('ai')">DI / Įžvalgos</button>
   <button class="tab-btn" id="themeToggle" type="button" title="Keisti temą">🌙/☀️</button>
 </div>
 
@@ -259,6 +260,58 @@
       <div id="viz-PLXE 1" class="viz-item viz-item-h"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- ========================= TAB: AI (SMART ANALYTICS) ========================= -->
+<div id="tab-ai" class="tab-pane">
+  <h1>Intelektuali Gamybos Analizė (DI)</h1>
+  <div class="wrap">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <h2 style="margin:0;">Mokymosi Centras</h2>
+        <div style="display:flex; gap:10px;">
+           <button id="aiLearnBtn" class="action-btn">Mokytis iš istorijos (30d.)</button>
+           <button id="aiClearBtn" class="action-btn" style="background:#d32f2f;">Išvalyti atmintį</button>
+        </div>
+      </div>
+      <div id="aiStatus" class="msg">DI modelis: Tuščias. Paspauskite "Mokytis iš istorijos", kad sukauptumėte duomenis.</div>
+
+      <div class="settings-grid" style="margin-top:20px;">
+        <!-- Kairė: Gaminio Efektyvumas -->
+        <div class="file-section">
+          <h3 style="margin-top:0;">Gaminio Efektyvumas (Lyginamoji analizė)</h3>
+          <p style="font-size:13px; color:var(--text-muted);">
+            Čia matysite, kaip skirtingos linijos tvarkosi su tuo pačiu gaminiu.
+            Sistema automatiškai identifikuoja greičiausią ir lėčiausią liniją.
+          </p>
+          <div style="max-height:400px; overflow-y:auto;">
+            <table style="width:100%; font-size:14px;">
+              <thead>
+                <tr>
+                  <th>Gaminys</th>
+                  <th>Geriausia Linija</th>
+                  <th>Vidutinė Linija</th>
+                  <th>Skirtumas</th>
+                </tr>
+              </thead>
+              <tbody id="aiProductTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Dešinė: Pertraukų Tendencijos -->
+        <div class="file-section">
+          <h3 style="margin-top:0;">Pertraukų Tendencijos</h3>
+          <p style="font-size:13px; color:var(--text-muted);">
+            Sistema analizuoja, kada dažniausiai stoja linijos (neplanuotos pertraukos > 15 min).
+          </p>
+          <div id="aiBreakChart" style="width:100%; height:300px;"></div>
+          <div id="aiBreakStats" style="font-size:13px; color:var(--text-main); margin-top:10px;"></div>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>
 
@@ -1644,6 +1697,325 @@ function renderVizPlaceholder(id, name, type) {
 
 })();
 
+(function InitAI() {
+    /* =========================================================================================
+       SMART ANALYTICS ENGINE (DI)
+       =========================================================================================
+       Logic:
+       1. Store Product Stats: Map<ProductCode, Map<LineName, { totalSpeed, count, maxSpeed, ... }>>
+       2. Store Break Stats: Map<HourOfDay, Count>
+       3. Persist to localStorage ('gd_ai_model')
+    */
+
+    const MODEL_KEY = 'gd_ai_model';
+    let aiModel = {
+        products: {}, // code -> { line -> { sumSpeed, count, segments } }
+        breaks: {},   // hour (0-23) -> count
+        lastUpdated: null
+    };
+
+    // --- 1. PERSISTENCE ---
+    function loadModel() {
+        try {
+            const raw = localStorage.getItem(MODEL_KEY);
+            if (raw) aiModel = JSON.parse(raw);
+        } catch (e) { console.error("AI Load Error", e); }
+        updateUI();
+    }
+
+    function saveModel() {
+        try {
+            aiModel.lastUpdated = new Date().toISOString();
+            localStorage.setItem(MODEL_KEY, JSON.stringify(aiModel));
+        } catch (e) { console.error("AI Save Error", e); }
+        updateUI();
+    }
+
+    function clearModel() {
+        aiModel = { products: {}, breaks: {}, lastUpdated: null };
+        localStorage.removeItem(MODEL_KEY);
+        updateUI();
+    }
+
+    // --- 2. LEARNING LOGIC ---
+    // data = [{ line, product (name or code), units, duration (string h:m:s or ms), startTs, endTs }]
+    // We reuse the 'allSegments' structure from Report logic: { line, barcode, product, units, startTs, endTs }
+    function learnFromData(segments) {
+        let learnedCount = 0;
+        let breakCount = 0;
+
+        // Sort by time to detect gaps
+        const sorted = [...segments].sort((a,b) => (a.startTs||0) - (b.startTs||0));
+
+        // Group by Line to find breaks
+        const lines = {};
+
+        sorted.forEach(seg => {
+            if (!seg.startTs || !seg.endTs || seg.units <= 0) return;
+
+            // 2.1 Learn Speed
+            const durationHrs = (seg.endTs - seg.startTs) / 3600000;
+            if (durationHrs <= 0.001) return; // ignore super short (noise)
+            const speed = seg.units / durationHrs;
+
+            // Normalize Product Key (use Map name if available, else barcode)
+            let pKey = seg.product || seg.barcode || "Unknown";
+            // If pKey looks like a barcode (digits), try to map it
+            // Assuming PRODUCT_MAP is globally available from GD_Linijos.html
+            // If not, we trust the input.
+
+            if (!aiModel.products[pKey]) aiModel.products[pKey] = {};
+            if (!aiModel.products[pKey][seg.line]) aiModel.products[pKey][seg.line] = { sumSpeed: 0, count: 0 };
+
+            const entry = aiModel.products[pKey][seg.line];
+            entry.sumSpeed += speed;
+            entry.count++;
+            learnedCount++;
+
+            // 2.2 Detect Breaks (Gap > 15 min between segments on SAME line)
+            if (!lines[seg.line]) lines[seg.line] = seg.endTs;
+            else {
+                const prevEnd = lines[seg.line];
+                const gapMin = (seg.startTs - prevEnd) / 60000;
+
+                if (gapMin > 15 && gapMin < 120) { // 15min to 2h breaks (ignore nights/weekends > 2h usually)
+                    // Log Break Start Time
+                    const breakStart = new Date(prevEnd);
+                    const h = breakStart.getHours();
+                    if (!aiModel.breaks[h]) aiModel.breaks[h] = 0;
+                    aiModel.breaks[h]++;
+                    breakCount++;
+                }
+                lines[seg.line] = seg.endTs;
+            }
+        });
+
+        saveModel();
+        return { learnedCount, breakCount };
+    }
+
+    // --- 3. UI UPDATES ---
+    function updateUI() {
+        const st = document.getElementById('aiStatus');
+        const updated = aiModel.lastUpdated ? new Date(aiModel.lastUpdated).toLocaleString('lt-LT') : "Niekada";
+
+        // Count total datapoints
+        let total = 0;
+        Object.values(aiModel.products).forEach(lines => {
+            Object.values(lines).forEach(d => total += d.count);
+        });
+
+        if (st) st.textContent = `DI statusas: Sukaupta ${total} segmentų. Atnaujinta: ${updated}`;
+
+        renderProductTable();
+        renderBreakChart();
+    }
+
+    function renderProductTable() {
+        const tbody = document.getElementById('aiProductTable');
+        if (!tbody) return;
+        tbody.innerHTML = "";
+
+        // Iterate products
+        const products = Object.keys(aiModel.products);
+        if (!products.length) {
+            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#888;'>Nėra duomenų.</td></tr>";
+            return;
+        }
+
+        products.forEach(pName => {
+            const lineData = aiModel.products[pName];
+            const lines = Object.keys(lineData);
+            if (lines.length < 2) return; // Need at least 2 lines to compare
+
+            // Calculate Avg Speed per Line
+            const stats = lines.map(L => {
+                const d = lineData[L];
+                return { line: L, avg: d.sumSpeed / d.count };
+            }).sort((a,b) => b.avg - a.avg); // Descending
+
+            const best = stats[0];
+            // Find global avg for this product
+            const globalSum = stats.reduce((acc, x) => acc + x.avg, 0);
+            const globalAvg = globalSum / stats.length; // Average of Averages (to equalize line weight)
+
+            const diff = ((best.avg - globalAvg) / globalAvg) * 100;
+            const diffStr = (diff > 0 ? "+" : "") + diff.toFixed(1) + "%";
+
+            // Row
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight:bold; color:var(--text-main);">${pName}</td>
+                <td style="color:#00d67a;">${best.line} (${Math.round(best.avg)} vnt/h)</td>
+                <td style="color:#888;">~${Math.round(globalAvg)} vnt/h</td>
+                <td style="font-weight:bold; color:${diff > 10 ? '#00d67a' : '#ffa726'}">${diffStr}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderBreakChart() {
+        const container = document.getElementById('aiBreakChart');
+        if (!container || !Highcharts) return;
+
+        const hours = Array.from({length: 24}, (_, i) => i);
+        const data = hours.map(h => aiModel.breaks[h] || 0);
+
+        // Highcharts Heatmap-like Column
+        Highcharts.chart('aiBreakChart', {
+            chart: { type: 'column', backgroundColor: 'transparent', height: 250 },
+            title: { text: null },
+            xAxis: { categories: hours.map(h => h + ":00"), labels: { style: { color: '#bbb' } } },
+            yAxis: { title: { text: 'Pertraukų sk.', style: { color: '#bbb' } }, gridLineColor: '#444' },
+            series: [{
+                name: 'Pertraukos',
+                data: data,
+                color: '#ffa726'
+            }],
+            legend: { enabled: false },
+            credits: { enabled: false }
+        });
+
+        // Find peak
+        let max = 0, maxH = -1;
+        data.forEach((v,i) => { if(v>max){max=v; maxH=i;} });
+
+        const info = document.getElementById('aiBreakStats');
+        if(info && maxH >= 0) {
+            info.textContent = `Dažniausiai linijos stoja apie ${maxH}:00 val.`;
+        } else if(info) {
+            info.textContent = "Nėra pakankamai duomenų analizei.";
+        }
+    }
+
+    // --- 4. EXPOSED ACTIONS ---
+    document.getElementById('aiClearBtn').addEventListener('click', () => {
+        if(confirm("Ar tikrai ištrinti visas sukauptas žinias?")) clearModel();
+    });
+
+    // Learning Handler
+    document.getElementById('aiLearnBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('aiLearnBtn');
+        const st = document.getElementById('aiStatus');
+        btn.disabled = true;
+        st.textContent = "Vyksta mokymasis (siunčiama istorija)...";
+
+        try {
+            // Reuse logic from Report Tab (fetchWholePeriod...)
+            // Since those are local functions in InitReport scope, we might need to duplicate or expose them.
+            // BEST PRACTICE: If we are adding this via Append, we can't easily access scoped functions.
+            // SOLUTION: We will define helper fetchers here locally or assume they are global.
+            // In the previous step, I saw fetchWholePeriod... inside InitReport. They are NOT global.
+            // I must re-implement fetch logic here or move it to global scope.
+            // For safety and robustness, I will implement a focused fetcher here.
+
+            // Wait, READ_KEYS and LINES are global.
+            const now = new Date();
+            const from = new Date();
+            from.setDate(from.getDate() - 30); // Last 30 days
+
+            const chunkDays = 30; // One chunk if possible
+            const tz = "Europe/Vilnius"; // Hardcoded for AI default
+
+            let totalSegs = [];
+
+            for (const L of LINES) {
+                st.textContent = `Analizuojama linija: ${L.name}...`;
+                const key = READ_KEYS[L.channel];
+
+                // Fetch Barcodes & Counts
+                // Re-implementing simplified fetch
+                const [bar, cnt] = await Promise.all([
+                    _fetchSeries(L.channel, L.fieldBarcode, key, tz, from, now),
+                    _fetchSeries(L.channel, L.fieldCount, key, tz, from, now, true) // numeric
+                ]);
+
+                // Build segments
+                const segs = _buildSegmentsAI(bar, cnt, tz);
+                segs.forEach(s => s.line = L.name);
+                totalSegs.push(...segs);
+            }
+
+            const res = learnFromData(totalSegs);
+            st.textContent = `Baigta! Išmokta iš ${res.learnedCount} segmentų. Rasta ${res.breakCount} pertraukų.`;
+
+        } catch(e) {
+            console.error(e);
+            st.textContent = "Klaida mokantis: " + e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // --- HELPERS (Private) ---
+    async function _fetchSeries(ch, field, key, tz, start, end, isNum=false) {
+        const url = `https://api.thingspeak.com/channels/${ch}/fields/${field}.json?api_key=${key}&start=${toIso(start)}&end=${toIso(end)}&timezone=${tz}&results=8000`;
+        const r = await fetch(url);
+        if(!r.ok) return [];
+        const j = await r.json();
+        if(!j.feeds) return [];
+
+        return j.feeds.map(f => ({
+            t: new Date(f.created_at).getTime(),
+            v: isNum ? parseFloat(f[`field${field}`]) : f[`field${field}`]
+        })).filter(x => isNum ? isFinite(x.v) : (x.v != null));
+    }
+
+    function toIso(d) {
+        return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'%20'+
+               pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+    }
+    function pad(n){return n<10?'0'+n:n;}
+
+    function _buildSegmentsAI(barcodes, counts) {
+        // Reuse segment logic simplified
+        const segs = [];
+        if (!barcodes.length) return segs;
+
+        // Sort
+        barcodes.sort((a,b)=>a.t-b.t);
+        counts.sort((a,b)=>a.t-b.t);
+
+        for(let i=0; i<barcodes.length; i++) {
+            const b = barcodes[i];
+            const nextB = barcodes[i+1];
+            const tEnd = nextB ? nextB.t : new Date().getTime(); // up to now if last
+
+            // Filter counts in range
+            const range = counts.filter(c => c.t >= b.t && c.t < tEnd);
+            if (range.length < 2) continue;
+
+            // Sum deltas
+            let units = 0;
+            for(let k=1; k<range.length; k++) {
+                const d = range[k].v - range[k-1].v;
+                if(d > 0) units += d;
+            }
+
+            if (units > 0) {
+                // Find product name if possible
+                let name = b.v;
+                // Assuming global normalizedCode/PRODUCT_MAP exists
+                if (typeof normalizeCode === 'function' && typeof PRODUCT_MAP !== 'undefined') {
+                    const code = normalizeCode(name);
+                    if (PRODUCT_MAP.get(code)) name = PRODUCT_MAP.get(code);
+                }
+
+                segs.push({
+                    startTs: b.t,
+                    endTs: range[range.length-1].t,
+                    units: units,
+                    product: name
+                });
+            }
+        }
+        return segs;
+    }
+
+    // Init
+    loadModel();
+
+})();
 </script>
 </body>
 </html>
