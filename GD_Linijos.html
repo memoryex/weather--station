@@ -1325,24 +1325,32 @@ function renderVizPlaceholder(id, name, type) {
                     const prev = lineData[i-1];
                     const curr = lineData[i];
 
-                    // Check if value changed (increased)
+                    // Case 1: Value Reset
+                    if (curr.val < prev.val) {
+                        gapStart = null;
+                        continue;
+                    }
+
+                    // Case 2: Value Flat (No production)
+                    if (curr.val === prev.val) {
+                        if (gapStart === null) gapStart = prev.startTs;
+                        // Accumulate...
+                    }
+
+                    // Case 3: Value Increased (Production)
                     if (curr.val > prev.val) {
-                        // Production happened. Gap ended (if any).
-                        if (gapStart !== null) {
-                            const duration = (curr.startTs - gapStart) / 60000; // minutes
-                            if (duration >= 10) {
-                                gaps.push({ start: gapStart, end: curr.startTs, duration });
-                            }
-                            gapStart = null;
+                        // Determine where the gap started
+                        // If we had a flat line accumulator, use it.
+                        // If not, the gap is between prev and curr (time jump).
+                        let effectiveStart = (gapStart !== null) ? gapStart : prev.startTs;
+
+                        const duration = (curr.startTs - effectiveStart) / 60000;
+                        if (duration >= 8) {
+                            gaps.push({ start: effectiveStart, end: curr.startTs, duration });
                         }
-                    } else {
-                        // No production (val same or reset).
-                        if (curr.val < prev.val) {
-                            gapStart = null; // Reset state
-                        } else {
-                            // Value matches (flat). Start gap if not started.
-                            if (gapStart === null) gapStart = prev.startTs;
-                        }
+
+                        // Production happened at curr, so reset gap accumulator
+                        gapStart = null;
                     }
                 }
 
