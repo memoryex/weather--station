@@ -48,9 +48,9 @@
           </select>
         </div>
         <div>
-          <label>Linijos (Ctrl/Shift – keli pasirinkimai)
-            <input type="checkbox" id="selectAllLines" style="margin-left:8px;vertical-align:middle;">
-            <span style="font-size:12px;vertical-align:middle;">Pažymėti visus</span>
+          <label>Linijos (Ctrl/Shift – keli pasirinkimai)</label>
+          <label style="margin-left:8px;font-size:13px;cursor:pointer;color:#bbb">
+            <input type="checkbox" id="selectAllLines" style="vertical-align:middle"> <span style="vertical-align:middle">Pažymėti visus</span>
           </label><br/>
           <select id="lineFilter" multiple size="6" style="min-width:220px;"></select>
         </div>
@@ -407,12 +407,21 @@ document.getElementById('mapFile').addEventListener('change', (ev)=>{
 
   // "Pažymėti visus" funkcionalumas
   const chk = document.getElementById('selectAllLines');
-  if(chk){
+  if(chk && lf){
     chk.addEventListener('change', (e) => {
       const all = lf.options;
       for(let i=0; i<all.length; i++){
         all[i].selected = e.target.checked;
       }
+    });
+    // Papildomai: jei vartotojas atžymi kažką, nuimam varnelę
+    lf.addEventListener('change', () => {
+      const all = lf.options;
+      let allSelected = true;
+      for(let i=0; i<all.length; i++){
+        if(!all[i].selected){ allSelected = false; break; }
+      }
+      chk.checked = allSelected && all.length > 0;
     });
   }
 })();
