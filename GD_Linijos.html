@@ -180,6 +180,10 @@
   button.action-btn { padding:10px 14px; background:#0d6efd; border:none; border-radius:6px; color:#fff; cursor:pointer; }
   button.action-btn:disabled { opacity:0.5; cursor:not-allowed; }
   input[type="file"] { color:#ddd; }
+
+  /* AI Animation */
+  @keyframes spin-slow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  .ai-icon-spin { animation: spin-slow 10s linear infinite; }
 </style>
 <!-- XLSX (SheetJS) + ExcelJS + FileSaver – viskas iš CDN -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -269,7 +273,10 @@
   <div class="wrap">
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-        <h2 style="margin:0;">Mokymosi Centras</h2>
+        <h2 style="margin:0; display:flex; align-items:center; gap:10px;">
+          Mokymosi Centras
+          <img src="icons/ai_network.png" class="ai-icon-spin" style="height:40px;" alt="AI Network">
+        </h2>
         <div style="display:flex; gap:10px;">
            <button id="aiLearnBtn" class="action-btn">Mokytis iš istorijos (30d.)</button>
            <button id="aiClearBtn" class="action-btn" style="background:#d32f2f;">Išvalyti atmintį</button>
@@ -1711,6 +1718,7 @@ function renderVizPlaceholder(id, name, type) {
     let aiModel = {
         products: {}, // code -> { line -> { sumSpeed, count, segments } }
         breaks: {},   // hour (0-23) -> count
+        lineProgress: {}, // line -> maxEndTs (to prevent duplicates)
         lastUpdated: null
     };
 
@@ -1718,7 +1726,10 @@ function renderVizPlaceholder(id, name, type) {
     function loadModel() {
         try {
             const raw = localStorage.getItem(MODEL_KEY);
-            if (raw) aiModel = JSON.parse(raw);
+            if (raw) {
+                aiModel = JSON.parse(raw);
+                if(!aiModel.lineProgress) aiModel.lineProgress = {}; // migration
+            }
         } catch (e) { console.error("AI Load Error", e); }
         updateUI();
     }
@@ -1732,7 +1743,7 @@ function renderVizPlaceholder(id, name, type) {
     }
 
     function clearModel() {
-        aiModel = { products: {}, breaks: {}, lastUpdated: null };
+        aiModel = { products: {}, breaks: {}, lineProgress: {}, lastUpdated: null };
         localStorage.removeItem(MODEL_KEY);
         updateUI();
     }
@@ -1747,11 +1758,16 @@ function renderVizPlaceholder(id, name, type) {
         // Sort by time to detect gaps
         const sorted = [...segments].sort((a,b) => (a.startTs||0) - (b.startTs||0));
 
-        // Group by Line to find breaks
-        const lines = {};
+        // Group by Line to find breaks and manage progress
+        const linesLastSeen = {};
 
         sorted.forEach(seg => {
             if (!seg.startTs || !seg.endTs || seg.units <= 0) return;
+
+            // CHECK PROGRESS to avoid duplicates
+            // We ignore segments that finished before or at the already learned timestamp
+            const learnedUntil = aiModel.lineProgress[seg.line] || 0;
+            if (seg.endTs <= learnedUntil) return;
 
             // 2.1 Learn Speed
             const durationHrs = (seg.endTs - seg.startTs) / 3600000;
@@ -1760,9 +1776,6 @@ function renderVizPlaceholder(id, name, type) {
 
             // Normalize Product Key (use Map name if available, else barcode)
             let pKey = seg.product || seg.barcode || "Unknown";
-            // If pKey looks like a barcode (digits), try to map it
-            // Assuming PRODUCT_MAP is globally available from GD_Linijos.html
-            // If not, we trust the input.
 
             if (!aiModel.products[pKey]) aiModel.products[pKey] = {};
             if (!aiModel.products[pKey][seg.line]) aiModel.products[pKey][seg.line] = { sumSpeed: 0, count: 0 };
@@ -1773,20 +1786,31 @@ function renderVizPlaceholder(id, name, type) {
             learnedCount++;
 
             // 2.2 Detect Breaks (Gap > 15 min between segments on SAME line)
-            if (!lines[seg.line]) lines[seg.line] = seg.endTs;
-            else {
-                const prevEnd = lines[seg.line];
+            // Use local accumulator for this session to detect breaks within the new batch
+            // BUT also consider gap from previous learned session if applicable?
+            // For simplicity, we track breaks within the stream.
+            if (!linesLastSeen[seg.line]) {
+                // First segment in this batch for this line.
+                // Could check gap from 'learnedUntil' if we trust it matches the stream start?
+                // Let's stick to batch internal gaps for safety.
+                linesLastSeen[seg.line] = seg.endTs;
+            } else {
+                const prevEnd = linesLastSeen[seg.line];
                 const gapMin = (seg.startTs - prevEnd) / 60000;
 
-                if (gapMin > 15 && gapMin < 120) { // 15min to 2h breaks (ignore nights/weekends > 2h usually)
-                    // Log Break Start Time
+                if (gapMin > 15 && gapMin < 120) { // 15min to 2h breaks
                     const breakStart = new Date(prevEnd);
                     const h = breakStart.getHours();
                     if (!aiModel.breaks[h]) aiModel.breaks[h] = 0;
                     aiModel.breaks[h]++;
                     breakCount++;
                 }
-                lines[seg.line] = seg.endTs;
+                linesLastSeen[seg.line] = seg.endTs;
+            }
+
+            // Update Progress
+            if (seg.endTs > (aiModel.lineProgress[seg.line] || 0)) {
+                aiModel.lineProgress[seg.line] = seg.endTs;
             }
         });
 

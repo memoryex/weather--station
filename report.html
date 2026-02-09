@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8" />
+<title>GD – istorijos ataskaita (XLSX)</title>
+<style>
+  body{background:#111;color:#eee;font-family:Arial,Helvetica,sans-serif}
+  h1{font-size:28px;text-align:center;margin:20px 0}
+  .wrap{width:95%;max-width:1200px;margin:0 auto}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+  label{font-size:13px;color:#bbb}
+  input[type="datetime-local"],select{padding:6px 8px;background:#1c1c1c;border:1px solid #444;color:#eee;border-radius:6px}
+  input[type="file"]{color:#ddd}
+  button{padding:10px 14px;background:#0d6efd;border:none;border-radius:6px;color:#fff;cursor:pointer}
+  button:disabled{opacity:0.5;cursor:not-allowed}
+  .msg{font-size:14px;color:#9ad;margin-top:6px}
+  .card{background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:14px;margin-top:12px}
+</style>
+<!-- XLSX (SheetJS) + ExcelJS + FileSaver – viskas iš CDN -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+</head>
+<body>
+  <h1>GD linijų – Istorijos ataskaita</h1>
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Nuo</label><br/>
+          <input id="from" type="datetime-local"/>
+        </div>
+        <div>
+          <label>Iki</label><br/>
+          <input id="to" type="datetime-local"/>
+        </div>
+        <div>
+          <label>Laiko zona</label><br/>
+          <select id="tz">
+            <option value="Europe/Vilnius" selected>Europe/Vilnius</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </div>
+        <div>
+          <label>Laiko langas (dienomis, kai dalijam istoriją)</label><br/>
+          <select id="chunkDays">
+            <option>31</option><option selected>90</option><option>180</option>
+          </select>
+        </div>
+        <div>
+          <label>Linijos (Ctrl/Shift – keli pasirinkimai)
+            <input type="checkbox" id="selectAllLines" style="margin-left:8px;vertical-align:middle;">
+            <span style="font-size:12px;vertical-align:middle;">Pažymėti visus</span>
+          </label><br/>
+          <select id="lineFilter" multiple size="6" style="min-width:220px;"></select>
+        </div>
+        <div>
+          <label>Gaminio pavadinimų sąrašas (.xlsx)</label><br/>
+          <input id="mapFile" type="file" accept=".xlsx,.xls" />
+          <div id="mapInfo" class="msg"></div>
+        </div>
+        <div>
+          <label>&nbsp;</label><br/>
+          <button id="go">Generuoti ataskaitą (XLSX)</button>
+        </div>
+      </div>
+      <div id="status" class="msg">Paruošta.</div>
+    </div>
+  </div>
+
+<script>
+/* =============================
+   1) KONFIGŪRA (KANALAI / RAKTAI)
+   ============================= */
+const READ_KEYS = {
+  463450: "VAL3TD2W5LADX7K1", // PLXE 1-4
+  703669: "S44OBKWC5C7FODZ5", // NOBO 1-4
+  802414: "I6NIZAVZYLPVV1ME"  // NOBO 5-7, PLXE 5
+};
+
+const LINES = [
+  { name:"PLXE 1", channel:463450, fieldCount:1, fieldBarcode:2 },
+  { name:"PLXE 2", channel:463450, fieldCount:3, fieldBarcode:4 },
+  { name:"PLXE 3", channel:463450, fieldCount:5, fieldBarcode:6 },
+  { name:"PLXE 4", channel:463450, fieldCount:7, fieldBarcode:8 },
+  { name:"NOBO 1", channel:703669, fieldCount:1, fieldBarcode:2 },
+  { name:"NOBO 2", channel:703669, fieldCount:3, fieldBarcode:4 },
+  { name:"NOBO 3", channel:703669, fieldCount:5, fieldBarcode:6 },
+  { name:"NOBO 4", channel:703669, fieldCount:7, fieldBarcode:8 },
+  { name:"NOBO 5", channel:802414, fieldCount:1, fieldBarcode:2 },
+  { name:"NOBO 6", channel:802414, fieldCount:3, fieldBarcode:4 },
+  { name:"NOBO 7", channel:802414, fieldCount:5, fieldBarcode:6 },
+  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8 }
+];
+
+// žemėlapis: "090775" -> "PLX070E" ir pan. (užpildomas įkėlus Excel)
+const PRODUCT_MAP = new Map();
+
+/* =====================================
+   2) PAGALBINIAI: laikas, formatavimas
+   ===================================== */
+const pad2 = n => String(n).padStart(2,'0');
+
+function toIsoLocal(date){
+  const y=date.getFullYear(), M=pad2(date.getMonth()+1), d=pad2(date.getDate()),
+        h=pad2(date.getHours()), m=pad2(date.getMinutes()), s=pad2(date.getSeconds());
+  return `${y}-${M}-${d} ${h}:${m}:${s}`;
+}
+function parseISO(iso){ return new Date(iso); }
+function toLTString(isoStr, tz){
+  if(!isoStr) return "";
+  return new Date(isoStr).toLocaleString('lt-LT',{
+    timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  }).replace(',','');
+}
+function msToHMS(ms){
+  if(!isFinite(ms) || ms<=0) return "";
+  const s=Math.floor(ms/1000);
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+  return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+function normalizeCode(v){
+  // ItemID gali būti 5 skaitmenys (pvz., 90775), o barkodas – 6 (090775).
+  // Normalizuojame iki 6 skaitmenų su kairiniu nuliu.
+  const digits = String(v ?? "").replace(/\D/g,'');
+  if(!digits) return "";
+  return digits.length===5 ? '0'+digits : digits;
+}
+
+/* ==========================================
+   3) ThingSpeak field feed gavimas (vienas langas)
+   ========================================== */
+// /channels/<id>/fields/<fid>.json?api_key=...&results=8000&start=...&end=...&timezone=...
+async function fetchFieldWindow(channel, field, readKey, startStr, endStr, tz){
+  const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
+  const qs=new URLSearchParams({ api_key:readKey, results:'8000', start:startStr, end:endStr, timezone:tz });
+  const r = await fetch(`${base}?${qs.toString()}`);
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+/* =====================================================================================
+   4) Pasiimame VISĄ istoriją dalimis: NUMERINĖS ir TEKSTINĖS vertės
+   ===================================================================================== */
+async function fetchWholePeriodNumeric(channel, field, readKey, tz, from, to, chunkDays=90){
+  const feeds=[]; let curStart=new Date(from.getTime());
+  while(curStart<to){
+    const curEnd=new Date(Math.min(to.getTime(), curStart.getTime()+chunkDays*24*3600*1000));
+    const js=await fetchFieldWindow(channel,field,readKey,toIsoLocal(curStart),toIsoLocal(curEnd),tz);
+    if(js?.feeds?.length) feeds.push(...js.feeds);
+    curStart=new Date(curEnd.getTime()+1000);
+  }
+  const out=[];
+  for(const f of feeds){
+    const v=parseFloat(f[`field${field}`]);
+    if(isFinite(v)) out.push({t:parseISO(f.created_at).getTime(), v, at:f.created_at});
+  }
+  out.sort((a,b)=>a.t-b.t);
+  // dedup (ta pati (t,v))
+  const ded=[]; let lt=-1, lv;
+  for(const x of out){ if(x.t!==lt || x.v!==lv){ ded.push(x); lt=x.t; lv=x.v; } }
+  return ded;
+}
+
+async function fetchWholePeriodText(channel, field, readKey, tz, from, to, chunkDays=90){
+  const feeds=[]; let curStart=new Date(from.getTime());
+  while(curStart<to){
+    const curEnd=new Date(Math.min(to.getTime(), curStart.getTime()+chunkDays*24*3600*1000));
+    const js=await fetchFieldWindow(channel,field,readKey,toIsoLocal(curStart),toIsoLocal(curEnd),tz);
+    if(js?.feeds?.length) feeds.push(...js.feeds);
+    curStart=new Date(curEnd.getTime()+1000);
+  }
+  const out=[];
+  for(const f of feeds){
+    const val=f[`field${field}`];
+    if(val!=null && val!=="") out.push({t:parseISO(f.created_at).getTime(), val:String(val), at:f.created_at});
+  }
+  out.sort((a,b)=>a.t-b.t);
+  // dedup (ta pati (t,val))
+  const ded=[]; let lt=-1, lv="";
+  for(const x of out){ if(x.t!==lt || x.val!==lv){ ded.push(x); lt=x.t; lv=x.val; } }
+  return ded;
+}
+
+/* ============================================================================================
+   5) Segmentavimas pagal barkodus + skaičiavimai: units / avg / trukmė
+   ============================================================================================ */
+function sumPositiveDeltas(counts){
+  if(!counts.length) return {units:0,lastT:null};
+  let units=0;
+  for(let i=1;i<counts.length;i++){
+    const diff=counts[i].v - counts[i-1].v;
+    if(diff>0) units+=diff;
+  }
+  return {units,lastT:counts[counts.length-1].t};
+}
+function buildSegments(barcodes, counts, tz){
+  const segs=[]; if(!barcodes.length) return segs;
+  for(let i=0;i<barcodes.length;i++){
+    const B0=barcodes[i], B1=barcodes[i+1]||null;
+    const tStart=B0.t, tEnd=B1?B1.t:Infinity;
+    const segCounts=counts.filter(c=>c.t>=tStart && c.t<tEnd);
+    const {units,lastT}=sumPositiveDeltas(segCounts);
+    const startLT=toLTString(B0.at,tz);
+    const endLT  =lastT? toLTString(new Date(lastT).toISOString(),tz):"";
+    const durationMs = lastT ? (lastT - tStart) : 0;
+    const avg = (units>0 && durationMs>0) ? (units/(durationMs/3600000)) : null;
+    // gaminio pavadinimas iš žemėlapio
+    const code = normalizeCode(B0.val);
+    const prodName = PRODUCT_MAP.get(code) || "";
+    segs.push({
+      barcode:B0.val, product: prodName,
+      startLT, endLT, duration: msToHMS(durationMs), units, avg,
+      startDate: startLT ? new Date(startLT) : null,
+      endDate:   endLT   ? new Date(endLT)   : null
+    });
+  }
+  return segs;
+}
+
+/* ==========================================
+   6) XLSX – gražus lapas su stiliais, filtrais
+   ========================================== */
+async function exportXLSX(rows){
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Ataskaita', {views:[{state:'frozen', ySplit:1}]});
+
+  ws.columns = [
+    { header:'Linija', key:'line', width:14 },
+    { header:'Gaminys', key:'barcode', width:14 },
+    { header:'Gaminio pavadinimas', key:'product', width:24 },
+    { header:'Testavimo pradžia', key:'start', width:20, style:{numFmt:'yyyy-mm-dd hh:mm:ss'} },
+    { header:'Paskutinio testavimo pabaiga', key:'end', width:24, style:{numFmt:'yyyy-mm-dd hh:mm:ss'} },
+    { header:'Trukmė', key:'duration', width:12 },
+    { header:'Pagaminta vnt', key:'units', width:14 },
+    { header:'Vidurkis vnt./val.', key:'avg', width:18 }
+  ];
+
+  // Antraštės formatas
+  ws.getRow(1).font = { bold:true, color:{argb:'FFFFFFFF'} };
+  ws.getRow(1).alignment = { vertical:'middle', horizontal:'center' };
+  ws.getRow(1).height = 22;
+  ws.getRow(1).eachCell(cell=>{
+    cell.fill   = { type:'pattern', pattern:'solid', fgColor:{argb:'FF333333'} };
+    cell.border = { top:{style:'thin',color:{argb:'FF444444'}},
+                    bottom:{style:'thin',color:{argb:'FF444444'}} };
+  });
+
+  // Duomenys
+  rows.forEach(r=>{
+    ws.addRow({
+      line: r.line,
+      barcode: r.barcode,
+      product: r.product || "",
+      start: r.startDate || null,
+      end:   r.endDate   || null,
+      duration: r.duration || "",
+      units: r.units,
+      avg: (r.avg!=null? Number(r.avg.toFixed(2)) : null)
+    });
+  });
+
+  // AutoFilter ir formatai
+  ws.autoFilter = { from:{row:1,col:1}, to:{row:1,col:8} };
+  ws.getColumn('units').numFmt = '0';
+  ws.getColumn('avg').numFmt   = '0.00';
+
+  const buf = await wb.xlsx.writeBuffer();
+  const fname = `GD_ataskaita_${new Date().toISOString().replace(/[:.]/g,'-')}.xlsx`;
+  saveAs(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), fname);
+}
+
+/* ==========================================
+   7) Gaminio pavadinimų XLSX nuskaitymas
+   ========================================== */
+async function loadProductMapFromXlsx(file){
+  PRODUCT_MAP.clear();
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type:'array' });
+
+  for(const sheetName of wb.SheetNames){
+    const ws = wb.Sheets[sheetName];
+    if(!ws) continue;
+    // raw (header:1) – lengviau rasti "ItemID" stulpelį
+    const A = XLSX.utils.sheet_to_json(ws, { header:1, blankrows:false });
+    if(!A.length) continue;
+
+    // surandam eilutę, kurioje yra "ItemID" ir nustatome nameCol = itemCol+1
+    let headerRow = -1, itemCol = -1, nameCol = -1;
+    for(let r=0;r<Math.min(10,A.length);r++){
+      const row=A[r];
+      for(let c=0;c<row.length;c++){
+        const v = String(row[c]??"").trim().toLowerCase();
+        if(v==="itemid" || v==="item id"){
+          headerRow=r; itemCol=c; nameCol=c+1; break;
+        }
+      }
+      if(headerRow>=0) break;
+    }
+    if(headerRow<0 || itemCol<0 || nameCol<0) continue;
+
+    // einame nuo kitos eilutės iki galo ir pildome map
+    for(let r=headerRow+1;r<A.length;r++){
+      const row=A[r];
+      const idRaw = row[itemCol];
+      const name  = row[nameCol];
+      const code  = normalizeCode(idRaw);
+      if(code && name!=null && String(name).trim()!==""){
+        PRODUCT_MAP.set(code, String(name).trim());
+      }
+    }
+  }
+
+  document.getElementById('mapInfo').textContent =
+    `Įkelta pavadinimų: ${PRODUCT_MAP.size} (iš visų lapų).`;
+}
+
+/* ====================================================
+   8) Pagrindinė generavimo procedūra
+   ==================================================== */
+async function generateReport(){
+  const btn=document.getElementById('go');
+  const st =document.getElementById('status');
+  const tz =document.getElementById('tz').value;
+  const chunkDays=parseInt(document.getElementById('chunkDays').value,10)||90;
+
+  const fromInp=document.getElementById('from').value;
+  const toInp  =document.getElementById('to').value;
+  const now=new Date();
+  let from= fromInp? new Date(fromInp) : new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0);
+  let to  = toInp  ? new Date(toInp)   : now;
+  if(!(from instanceof Date)||!(to instanceof Date)||isNaN(from)||isNaN(to)||from>=to){
+    st.textContent="Klaida: patikrink datų intervalą (Nuo < Iki)."; return;
+  }
+
+  // pasirinktų linijų filtras
+  const sel = Array.from(document.getElementById('lineFilter').selectedOptions).map(o=>o.value);
+  const useLines = sel.length ? LINES.filter(L=>sel.includes(L.name)) : LINES;
+
+  btn.disabled=true; st.textContent="Startuojam…";
+  const out=[];
+
+  for(const L of useLines){
+    const key=READ_KEYS[L.channel];
+    st.textContent=`${L.name}: barkodai…`;
+    const bar = await fetchWholePeriodText   (L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
+    st.textContent=`${L.name}: COUNT…`;
+    const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount  , key, tz, from, to, chunkDays);
+    st.textContent=`${L.name}: skaičiuojam…`;
+    const segs=buildSegments(bar, cnt, tz);
+
+    segs.forEach(s=>{
+      out.push({
+        line: L.name,
+        barcode: s.barcode,
+        product: s.product,
+        start: s.startLT, end: s.endLT,
+        duration: s.duration, units: s.units, avg: s.avg,
+        startDate: s.startDate, endDate: s.endDate
+      });
+    });
+  }
+
+  st.textContent=`Kuriame XLSX (${out.length} eilučių)…`;
+  await exportXLSX(out);
+  st.textContent=`✓ Baigta. Eilučių: ${out.length}`;
+  btn.disabled=false;
+}
+
+/* ===================== 9) INIT UI ===================== */
+document.getElementById('go').addEventListener('click', ()=>{
+  generateReport().catch(err=>{
+    console.error(err);
+    document.getElementById('status').textContent = "Klaida: " + (err?.message||err);
+    document.getElementById('go').disabled=false;
+  });
+});
+document.getElementById('mapFile').addEventListener('change', (ev)=>{
+  const f = ev.target.files?.[0];
+  if(!f){ document.getElementById('mapInfo').textContent="Failas nepasirinktas."; return; }
+  document.getElementById('mapInfo').textContent="Kraunama…";
+  loadProductMapFromXlsx(f).catch(err=>{
+    console.error(err);
+    document.getElementById('mapInfo').textContent = "Nepavyko perskaityti: " + (err?.message||err);
+  });
+});
+
+(function init(){
+  // datos numatytai: šiandien 00:00–dabar
+  const now=new Date(), start=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0);
+  const fmt=d=>{
+    const y=d.getFullYear(), M=String(d.getMonth()+1).padStart(2,'0'),
+          D=String(d.getDate()).padStart(2,'0'), h=String(d.getHours()).padStart(2,'0'),
+          m=String(d.getMinutes()).padStart(2,'0');
+    return `${y}-${M}-${D}T${h}:${m}`;
+  };
+  document.getElementById('from').value=fmt(start);
+  document.getElementById('to').value  =fmt(now);
+
+  // užpildom linijų multi-select
+  const lf=document.getElementById('lineFilter');
+  LINES.forEach(L=>{
+    const opt=document.createElement('option');
+    opt.value=L.name; opt.textContent=L.name; lf.appendChild(opt);
+  });
+
+  // "Pažymėti visus" funkcionalumas
+  const chk = document.getElementById('selectAllLines');
+  if(chk){
+    chk.addEventListener('change', (e) => {
+      const all = lf.options;
+      for(let i=0; i<all.length; i++){
+        all[i].selected = e.target.checked;
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
