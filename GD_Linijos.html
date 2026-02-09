@@ -499,10 +499,24 @@ function openTab(tabName) {
 }
 
 /* ===================== THEME LOGIC ===================== */
+let themeDebounce = 0;
 function toggleTheme() {
-  document.body.classList.toggle('light-mode');
-  const isLight = document.body.classList.contains('light-mode');
-  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  const now = Date.now();
+  if (now - themeDebounce < 300) return; // Prevent double-clicks
+  themeDebounce = now;
+
+  try {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+
+    // Update chart colors if function exists
+    if (typeof window.reRenderChart === 'function') {
+      window.reRenderChart();
+    }
+  } catch(e) {
+    console.error("Theme toggle error:", e);
+  }
 }
 
 (function initTheme(){
