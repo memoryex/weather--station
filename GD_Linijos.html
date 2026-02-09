@@ -1288,11 +1288,20 @@ function renderVizPlaceholder(id, name, type) {
     function getInsightText(minutes) {
         const m = Math.round(minutes);
         if (m >= 61) return "Linija neaktyvi";
-        if (m >= 34) return "Nėra detalių arba ruošiamasi kitam gaminiui";
+        if (m >= 34) return "Nėra detalių / ruošimasis kitam gaminiui";
         if (m >= 25) return "Pietų pertrauka";
         if (m >= 13) return "Nenumatyta prastova";
         if (m >= 8) return "Pertrauka";
         return "";
+    }
+
+    function getInsightIcon(text) {
+        if (!text) return "";
+        if (text.includes("Linija neaktyvi")) return "🔴";
+        if (text.includes("Nėra detalių")) return "🛠️";
+        if (text.includes("Pietų pertrauka")) return "🍽️";
+        if (text === "Pertrauka") return "☕";
+        return "⚠️";
     }
 
     function generateInsights(allData, selectedLines, chartEndTime) {
@@ -1424,11 +1433,14 @@ function renderVizPlaceholder(id, name, type) {
                 let html = `<div style="font-weight:bold; margin-bottom:4px; color:var(--text-main);">${lineName}</div>`;
                 gaps.forEach(g => {
                     const reason = getInsightText(g.duration);
-                    if (!reason) return; // Should not happen given >=10 check
+                    if (!reason) return;
+                    const icon = getInsightIcon(reason);
                     const timeStr = `${toLT(g.start).slice(11,16)} - ${toLT(g.end).slice(11,16)}`;
                     const durStr = Math.round(g.duration) + " min";
-                    html += `<div style="font-size:13px; color:var(--text-muted); margin-left:10px;">
-                               • <b>${timeStr}</b> (${durStr}): <span style="color:#ffa726">${reason}</span>
+                    html += `<div style="font-size:13px; color:var(--text-muted); margin-left:10px; display:flex; align-items:center; gap:6px;">
+                               <span>• <b>${timeStr}</b> (${durStr}):</span>
+                               <span style="font-size:16px;">${icon}</span>
+                               <span style="color:#ffa726">${reason}</span>
                              </div>`;
                 });
                 lineDiv.innerHTML = html;
