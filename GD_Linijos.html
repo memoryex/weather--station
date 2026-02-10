@@ -1085,7 +1085,15 @@ function renderVizPlaceholder(id, name, type) {
         function processRun(run, cutoffTime) {
             // Buffer start time by 5 minutes (300000ms) to catch counts that updated slightly before barcode
             const runCounts = counts.filter(c => c.t >= (run.start - 300000) && c.t < cutoffTime);
-            if(!runCounts.length) return;
+
+            // If no count data, but we have a run (barcode), report 0 units for the duration
+            if(!runCounts.length) {
+                const durationMs = cutoffTime - run.start;
+                if (durationMs > 1000) { // filter noise < 1s
+                    pushSegment(run.barcode, 0, run.start, cutoffTime);
+                }
+                return;
+            }
 
             // Sub-segment logic (Split on Reset)
             let subStartI = 0;
@@ -1122,30 +1130,30 @@ function renderVizPlaceholder(id, name, type) {
                     units += subCounts[0].v;
                 }
 
-                // Filter out 0 units
-                if (units > 0) {
-                    const code = normalizeCode(run.barcode);
-                    const prodName = PRODUCT_MAP.get(code) || "";
+                // Allow 0 units
+                pushSegment(run.barcode, units, subCounts[0].t, subCounts[subCounts.length-1].t);
+            }
 
-                    const startT = subCounts[0].t;
-                    const endT = subCounts[subCounts.length-1].t;
-                    const durationMs = endT - startT;
+            function pushSegment(barcode, units, startT, endT) {
+                const code = normalizeCode(barcode);
+                const prodName = PRODUCT_MAP.get(code) || "";
 
-                    // Format dates
-                    const startLT = toLTString(new Date(startT).toISOString(), tz);
-                    const endLT = toLTString(new Date(endT).toISOString(), tz);
-                    const avg = (durationMs > 0) ? (units / (durationMs/3600000)) : null;
+                const durationMs = endT - startT;
 
-                    segs.push({
-                        barcode: run.barcode,
-                        product: prodName,
-                        startLT, endLT,
-                        duration: formatDuration(durationMs),
-                        units, avg,
-                        startTs: startT,
-                        endTs: endT
-                    });
-                }
+                // Format dates
+                const startLT = toLTString(new Date(startT).toISOString(), tz);
+                const endLT = toLTString(new Date(endT).toISOString(), tz);
+                const avg = (durationMs > 0 && units > 0) ? (units / (durationMs/3600000)) : 0;
+
+                segs.push({
+                    barcode: barcode,
+                    product: prodName,
+                    startLT, endLT,
+                    duration: formatDuration(durationMs),
+                    units, avg,
+                    startTs: startT,
+                    endTs: endT
+                });
             }
         }
         return segs;
