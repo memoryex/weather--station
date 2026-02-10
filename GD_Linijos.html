@@ -1141,6 +1141,7 @@ function renderVizPlaceholder(id, name, type) {
             debugLog(`Pasirinkta linijų: ${useLines.length} (${useLines.map(l=>l.name).join(', ')})`);
 
             const allSegments = [];
+            const textDataByLine = {}; // For AI lookup
 
             // Check mode
             const isRaw = document.getElementById('chartCumulative')?.checked ?? false;
@@ -1149,23 +1150,24 @@ function renderVizPlaceholder(id, name, type) {
             const promises = useLines.map(async (L) => {
                 const key = READ_KEYS[L.channel];
                 try {
+                    // Always fetch BOTH for better insights (product lookup)
+                    const [bar, cnt] = await Promise.all([
+                        fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays),
+                        fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays)
+                    ]);
+
+                    textDataByLine[L.name] = bar;
+
                     if (isRaw) {
-                        // Raw mode: Only numeric
-                        const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays);
-                        // Map directly to {line, startTs, val}
+                        // Raw mode: Use Numeric points
                         return cnt.map(pt => ({
                             line: L.name,
                             startTs: pt.t,
                             val: pt.v
                         }));
                     } else {
-                        // Calculated mode: Both
-                        const [bar, cnt] = await Promise.all([
-                            fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays),
-                            fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays)
-                        ]);
+                        // Calculated mode: Use Segments
                         const segs = buildSegments(bar, cnt, tz);
-
                         return segs.map(s => ({
                             line: L.name,
                             units: s.units,
@@ -1192,7 +1194,7 @@ function renderVizPlaceholder(id, name, type) {
             const success = renderChart(allSegments, from, to);
 
             // Generate Insights
-            generateInsights(allSegments, useLines, to);
+            generateInsights(allSegments, useLines, to, textDataByLine);
 
             if(success) {
                 st.textContent = "Grafikas atnaujintas.";
@@ -1381,7 +1383,18 @@ function renderVizPlaceholder(id, name, type) {
         return "⚠️";
     }
 
-    function generateInsights(allData, selectedLines, chartEndTime) {
+    function getActiveProduct(time, textFeeds) {
+        if(!textFeeds || !textFeeds.length) return null;
+        // Feeds sorted by t. Find last feed where feed.t <= time
+        let cand = null;
+        for(let i=0; i<textFeeds.length; i++) {
+            if(textFeeds[i].t <= time) cand = textFeeds[i];
+            else break;
+        }
+        return cand ? cand.val : null;
+    }
+
+    function generateInsights(allData, selectedLines, chartEndTime, textDataByLine) {
         const container = document.getElementById('insightsSection');
         const content = document.getElementById('insightsContent');
         if (!container || !content) return;
@@ -1394,6 +1407,7 @@ function renderVizPlaceholder(id, name, type) {
 
         lines.forEach(lineName => {
             const isRaw = document.getElementById('chartCumulative')?.checked ?? false;
+            const textFeeds = textDataByLine ? textDataByLine[lineName] : null;
             let gaps = [];
 
             const lineData = allData.filter(d => d.line === lineName).sort((a,b) => (a.startTs||0) - (b.startTs||0));
@@ -1431,7 +1445,27 @@ function renderVizPlaceholder(id, name, type) {
                         let effectiveStart = (gapStart !== null) ? gapStart : prev.startTs;
 
                         const duration = (curr.startTs - effectiveStart) / 60000;
-                        if (duration >= 8) {
+
+                        // Dynamic Threshold Logic
+                        let threshold = 8;
+                        if(window.AI_GetCycleTime) {
+                            // Find product at effectiveStart
+                            let prodRaw = getActiveProduct(effectiveStart, textFeeds);
+                            // Resolve Name
+                            let prodName = prodRaw;
+                            if(prodName) {
+                                const code = normalizeCode(prodName);
+                                if(PRODUCT_MAP.get(code)) prodName = PRODUCT_MAP.get(code);
+                            }
+
+                            const normalCycle = window.AI_GetCycleTime(lineName, prodName);
+                            if(normalCycle && normalCycle > 0) {
+                                // Allow 1.5x normal cycle before calling it a break
+                                threshold = Math.max(8, normalCycle * 1.5);
+                            }
+                        }
+
+                        if (duration >= threshold) {
                             gaps.push({ start: effectiveStart, end: curr.startTs, duration });
                         }
 
@@ -1443,9 +1477,9 @@ function renderVizPlaceholder(id, name, type) {
                 // Trailing Gap (after last flat region)
                 const last = lineData[lineData.length-1];
                 if (gapStart !== null) {
-                    // Check gap until last point
                     const duration = (last.startTs - gapStart) / 60000;
-                    if (duration >= 10) {
+                    if (duration >= 10) { // Keep fixed 10 for trailing/terminal gaps or apply AI? Apply AI if possible.
+                        // It's safer to keep 10 as we don't know if production resumed.
                         gaps.push({ start: gapStart, end: last.startTs, duration });
                     }
                 }
@@ -1498,6 +1532,30 @@ function renderVizPlaceholder(id, name, type) {
                 }
             }
 
+            // --- HEURISTIC: "Slowly assembled product" check ---
+            // If >1 "short break" (8-14 min) occurs within 1 hour, flag them.
+            // "jei per valanda daugiau nei viena pertrauka ~10 min"
+            const IS_SHORT = (d) => (d >= 8 && d <= 14);
+
+            for(let i=0; i<gaps.length; i++) {
+                const g = gaps[i];
+                if (!IS_SHORT(g.duration)) continue;
+
+                let neighbors = 0;
+                for(let j=0; j<gaps.length; j++) {
+                    if (i === j) continue;
+                    const g2 = gaps[j];
+                    if (!IS_SHORT(g2.duration)) continue;
+
+                    const diff = Math.abs(g2.start - g.start) / 3600000; // hours
+                    if (diff <= 1.0) neighbors++;
+                }
+
+                if (neighbors >= 1) {
+                    g.isSlowProduct = true;
+                }
+            }
+
             // Render gaps for this line
             if (gaps.length > 0) {
                 hasInsights = true;
@@ -1509,15 +1567,25 @@ function renderVizPlaceholder(id, name, type) {
 
                 let html = `<div style="font-weight:bold; margin-bottom:4px; color:var(--text-main);">${lineName}</div>`;
                 gaps.forEach(g => {
-                    const reason = getInsightText(g.duration);
+                    let reason = getInsightText(g.duration);
                     if (!reason) return;
-                    const icon = getInsightIcon(reason);
+
+                    let icon = getInsightIcon(reason);
+                    let color = "#ffa726";
+
+                    // OVERRIDE if Slow Product
+                    if (g.isSlowProduct) {
+                        reason = "Tikėtina, tai lėtai renkamas gaminys";
+                        icon = "🐢";
+                        color = "#4fc3f7"; // Light blue for info/slow
+                    }
+
                     const timeStr = `${toLT(g.start).slice(11,16)} - ${toLT(g.end).slice(11,16)}`;
                     const durStr = Math.round(g.duration) + " min";
                     html += `<div style="font-size:13px; color:var(--text-muted); margin-left:10px; display:flex; align-items:center; gap:6px;">
                                <span>• <b>${timeStr}</b> (${durStr}):</span>
                                <span style="font-size:16px;">${icon}</span>
-                               <span style="color:#ffa726">${reason}</span>
+                               <span style="color:${color}">${reason}</span>
                              </div>`;
                 });
                 lineDiv.innerHTML = html;
@@ -1911,7 +1979,20 @@ function renderVizPlaceholder(id, name, type) {
         }
     }
 
-    // --- 4. EXPOSED ACTIONS ---
+    // --- 4. PUBLIC API & ACTIONS ---
+
+    // Get Cycle Time (Minutes per Unit)
+    window.AI_GetCycleTime = function(line, productKey) {
+        if(!productKey) return null;
+        if(!aiModel.products[productKey] || !aiModel.products[productKey][line]) return null;
+
+        const d = aiModel.products[productKey][line];
+        if(d.count <= 0 || d.sumSpeed <= 0) return null;
+
+        const avgSpeed = d.sumSpeed / d.count; // units/hr
+        return (avgSpeed > 0) ? (60 / avgSpeed) : null;
+    };
+
     document.getElementById('aiClearBtn').addEventListener('click', () => {
         if(confirm("Ar tikrai ištrinti visas sukauptas žinias?")) clearModel();
     });
