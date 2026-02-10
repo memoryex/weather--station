@@ -197,24 +197,74 @@ function sumPositiveDeltas(counts){
 }
 function buildSegments(barcodes, counts, tz){
   const segs=[]; if(!barcodes.length) return segs;
-  for(let i=0;i<barcodes.length;i++){
-    const B0=barcodes[i], B1=barcodes[i+1]||null;
-    const tStart=B0.t, tEnd=B1?B1.t:Infinity;
-    const segCounts=counts.filter(c=>c.t>=tStart && c.t<tEnd);
-    const {units,lastT}=sumPositiveDeltas(segCounts);
-    const startLT=toLTString(B0.at,tz);
-    const endLT  =lastT? toLTString(new Date(lastT).toISOString(),tz):"";
-    const durationMs = lastT ? (lastT - tStart) : 0;
-    const avg = (units>0 && durationMs>0) ? (units/(durationMs/3600000)) : null;
-    // gaminio pavadinimas iš žemėlapio
-    const code = normalizeCode(B0.val);
-    const prodName = PRODUCT_MAP.get(code) || "";
-    segs.push({
-      barcode:B0.val, product: prodName,
-      startLT, endLT, duration: msToHMS(durationMs), units, avg,
-      startDate: startLT ? new Date(startLT) : null,
-      endDate:   endLT   ? new Date(endLT)   : null
-    });
+
+  let currentRun = {
+      barcode: barcodes[0].val,
+      start: barcodes[0].t,
+      end: barcodes[0].t,
+      at: barcodes[0].at
+  };
+
+  for (let i = 1; i < barcodes.length; i++) {
+    const b = barcodes[i];
+    if (b.val === currentRun.barcode) {
+        currentRun.end = b.t;
+    } else {
+        processRun(currentRun, b.t);
+        currentRun = {
+            barcode: b.val,
+            start: b.t,
+            end: b.t,
+            at: b.at
+        };
+    }
+  }
+  processRun(currentRun, currentRun.end + 1);
+
+  function processRun(run, cutoffTime) {
+      const runCounts = counts.filter(c => c.t >= run.start && c.t < cutoffTime);
+      if(!runCounts.length) return;
+
+      let subStartI = 0;
+      for(let i=1; i<runCounts.length; i++) {
+          if (runCounts[i].v < runCounts[i-1].v) {
+              finalizeSubSegment(runCounts.slice(subStartI, i));
+              subStartI = i;
+          }
+      }
+      finalizeSubSegment(runCounts.slice(subStartI));
+
+      function finalizeSubSegment(subCounts) {
+          if(!subCounts.length) return;
+          let units = 0;
+          for(let k=1; k<subCounts.length; k++) {
+              const d = subCounts[k].v - subCounts[k-1].v;
+              if(d > 0) units += d;
+          }
+
+          if (units > 0) {
+              const code = normalizeCode(run.barcode);
+              const prodName = PRODUCT_MAP.get(code) || "";
+
+              const startT = subCounts[0].t;
+              const endT = subCounts[subCounts.length-1].t;
+              const durationMs = endT - startT;
+
+              const startLT = toLTString(new Date(startT).toISOString(), tz);
+              const endLT = toLTString(new Date(endT).toISOString(), tz);
+              const avg = (durationMs > 0) ? (units / (durationMs/3600000)) : null;
+
+              segs.push({
+                barcode: run.barcode,
+                product: prodName,
+                startLT, endLT,
+                duration: msToHMS(durationMs),
+                units, avg,
+                startDate: startLT ? new Date(startLT) : null,
+                endDate:   endLT   ? new Date(endLT)   : null
+              });
+          }
+      }
   }
   return segs;
 }
