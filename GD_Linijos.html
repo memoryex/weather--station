@@ -1055,106 +1055,81 @@ function renderVizPlaceholder(id, name, type) {
     }
 
     function buildSegments(barcodes, counts, tz){
-        const segs=[]; if(!barcodes.length) return segs;
+        const segs=[];
+        if(!counts.length) return segs;
 
-        // 1. Group Barcodes into Runs
-        let currentRun = {
-            barcode: barcodes[0].val,
-            start: barcodes[0].t,
-            end: barcodes[0].t,
-            at: barcodes[0].at
-        };
+        // Sort chronologically just in case
+        counts.sort((a,b)=>a.t-b.t);
+        barcodes.sort((a,b)=>a.t-b.t);
 
-        for (let i = 1; i < barcodes.length; i++) {
-            const b = barcodes[i];
-            if (b.val === currentRun.barcode) {
-                currentRun.end = b.t;
-            } else {
-                processRun(currentRun, b.t);
-                currentRun = {
-                    barcode: b.val,
-                    start: b.t,
-                    end: b.t,
-                    at: b.at
-                };
+        let batchStartI = 0;
+        for (let i = 1; i < counts.length; i++) {
+            // Reset detected (value drops) -> Close current batch
+            if (counts[i].v < counts[i-1].v) {
+                finalizeBatch(counts.slice(batchStartI, i));
+                batchStartI = i;
             }
         }
-        // Process last run
-        processRun(currentRun, currentRun.end + 1);
+        // Close last batch
+        finalizeBatch(counts.slice(batchStartI));
 
-        function processRun(run, cutoffTime) {
-            // Buffer start time by 5 minutes (300000ms) to catch counts that updated slightly before barcode
-            const runCounts = counts.filter(c => c.t >= (run.start - 300000) && c.t < cutoffTime);
+        function finalizeBatch(batchCounts) {
+            if(!batchCounts.length) return;
 
-            // If no count data, but we have a run (barcode), report 0 units for the duration
-            if(!runCounts.length) {
-                const durationMs = cutoffTime - run.start;
-                if (durationMs > 1000) { // filter noise < 1s
-                    pushSegment(run.barcode, 0, run.start, cutoffTime);
-                }
-                return;
+            let units = 0;
+            for(let k=1; k<batchCounts.length; k++) {
+                const d = batchCounts[k].v - batchCounts[k-1].v;
+                if(d > 0) units += d;
             }
 
-            // Sub-segment logic (Split on Reset)
-            let subStartI = 0;
-
-            for(let i=1; i<runCounts.length; i++) {
-                const prev = runCounts[i-1];
-                const curr = runCounts[i];
-
-                // If count drops (Reset), finalize previous and start new
-                if (curr.v < prev.v) {
-                    finalizeSubSegment(runCounts.slice(subStartI, i));
-                    subStartI = i;
-                }
-            }
-            // Finalize last sub-segment
-            finalizeSubSegment(runCounts.slice(subStartI));
-
-            function finalizeSubSegment(subCounts) {
-                if(!subCounts.length) return;
-
-                // Calculate units (sum of deltas)
-                let units = 0;
-                for(let k=1; k<subCounts.length; k++) {
-                    const d = subCounts[k].v - subCounts[k-1].v;
-                    if(d > 0) units += d;
-                }
-
-                // Heuristic: If units is 0 (or calculated delta is small) but the *first* value
-                // is small (<= 5), assume we missed the 0->1 transition and add the base count.
-                // This fixes "Missing records" when the window starts after the first count.
-                if (subCounts[0].v > 0 && subCounts[0].v <= 5) {
-                    // Check if we haven't already counted it?
-                    // Delta loop starts at k=1, so index 0 is never added.
-                    units += subCounts[0].v;
-                }
-
-                // Allow 0 units
-                pushSegment(run.barcode, units, subCounts[0].t, subCounts[subCounts.length-1].t);
+            // Heuristic: Initial jump (0->X) or missed 0->1 transition
+            if (batchCounts[0].v > 0 && batchCounts[0].v <= 5) {
+                units += batchCounts[0].v;
             }
 
-            function pushSegment(barcode, units, startT, endT) {
-                const code = normalizeCode(barcode);
-                const prodName = PRODUCT_MAP.get(code) || "";
+            const startT = batchCounts[0].t;
+            const endT = batchCounts[batchCounts.length-1].t;
 
-                const durationMs = endT - startT;
-
-                // Format dates
-                const startLT = toLTString(new Date(startT).toISOString(), tz);
-                const endLT = toLTString(new Date(endT).toISOString(), tz);
-                const avg = (durationMs > 0 && units > 0) ? (units / (durationMs/3600000)) : 0;
-
-                segs.push({
-                    barcode: barcode,
-                    product: prodName,
-                    startLT, endLT,
-                    duration: formatDuration(durationMs),
-                    units, avg,
-                    startTs: startT,
-                    endTs: endT
-                });
+            // Find matching barcode: Last one with t <= endT
+            // Use endT to catch cases where barcode is scanned during the run (e.g. operator scanned after start)
+            let activeB = null;
+            for (let b of barcodes) {
+                if (b.t <= endT) {
+                    activeB = b;
+                } else {
+                    break;
+                }
             }
+
+            const bVal = activeB ? activeB.val : "N/A";
+            const bTime = activeB ? activeB.at : "";
+
+            pushSegment(bVal, units, startT, endT, bTime);
+        }
+
+        function pushSegment(barcode, units, startT, endT, bTimeStr) {
+            const code = normalizeCode(barcode);
+            const prodName = PRODUCT_MAP.get(code) || "";
+
+            const durationMs = endT - startT;
+
+            // Format dates
+            const startLT = toLTString(new Date(startT).toISOString(), tz);
+            const endLT = toLTString(new Date(endT).toISOString(), tz);
+            const bTimeLT = toLTString(bTimeStr, tz);
+
+            const avg = (durationMs > 0 && units > 0) ? (units / (durationMs/3600000)) : 0;
+
+            segs.push({
+                barcode: barcode,
+                product: prodName,
+                startLT, endLT,
+                duration: formatDuration(durationMs),
+                units, avg,
+                startTs: startT,
+                endTs: endT,
+                barcodeTime: bTimeLT
+            });
         }
         return segs;
     }
@@ -1167,6 +1142,7 @@ function renderVizPlaceholder(id, name, type) {
             { header:'Linija', key:'line', width:14 },
             { header:'Gaminys', key:'barcode', width:14 },
             { header:'Gaminio pavadinimas', key:'product', width:24 },
+            { header:'Barkodo laikas', key:'barcodeTime', width:20, style:{numFmt:'yyyy-mm-dd hh:mm:ss'} },
             { header:'Testavimo pradžia', key:'start', width:20, style:{numFmt:'yyyy-mm-dd hh:mm:ss'} },
             { header:'Paskutinio testavimo pabaiga', key:'end', width:24, style:{numFmt:'yyyy-mm-dd hh:mm:ss'} },
             { header:'Trukmė', key:'duration', width:12 },
@@ -1187,6 +1163,7 @@ function renderVizPlaceholder(id, name, type) {
             line: r.line,
             barcode: r.barcode,
             product: r.product || "",
+            barcodeTime: r.barcodeTime || null,
             start: r.startDate || null,
             end:   r.endDate   || null,
             duration: r.duration || "",
@@ -1195,7 +1172,7 @@ function renderVizPlaceholder(id, name, type) {
             });
         });
 
-        ws.autoFilter = { from:{row:1,col:1}, to:{row:1,col:8} };
+        ws.autoFilter = { from:{row:1,col:1}, to:{row:1,col:9} };
         ws.getColumn('units').numFmt = '0';
         ws.getColumn('avg').numFmt   = '0.00';
 
@@ -1760,6 +1737,7 @@ function renderVizPlaceholder(id, name, type) {
                     line: L.name,
                     barcode: s.barcode,
                     product: s.product,
+                    barcodeTime: s.barcodeTime,
                     start: s.startLT, end: s.endLT,
                     duration: s.duration, units: s.units, avg: s.avg,
                     startTs: s.startTs, endTs: s.endTs
