@@ -458,12 +458,15 @@ document.getElementById('mapFile').addEventListener('change', (ev)=>{
   const lf=document.getElementById('lineFilter');
   LINES.forEach(L=>{
     const opt=document.createElement('option');
-    opt.value=L.name; opt.textContent=L.name; lf.appendChild(opt);
+    opt.value=L.name; opt.textContent=L.name;
+    opt.selected = true; // Numatytasis: pasirinkti visus
+    lf.appendChild(opt);
   });
 
   // "Pažymėti visus" funkcionalumas
   const chk = document.getElementById('selectAllLines');
   if(chk && lf){
+    chk.checked = true; // Numatytasis: varnelė uždėta
     chk.addEventListener('change', (e) => {
       const all = lf.options;
       for(let i=0; i<all.length; i++){
