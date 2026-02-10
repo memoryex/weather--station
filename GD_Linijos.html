@@ -1061,7 +1061,8 @@ function renderVizPlaceholder(id, name, type) {
         processRun(currentRun, currentRun.end + 1);
 
         function processRun(run, cutoffTime) {
-            const runCounts = counts.filter(c => c.t >= run.start && c.t < cutoffTime);
+            // Buffer start time by 5 minutes (300000ms) to catch counts that updated slightly before barcode
+            const runCounts = counts.filter(c => c.t >= (run.start - 300000) && c.t < cutoffTime);
             if(!runCounts.length) return;
 
             // Sub-segment logic (Split on Reset)
@@ -1083,11 +1084,20 @@ function renderVizPlaceholder(id, name, type) {
             function finalizeSubSegment(subCounts) {
                 if(!subCounts.length) return;
 
-                // Calculate units
+                // Calculate units (sum of deltas)
                 let units = 0;
                 for(let k=1; k<subCounts.length; k++) {
                     const d = subCounts[k].v - subCounts[k-1].v;
                     if(d > 0) units += d;
+                }
+
+                // Heuristic: If units is 0 (or calculated delta is small) but the *first* value
+                // is small (<= 5), assume we missed the 0->1 transition and add the base count.
+                // This fixes "Missing records" when the window starts after the first count.
+                if (subCounts[0].v > 0 && subCounts[0].v <= 5) {
+                    // Check if we haven't already counted it?
+                    // Delta loop starts at k=1, so index 0 is never added.
+                    units += subCounts[0].v;
                 }
 
                 // Filter out 0 units

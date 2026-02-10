@@ -222,7 +222,8 @@ function buildSegments(barcodes, counts, tz){
   processRun(currentRun, currentRun.end + 1);
 
   function processRun(run, cutoffTime) {
-      const runCounts = counts.filter(c => c.t >= run.start && c.t < cutoffTime);
+      // Buffer start time by 5 minutes (300000ms)
+      const runCounts = counts.filter(c => c.t >= (run.start - 300000) && c.t < cutoffTime);
       if(!runCounts.length) return;
 
       let subStartI = 0;
@@ -240,6 +241,11 @@ function buildSegments(barcodes, counts, tz){
           for(let k=1; k<subCounts.length; k++) {
               const d = subCounts[k].v - subCounts[k-1].v;
               if(d > 0) units += d;
+          }
+
+          // Heuristic for missed 0->1 transition
+          if (subCounts[0].v > 0 && subCounts[0].v <= 5) {
+              units += subCounts[0].v;
           }
 
           if (units > 0) {
