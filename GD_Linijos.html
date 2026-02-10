@@ -984,6 +984,28 @@ function renderVizPlaceholder(id, name, type) {
         return r.json();
     }
 
+    // Helper: fetch the last barcode entry BEFORE 'timeObj' (look back 30 days)
+    async function fetchStartBarcode(channel, field, key, timeObj, tz) {
+        const endIso = toIsoLocal(timeObj);
+        const startObj = new Date(timeObj.getTime() - 30 * 24 * 3600 * 1000);
+        const startIso = toIsoLocal(startObj);
+
+        const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
+        const qs=new URLSearchParams({ api_key:key, start:startIso, end:endIso, results:'1', timezone:tz });
+
+        try {
+            const r = await fetch(`${base}?${qs.toString()}`);
+            if (!r.ok) return null;
+            const j = await r.json();
+            if (j.feeds && j.feeds.length > 0) {
+            return j.feeds[j.feeds.length - 1];
+            }
+        } catch (e) {
+            console.error("Error fetching start barcode:", e);
+        }
+        return null;
+    }
+
     async function fetchWholePeriodNumeric(channel, field, readKey, tz, from, to, chunkDays=90){
         const feeds=[]; let curStart=new Date(from.getTime());
         while(curStart<to){
@@ -1707,6 +1729,19 @@ function renderVizPlaceholder(id, name, type) {
                 const key=READ_KEYS[L.channel];
                 st.textContent=`${L.name}: barkodai…`;
                 const bar = await fetchWholePeriodText   (L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
+
+                // If no barcode found in window (or starts late), try to find what was running before
+                if (bar.length === 0 || bar[0].t > from.getTime()) {
+                    const startFeed = await fetchStartBarcode(L.channel, L.fieldBarcode, key, from, tz);
+                    if (startFeed) {
+                        bar.unshift({
+                            t: from.getTime(),
+                            val: String(startFeed[`field${L.fieldBarcode}`]),
+                            at: startFeed.created_at
+                        });
+                    }
+                }
+
                 st.textContent=`${L.name}: COUNT…`;
                 const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount  , key, tz, from, to, chunkDays);
                 st.textContent=`${L.name}: skaičiuojam…`;
