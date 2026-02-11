@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Messenger Cleaner V16.0 (Sidebar Fix)
+// @name         Messenger Cleaner V17.0 (Sidebar Text Replacement)
 // @namespace    http://tampermonkey.net/
-// @version      16.0
-// @description  Blokuoja Shorts/Reels/TikTok ir paslepia VISĄ žinutės eilutę. Sidebar rodo naujausius pranešimus, jei jie nėra nuorodos.
+// @version      17.0
+// @description  Blokuoja Shorts/Reels/TikTok ir paslepia VISĄ žinutės eilutę. Sidebar tekstas pakeičiamas į "unable receive message".
 // @author       Jūs
 // @match        https://www.messenger.com/*
 // @match        https://www.facebook.com/messages/*
@@ -13,10 +13,9 @@
 (function() {
     'use strict';
 
-    console.log("Messenger Cleaner V16.0: Startuoja (Sidebar Fix)...");
+    console.log("Messenger Cleaner V17.0: Startuoja (Text Replacement)...");
 
     // --- 1. CSS INJEKCIJA ---
-    // Paslepia konkrečias nuorodas iškart (prevencija)
     const style = document.createElement('style');
     style.innerHTML = `
         a[href*="tiktok.com"],
@@ -27,9 +26,14 @@
             display: none !important;
         }
 
-        /* Visiškai paslepiame elementą, kurį pažymėjo JS (eilutę arba žinutę) */
-        [data-v16-cleaned="true"] {
+        [data-v17-cleaned="true"] {
             display: none !important;
+        }
+
+        .v17-replaced-text {
+            color: #888 !important;
+            font-style: italic !important;
+            font-size: 0.9em !important;
         }
     `;
     document.head.appendChild(style);
@@ -59,20 +63,9 @@
 
     function cleanElement(element) {
         if (!element) return;
-        if (element.getAttribute('data-v16-cleaned') === 'true') return;
-
-        // Pažymime elementą paslėpimui
-        element.setAttribute('data-v16-cleaned', 'true');
+        if (element.getAttribute('data-v17-cleaned') === 'true') return;
+        element.setAttribute('data-v17-cleaned', 'true');
         element.style.display = 'none';
-    }
-
-    function restoreElement(element) {
-        if (!element) return;
-        // Jei elementas buvo paslėptas, atstatome jį
-        if (element.getAttribute('data-v16-cleaned') === 'true' || element.style.display === 'none') {
-            element.removeAttribute('data-v16-cleaned');
-            element.style.display = ''; // Panaikiname inline style
-        }
     }
 
     function isBadUrl(url) {
@@ -89,24 +82,26 @@
     }
 
     function getContainer(node) {
-        // Bandome rasti visą eilutę (su avataru ir laiku)
         let row = node.closest('div[role="row"]');
         if (row) return row;
-
         let msgContainer = node.closest('div[data-testid="message-container"]');
         if (msgContainer) return msgContainer;
-
         if (node.tagName !== 'A' && node.tagName !== 'SPAN') {
              if (node.parentElement && node.parentElement.tagName === 'DIV') {
                  return node.parentElement;
              }
         }
-
         return node;
     }
 
     function checkSidebarItem(node) {
+        // Jei jau pakeitėme, nieko nedarome
+        if (node.classList.contains('v17-replaced-text')) return;
+
         const text = node.innerText || "";
+        // Jei tekstas jau yra "unable receive message", praleidžiam
+        if (text === "unable receive message") return;
+
         let isBad = false;
 
         // Tikriname domenus
@@ -127,51 +122,48 @@
             }
         }
 
-        // Sidebar atveju irgi bandome rasti visą elementą
-        let container = node.closest('div[role="gridcell"]') || node.closest('div[data-testid="mwthreadlist-item"]');
+        if (isBad) {
+            // VIETOJE SLĖPIMO - PAKEIČIAME TEKSTĄ
+            node.innerText = "unable receive message";
+            node.classList.add('v17-replaced-text');
 
-        if (container) {
-            if (isBad) {
-                cleanElement(container);
-            } else {
-                // SVARBU: Jei tekstas geras (pvz., nauja žinutė), būtinai parodome elementą!
-                restoreElement(container);
+            // Užtikriname, kad tėvinis elementas būtų matomas (jei anksčiau buvo paslėptas)
+            let container = node.closest('div[role="gridcell"]') || node.closest('div[data-testid="mwthreadlist-item"]');
+            if (container) {
+                container.style.display = '';
+                container.removeAttribute('data-v17-cleaned');
             }
         }
     }
 
     function cleanMess() {
         // 1. NUORODŲ VALYMAS (CHAT WINDOW - STRICT HIDE)
-        const links = document.querySelectorAll('a:not([data-v16-processed])');
+        const links = document.querySelectorAll('a:not([data-v17-processed])');
         links.forEach(link => {
             const href = link.getAttribute('href');
             if (isBadUrl(href)) {
                 let container = getContainer(link);
                 cleanElement(container);
             }
-            link.setAttribute('data-v16-processed', 'true');
+            link.setAttribute('data-v17-processed', 'true');
         });
 
-        // 2. SIDEBARO VALYMAS (DYNAMIC HIDE/RESTORE)
-        // Nuimame :not([cleaned]) filtrą, kad nuolat tikrintume ar nepasikeitė tekstas (pvz., atėjo nauja žinutė)
-        // Tai svarbu, kad "neberodo nieko" problema būtų išspręsta
+        // 2. SIDEBARO VALYMAS (TEXT REPLACEMENT)
         const potentialSidebarNodes = document.querySelectorAll('div[role="gridcell"] span, div[data-testid="mwthreadlist-item"] span');
 
         potentialSidebarNodes.forEach(node => {
-            // Tikriname tik tuos spanus, kurie turi pakankamai teksto, kad būtų žinutė/preview
             if (node.innerText && node.innerText.length > 2) {
                 checkSidebarItem(node);
             }
         });
     }
 
-    // Naudojame debounce, kad per daug neapkrautume tikrinant sidebarą nuolat
     let debounceTimer = null;
     const observer = new MutationObserver((mutations) => {
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             cleanMess();
-        }, 100); // Trumpas debounce
+        }, 100);
     });
 
     observer.observe(document.body, {
