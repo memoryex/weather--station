@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Messenger Cleaner V11.0 (Su Šluotele 🧹)
 // @namespace    http://tampermonkey.net/
-// @version      11.4
+// @version      11.5
 // @description  Blokuoja Shorts/Reels ir pakeičia juos į 🧹. Taip pat blokuoja 10 sek. po jų einančias žinutes.
 // @author       Jūs
 // @match        https://www.messenger.com/*
@@ -13,33 +13,19 @@
 (function() {
     'use strict';
 
-    console.log("Messenger Cleaner V11.4: Startuoja su tikslesniu valymu...");
+    console.log("Messenger Cleaner V11.5: Startuoja su visišku paslėpimu...");
 
     // 1. Įterpiame CSS stilių
     const style = document.createElement('style');
     style.innerHTML = `
-        /* Paslepia patį elementą */
+        /* Paslepia elementą VISIŠKAI (susiurbia vietą) */
         .v11-cleaned {
-            visibility: hidden !important;
+            display: none !important;
         }
 
-        /* Rodo "šluotelės" pranešimą */
-        .v11-cleaned::after {
-            content: '🧹 ' attr(data-v11-reason);
-            visibility: visible !important;
-            position: absolute !important;
-            top: 0;
-            left: 0;
-            display: inline-block;
-            color: #bbb;
-            font-size: 11px;
-            font-family: sans-serif;
-            background: rgba(0,0,0,0.05);
-            padding: 2px 5px;
-            border-radius: 4px;
-            white-space: nowrap;
-            z-index: 10;
-        }
+        /* Jei norima visgi matyti mažą žymę, reiktų kito būdo,
+           bet vartotojas prašė "išvis nerodytų susiurintų",
+           todėl pseudo-elementai irgi dings su display:none */
     `;
     document.head.appendChild(style);
 
@@ -84,7 +70,6 @@
 
         // Apsauga nuo "viso ekrano" paslėpimo
         if (isTooBig(element)) {
-            // Jei konteineris per didelis, bandome valyti patį linką, o ne konteinerį
             return;
         }
 
@@ -140,14 +125,9 @@
 
             if (isBadLink) {
                 // Svarbu: pasirenkame tik artimiausią ŽINUTĖS eilutę
-                // Messenger struktūra: div[role="row"] -> ... -> a
                 let container = link.closest('div[role="row"]');
 
-                // Jei nerandame role="row", bandome rasti žinutės burbulą (specifinės klasės)
-                // x1n2onr6 dažnai naudojama žinutės eilutei
                 if (!container) container = link.closest('.x1n2onr6');
-
-                // Jei vis dar neradome, bandome div su dir="auto" (pats tekstas), bet tik jei jis tėvas
                 if (!container) container = link.closest('div[dir="auto"]');
 
                 // Jei nieko neradome arba elementas per didelis, valome patį linką (saugiausia)
@@ -162,7 +142,6 @@
         });
 
         // --- 2. APSAUGA NUO SEKIMO (Kaimynų principas) ---
-        // Svarbu: iteruojame tik per role="row", nes jie garantuotai yra žinutės
         const rows = document.querySelectorAll('div[role="row"]');
         if (rows.length > 0) {
             for (let i = 0; i < rows.length; i++) {
@@ -196,7 +175,6 @@
         }
 
         // --- 3. FRAZIŲ VALYMAS ---
-        // Čia irgi atsargiau
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
         let node;
         while (node = walker.nextNode()) {
