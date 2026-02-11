@@ -594,6 +594,48 @@ function toggleTheme(e) {
 /* ===================== SHARED HELPERS ===================== */
 const pad2 = n => String(n).padStart(2,'0');
 
+// --- GLOBAL INSIGHTS LOGIC ---
+window.getInsightText = function(minutes, startTs) {
+    const m = Math.round(minutes);
+    let date = startTs ? new Date(startTs) : null;
+
+    // 1. Shift Change Logic (around 06:00, 14:00, 22:00)
+    // Check if startTs is within +/- 30 mins of shift change
+    if (date) {
+        const h = date.getHours();
+        const min = date.getMinutes();
+        const totalMin = h * 60 + min;
+
+        // 06:00 = 360, 14:00 = 840, 22:00 = 1320
+        const shifts = [360, 840, 1320];
+        for (let s of shifts) {
+            if (Math.abs(totalMin - s) <= 45) return "Pamainos keitimas";
+        }
+
+        // Lunch Logic (11:00 - 13:00 approx range for lunch breaks)
+        // If break is 20-50 min and happens around noon
+        if (m >= 20 && m <= 50 && h >= 10 && h <= 13) return "Pietų pertrauka";
+    }
+
+    if (m >= 61) return "Linija neaktyvi";
+    if (m >= 34) return "Ruošimasis / Nėra detalių";
+    if (m >= 25) return "Pietų pertrauka (nenumatyta)";
+    if (m >= 13) return "Nenumatyta prastova";
+    if (m >= 8) return "Trumpa pertrauka";
+    return "";
+};
+
+window.getInsightIcon = function(text) {
+    if (!text) return "";
+    if (text === "Linija neaktyvi") return "🔴";
+    if (text === "Ruošimasis / Nėra detalių") return "🛠️";
+    if (text.includes("Pietų pertrauka")) return "🍽️";
+    if (text === "Pamainos keitimas") return "🔄";
+    if (text === "Trumpa pertrauka") return "☕";
+    if (text === "Nenumatyta prastova") return "⚠️";
+    return "⚠️";
+};
+
 function toIsoLocal(date){
   const y=date.getFullYear(), M=pad2(date.getMonth()+1), d=pad2(date.getDate()),
         h=pad2(date.getHours()), m=pad2(date.getMinutes()), s=pad2(date.getSeconds());
@@ -635,6 +677,31 @@ function normalizeCode(v){
 }
 
 /* ===================== SHARED FILE LOADER ===================== */
+
+// --- GLOBAL AI MODEL ---
+window.aiModel = {
+    products: {}, // code -> { line -> { sumSpeed, count, segments, minSpeed, maxSpeed } }
+    breaks: {},   // hour (0-23) -> { type: count }
+    lineProgress: {}, // line -> maxEndTs
+    lastUpdated: null
+};
+const AI_MODEL_KEY = 'gd_ai_model';
+
+// Helper to load model globally if needed, though InitAI handles logic.
+try {
+    const raw = localStorage.getItem(AI_MODEL_KEY);
+    if (raw) {
+        const loaded = JSON.parse(raw);
+        // Merge into global object to keep reference
+        Object.assign(window.aiModel, loaded);
+        // Migration: Convert old number-based breaks to empty objects
+        if (!window.aiModel.lineProgress) window.aiModel.lineProgress = {};
+        for (let h=0; h<24; h++) {
+            if (typeof window.aiModel.breaks[h] === 'number') window.aiModel.breaks[h] = {};
+        }
+    }
+} catch (e) { console.error("AI Global Load Error", e); }
+
 
 /* ================================================================================================
    LOGIC: VISUALIZATION INIT
@@ -1492,45 +1559,7 @@ function renderVizPlaceholder(id, name, type) {
         }
     }
     // --- INSIGHTS LOGIC START ---
-    function getInsightText(minutes, startTs) {
-        const m = Math.round(minutes);
-        let date = startTs ? new Date(startTs) : null;
-
-        // 1. Shift Change Logic (around 06:00, 14:00, 22:00)
-        // Check if startTs is within +/- 30 mins of shift change
-        if (date) {
-            const h = date.getHours();
-            const min = date.getMinutes();
-            const totalMin = h * 60 + min;
-
-            // 06:00 = 360, 14:00 = 840, 22:00 = 1320
-            const shifts = [360, 840, 1320];
-            for (let s of shifts) {
-                if (Math.abs(totalMin - s) <= 45) return "Pamainos keitimas";
-            }
-
-            // Lunch Logic (11:00 - 13:00 approx range for lunch breaks)
-            // If break is 25-45 min and happens around noon
-            if (m >= 20 && m <= 50 && h >= 10 && h <= 13) return "Pietų pertrauka";
-        }
-
-        if (m >= 61) return "Linija neaktyvi";
-        if (m >= 34) return "Nėra detalių / ruošimasis kitam gaminiui";
-        if (m >= 25) return "Pietų pertrauka (nenumatyta)";
-        if (m >= 13) return "Nenumatyta prastova";
-        if (m >= 8) return "Pertrauka";
-        return "";
-    }
-
-    function getInsightIcon(text) {
-        if (!text) return "";
-        if (text.includes("Linija neaktyvi")) return "🔴";
-        if (text.includes("Nėra detalių")) return "🛠️";
-        if (text.includes("Pietų pertrauka")) return "🍽️";
-        if (text.includes("Pamainos keitimas")) return "🔄";
-        if (text === "Pertrauka") return "☕";
-        return "⚠️";
-    }
+    // (Logic moved to global scope: getInsightText, getInsightIcon)
 
     function getActiveProduct(time, textFeeds) {
         if(!textFeeds || !textFeeds.length) return null;
@@ -1727,6 +1756,17 @@ function renderVizPlaceholder(id, name, type) {
                         reason = "Tikėtina, tai lėtai renkamas gaminys";
                         icon = "🐢";
                         color = "#4fc3f7"; // Light blue for info/slow
+                    } else {
+                        // Check AI Model for Typical Breaks
+                        const startH = new Date(g.start).getHours();
+                        const modelEntry = window.aiModel ? (window.aiModel.breaks[startH] || {}) : {};
+                        const freq = modelEntry[reason] || 0;
+
+                        if (freq > 3) {
+                             reason += " (Įprasta šiuo laiku)";
+                             // If it's a common break, maybe make it less alarming? Or more?
+                             // Keep orange but add note.
+                        }
                     }
 
                     const timeStr = `${toLT(g.start).slice(11,16)} - ${toLT(g.end).slice(11,16)}`;
@@ -1947,45 +1987,47 @@ function renderVizPlaceholder(id, name, type) {
 
 (function InitAI() {
     /* =========================================================================================
-       SMART ANALYTICS ENGINE (DI)
+       SMART ANALYTICS ENGINE (beta)
        =========================================================================================
        Logic:
        1. Store Product Stats: Map<ProductCode, Map<LineName, { totalSpeed, count, maxSpeed, ... }>>
        2. Store Break Stats: Map<HourOfDay, Count>
        3. Persist to localStorage ('gd_ai_model')
     */
+    const aiModel = window.aiModel;
 
-    const MODEL_KEY = 'gd_ai_model';
-    let aiModel = {
-        products: {}, // code -> { line -> { sumSpeed, count, segments } }
-        breaks: {},   // hour (0-23) -> count
-        lineProgress: {}, // line -> maxEndTs (to prevent duplicates)
-        lastUpdated: null
-    };
+    // --- 1. PERSISTENCE (Uses global window.aiModel) ---
+    function updateUI() {
+        const st = document.getElementById('aiStatus');
+        const updated = window.aiModel.lastUpdated ? new Date(window.aiModel.lastUpdated).toLocaleString('lt-LT') : "Niekada";
 
-    // --- 1. PERSISTENCE ---
-    function loadModel() {
-        try {
-            const raw = localStorage.getItem(MODEL_KEY);
-            if (raw) {
-                aiModel = JSON.parse(raw);
-                if(!aiModel.lineProgress) aiModel.lineProgress = {}; // migration
-            }
-        } catch (e) { console.error("AI Load Error", e); }
-        updateUI();
+        let total = 0;
+        Object.values(window.aiModel.products).forEach(lines => {
+            Object.values(lines).forEach(d => total += d.count);
+        });
+
+        if (st) st.textContent = `DI statusas: Sukaupta ${total} segmentų. Atnaujinta: ${updated}`;
+
+        renderProductTable();
+        renderBreakChart();
     }
 
     function saveModel() {
         try {
-            aiModel.lastUpdated = new Date().toISOString();
-            localStorage.setItem(MODEL_KEY, JSON.stringify(aiModel));
+            window.aiModel.lastUpdated = new Date().toISOString();
+            localStorage.setItem(AI_MODEL_KEY, JSON.stringify(window.aiModel));
         } catch (e) { console.error("AI Save Error", e); }
         updateUI();
     }
 
     function clearModel() {
-        aiModel = { products: {}, breaks: {}, lineProgress: {}, lastUpdated: null };
-        localStorage.removeItem(MODEL_KEY);
+        // Reset properties of global object
+        window.aiModel.products = {};
+        window.aiModel.breaks = {};
+        window.aiModel.lineProgress = {};
+        window.aiModel.lastUpdated = null;
+
+        localStorage.removeItem(AI_MODEL_KEY);
         updateUI();
     }
 
@@ -2031,25 +2073,30 @@ function renderVizPlaceholder(id, name, type) {
             if (speed > entry.maxSpeed) entry.maxSpeed = speed;
             learnedCount++;
 
-            // 2.2 Detect Breaks (Gap > 15 min between segments on SAME line)
+            // 2.2 Detect Breaks
             // Use local accumulator for this session to detect breaks within the new batch
-            // BUT also consider gap from previous learned session if applicable?
-            // For simplicity, we track breaks within the stream.
             if (!linesLastSeen[seg.line]) {
-                // First segment in this batch for this line.
-                // Could check gap from 'learnedUntil' if we trust it matches the stream start?
-                // Let's stick to batch internal gaps for safety.
                 linesLastSeen[seg.line] = seg.endTs;
             } else {
                 const prevEnd = linesLastSeen[seg.line];
                 const gapMin = (seg.startTs - prevEnd) / 60000;
 
-                if (gapMin > 15 && gapMin < 120) { // 15min to 2h breaks
+                // Track breaks between 8 min and 3 hours (exclude overnight/long downtime)
+                if (gapMin >= 8 && gapMin < 180) {
                     const breakStart = new Date(prevEnd);
                     const h = breakStart.getHours();
-                    if (!aiModel.breaks[h]) aiModel.breaks[h] = 0;
-                    aiModel.breaks[h]++;
-                    breakCount++;
+
+                    // Identify Type
+                    const type = getInsightText(gapMin, prevEnd);
+                    if (type && type !== "Linija neaktyvi") {
+                        if (!aiModel.breaks[h]) aiModel.breaks[h] = {};
+                        // Migration safety: if old data was number, reset to object
+                        if (typeof aiModel.breaks[h] === 'number') aiModel.breaks[h] = {};
+
+                        if (!aiModel.breaks[h][type]) aiModel.breaks[h][type] = 0;
+                        aiModel.breaks[h][type]++;
+                        breakCount++;
+                    }
                 }
                 linesLastSeen[seg.line] = seg.endTs;
             }
@@ -2141,30 +2188,61 @@ function renderVizPlaceholder(id, name, type) {
         if (!container || !Highcharts) return;
 
         const hours = Array.from({length: 24}, (_, i) => i);
-        const data = hours.map(h => aiModel.breaks[h] || 0);
 
-        // Highcharts Heatmap-like Column
+        // Define Series Keys & Colors based on getInsightText return values
+        const seriesConfig = {
+            "Pamainos keitimas": { color: '#3f51b5' }, // Blue
+            "Pietų pertrauka": { color: '#4caf50' },   // Green
+            "Trumpa pertrauka": { color: '#ffeb3b' },  // Yellow
+            "Nenumatyta prastova": { color: '#f44336' }, // Red
+            "Ruošimasis / Nėra detalių": { color: '#9e9e9e' }, // Grey
+            "Linija neaktyvi": { color: '#607d8b' }    // Blue Grey
+        };
+
+        // Initialize Series Data
+        const seriesMap = {};
+        Object.keys(seriesConfig).forEach(k => seriesMap[k] = []);
+
+        // Aggregate Data
+        const totalPerHour = new Array(24).fill(0);
+
+        hours.forEach(h => {
+            const entry = aiModel.breaks[h] || {};
+
+            Object.keys(seriesConfig).forEach(key => {
+                const val = entry[key] || 0;
+                seriesMap[key].push(val);
+                totalPerHour[h] += val;
+            });
+        });
+
+        const series = Object.keys(seriesMap).map(k => ({
+            name: k,
+            data: seriesMap[k],
+            color: seriesConfig[k].color
+        }));
+
+        // Render Stacked Column Chart
         Highcharts.chart('aiBreakChart', {
-            chart: { type: 'column', backgroundColor: 'transparent', height: 250 },
+            chart: { type: 'column', backgroundColor: 'transparent', height: 300 },
             title: { text: null },
             xAxis: { categories: hours.map(h => h + ":00"), labels: { style: { color: '#bbb' } } },
             yAxis: { title: { text: 'Pertraukų sk.', style: { color: '#bbb' } }, gridLineColor: '#444' },
-            series: [{
-                name: 'Pertraukos',
-                data: data,
-                color: '#ffa726'
-            }],
-            legend: { enabled: false },
+            legend: { itemStyle: { color: '#ddd' } },
+            plotOptions: {
+                column: { stacking: 'normal' }
+            },
+            series: series,
             credits: { enabled: false }
         });
 
-        // Find peak
+        // Find peak hour
         let max = 0, maxH = -1;
-        data.forEach((v,i) => { if(v>max){max=v; maxH=i;} });
+        totalPerHour.forEach((v,i) => { if(v>max){max=v; maxH=i;} });
 
         const info = document.getElementById('aiBreakStats');
-        if(info && maxH >= 0) {
-            info.textContent = `Dažniausiai linijos stoja apie ${maxH}:00 val.`;
+        if(info && maxH >= 0 && max > 0) {
+            info.textContent = `Dažniausiai linijos stoja apie ${maxH}:00 val. (viso ${max} pertraukų).`;
         } else if(info) {
             info.textContent = "Nėra pakankamai duomenų analizei.";
         }
@@ -2317,7 +2395,7 @@ function renderVizPlaceholder(id, name, type) {
     }
 
     // Init
-    loadModel();
+    updateUI();
 
 })();
 </script>
