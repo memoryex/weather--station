@@ -142,21 +142,26 @@ async function fetchFieldWindow(channel, field, readKey, startStr, endStr, tz){
   return r.json();
 }
 
-// Helper: fetch the last barcode entry BEFORE 'timeObj' (look back 30 days)
+// Helper: fetch the last barcode entry BEFORE 'timeObj'
 async function fetchStartBarcode(channel, field, key, timeObj, tz) {
   const endIso = toIsoLocal(timeObj);
-  const startObj = new Date(timeObj.getTime() - 30 * 24 * 3600 * 1000);
-  const startIso = toIsoLocal(startObj);
 
   const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
-  const qs=new URLSearchParams({ api_key:key, start:startIso, end:endIso, results:'1', timezone:tz });
+  // Request up to 8000 results (max) to find the last non-null value
+  const qs=new URLSearchParams({ api_key:key, end:endIso, results:'8000', timezone:tz });
 
   try {
     const r = await fetch(`${base}?${qs.toString()}`);
     if (!r.ok) return null;
     const j = await r.json();
     if (j.feeds && j.feeds.length > 0) {
-      return j.feeds[j.feeds.length - 1];
+      // Iterate backwards to find the last non-null value
+      for (let i = j.feeds.length - 1; i >= 0; i--) {
+        const val = j.feeds[i][`field${field}`];
+        if (val != null && val !== "" && String(val).toLowerCase() !== "null") {
+          return j.feeds[i];
+        }
+      }
     }
   } catch (e) {
     console.error("Error fetching start barcode:", e);
