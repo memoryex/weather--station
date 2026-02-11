@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Messenger Cleaner V15.0 (Critical Fix - No Message Loss)
+// @name         Messenger Cleaner V16.0 (Sidebar Fix)
 // @namespace    http://tampermonkey.net/
-// @version      15.0
-// @description  Blokuoja Shorts/Reels/TikTok ir paslepia VISĄ žinutės eilutę.
+// @version      16.0
+// @description  Blokuoja Shorts/Reels/TikTok ir paslepia VISĄ žinutės eilutę. Sidebar rodo naujausius pranešimus, jei jie nėra nuorodos.
 // @author       Jūs
 // @match        https://www.messenger.com/*
 // @match        https://www.facebook.com/messages/*
@@ -13,13 +13,12 @@
 (function() {
     'use strict';
 
-    console.log("Messenger Cleaner V15.0: Startuoja (Critical Fix)...");
+    console.log("Messenger Cleaner V16.0: Startuoja (Sidebar Fix)...");
 
     // --- 1. CSS INJEKCIJA ---
-    // Paslepia visiškai (display: none), be jokių tarpų.
+    // Paslepia konkrečias nuorodas iškart (prevencija)
     const style = document.createElement('style');
     style.innerHTML = `
-        /* Paslepia konkrečias nuorodas iškart (prevencija) */
         a[href*="tiktok.com"],
         a[href*="/reel/"],
         a[href*="/shorts/"],
@@ -29,15 +28,13 @@
         }
 
         /* Visiškai paslepiame elementą, kurį pažymėjo JS (eilutę arba žinutę) */
-        [data-v15-cleaned="true"] {
+        [data-v16-cleaned="true"] {
             display: none !important;
         }
     `;
     document.head.appendChild(style);
 
     // --- 2. JS LOGIKA ---
-    // Pastaba: "10s grandininė reakcija" pašalinta, nes ji slėpė geras žinutes
-    // kai buvo užkraunama sena pokalbių istorija (scrollinant).
 
     const blockedPhrases = [
         "Tadas atsiuntė priedą", "Mindaugas atsiuntė priedą",
@@ -62,13 +59,20 @@
 
     function cleanElement(element) {
         if (!element) return;
-        if (element.getAttribute('data-v15-cleaned') === 'true') return;
+        if (element.getAttribute('data-v16-cleaned') === 'true') return;
 
         // Pažymime elementą paslėpimui
-        element.setAttribute('data-v15-cleaned', 'true');
-
-        // JS Fallback
+        element.setAttribute('data-v16-cleaned', 'true');
         element.style.display = 'none';
+    }
+
+    function restoreElement(element) {
+        if (!element) return;
+        // Jei elementas buvo paslėptas, atstatome jį
+        if (element.getAttribute('data-v16-cleaned') === 'true' || element.style.display === 'none') {
+            element.removeAttribute('data-v16-cleaned');
+            element.style.display = ''; // Panaikiname inline style
+        }
     }
 
     function isBadUrl(url) {
@@ -89,67 +93,85 @@
         let row = node.closest('div[role="row"]');
         if (row) return row;
 
-        // Jei nerandame row, bandome rasti pagrindinį žinutės konteinerį
         let msgContainer = node.closest('div[data-testid="message-container"]');
         if (msgContainer) return msgContainer;
 
-        // Griežtesnis fallback: tikrai nenorime imti body ar main
         if (node.tagName !== 'A' && node.tagName !== 'SPAN') {
-             // Jei tai jau didelis konteineris, galbūt jo tėvas
              if (node.parentElement && node.parentElement.tagName === 'DIV') {
                  return node.parentElement;
              }
         }
 
-        return node; // Kraštutiniu atveju slepiame patį elementą
+        return node;
+    }
+
+    function checkSidebarItem(node) {
+        const text = node.innerText || "";
+        let isBad = false;
+
+        // Tikriname domenus
+        for (let domain of blockedDomains) {
+             if (text.includes(domain)) {
+                 isBad = true;
+                 break;
+             }
+        }
+
+        // Tikriname frazes
+        if (!isBad) {
+            for (let phrase of blockedPhrases) {
+                if (text.toLowerCase().includes(phrase.toLowerCase())) {
+                    isBad = true;
+                    break;
+                }
+            }
+        }
+
+        // Sidebar atveju irgi bandome rasti visą elementą
+        let container = node.closest('div[role="gridcell"]') || node.closest('div[data-testid="mwthreadlist-item"]');
+
+        if (container) {
+            if (isBad) {
+                cleanElement(container);
+            } else {
+                // SVARBU: Jei tekstas geras (pvz., nauja žinutė), būtinai parodome elementą!
+                restoreElement(container);
+            }
+        }
     }
 
     function cleanMess() {
-        // 1. NUORODŲ VALYMAS
-        const links = document.querySelectorAll('a:not([data-v15-processed])');
+        // 1. NUORODŲ VALYMAS (CHAT WINDOW - STRICT HIDE)
+        const links = document.querySelectorAll('a:not([data-v16-processed])');
         links.forEach(link => {
             const href = link.getAttribute('href');
             if (isBadUrl(href)) {
-                // Surandame konteinerį ir paslepiame
                 let container = getContainer(link);
                 cleanElement(container);
             }
-            link.setAttribute('data-v15-processed', 'true');
+            link.setAttribute('data-v16-processed', 'true');
         });
 
-        // 2. TEKSTO/SIDEBARO VALYMAS
-        const potentialTextNodes = document.querySelectorAll('div[role="gridcell"] span:not([data-v15-cleaned]), div[data-testid="mwthreadlist-item"] span:not([data-v15-cleaned])');
+        // 2. SIDEBARO VALYMAS (DYNAMIC HIDE/RESTORE)
+        // Nuimame :not([cleaned]) filtrą, kad nuolat tikrintume ar nepasikeitė tekstas (pvz., atėjo nauja žinutė)
+        // Tai svarbu, kad "neberodo nieko" problema būtų išspręsta
+        const potentialSidebarNodes = document.querySelectorAll('div[role="gridcell"] span, div[data-testid="mwthreadlist-item"] span');
 
-        potentialTextNodes.forEach(node => {
-            const text = node.innerText || "";
-            let shouldClean = false;
-
-            for (let domain of blockedDomains) {
-                 if (text.includes(domain)) {
-                     shouldClean = true;
-                     break;
-                 }
-            }
-
-            if (!shouldClean) {
-                for (let phrase of blockedPhrases) {
-                    if (text.toLowerCase().includes(phrase.toLowerCase())) {
-                        shouldClean = true;
-                        break;
-                    }
-                }
-            }
-
-            if (shouldClean) {
-                 // Sidebar atveju irgi bandome rasti visą elementą
-                 let container = node.closest('div[role="gridcell"]') || node.closest('div[data-testid="mwthreadlist-item"]') || node;
-                 cleanElement(container);
+        potentialSidebarNodes.forEach(node => {
+            // Tikriname tik tuos spanus, kurie turi pakankamai teksto, kad būtų žinutė/preview
+            if (node.innerText && node.innerText.length > 2) {
+                checkSidebarItem(node);
             }
         });
     }
 
+    // Naudojame debounce, kad per daug neapkrautume tikrinant sidebarą nuolat
+    let debounceTimer = null;
     const observer = new MutationObserver((mutations) => {
-        cleanMess();
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            cleanMess();
+        }, 100); // Trumpas debounce
     });
 
     observer.observe(document.body, {
