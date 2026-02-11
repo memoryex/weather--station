@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Messenger Cleaner V13.0 (Fix Empty Bubbles)
+// @name         Messenger Cleaner V14.0 (Full Hide - No Trace)
 // @namespace    http://tampermonkey.net/
-// @version      13.0
-// @description  Blokuoja Shorts/Reels akimirksniu ir rodo tik mažą tuščią eilutę (be didelio tarpo).
+// @version      14.0
+// @description  Blokuoja Shorts/Reels/TikTok ir paslepia VISĄ žinutės eilutę (įskaitant avatarą ir laiką).
 // @author       Jūs
 // @match        https://www.messenger.com/*
 // @match        https://www.facebook.com/messages/*
@@ -13,13 +13,13 @@
 (function() {
     'use strict';
 
-    console.log("Messenger Cleaner V13.0: Startuoja (Compact Mode)...");
+    console.log("Messenger Cleaner V14.0: Startuoja (Full Hide)...");
 
     // --- 1. CSS INJEKCIJA ---
-    // Naudojame 'display: none' vietoje 'visibility: hidden', kad neliktų didelių tarpų.
+    // Šį kartą tikslas - visiškai paslėpti (display: none), be jokių tarpų.
     const style = document.createElement('style');
     style.innerHTML = `
-        /* Paslepia konkrečias nuorodas visiškai (kad neužimtų vietos) */
+        /* Paslepia konkrečias nuorodas iškart (prevencija) */
         a[href*="tiktok.com"],
         a[href*="/reel/"],
         a[href*="/shorts/"],
@@ -28,27 +28,9 @@
             display: none !important;
         }
 
-        /* Sutvarkome konteinerį, kurį pažymėjo JS */
-        [data-v13-cleaned="true"] {
-            display: block !important; /* Užtikriname, kad pats konteineris nedingtų */
-            min-height: 24px !important; /* Minimalus aukštis "tuščiai eilutei" */
-            height: auto !important;
-            padding: 4px !important;
-            overflow: hidden !important;
-            color: transparent !important; /* Paslepiame tekstą */
-        }
-
-        /* Paslepiame visus vaikus konteinerio viduje, kad neliktų "didelių burbulų" */
-        [data-v13-cleaned="true"] > * {
+        /* Visiškai paslepiame elementą, kurį pažymėjo JS (eilutę arba žinutę) */
+        [data-v14-cleaned="true"] {
             display: none !important;
-        }
-
-        /* Sukuriame mažą "tarpą" (tuščią eilutę) */
-        [data-v13-cleaned="true"]::after {
-            content: " "; /* Tuščias tarpas */
-            display: block;
-            height: 100%;
-            width: 100%;
         }
     `;
     document.head.appendChild(style);
@@ -81,18 +63,13 @@
 
     function cleanElement(element) {
         if (!element) return;
-        if (element.getAttribute('data-v13-cleaned') === 'true') return;
+        if (element.getAttribute('data-v14-cleaned') === 'true') return;
 
-        // Pažymime elementą, kad CSS sutvarkytų jo išvaizdą (sutrauktų į mažą eilutę)
-        element.setAttribute('data-v13-cleaned', 'true');
+        // Pažymime elementą paslėpimui
+        element.setAttribute('data-v14-cleaned', 'true');
 
-        // JS Fallback (jei CSS nesuveiktų dėl specifiškumo)
-        // Išvalome vidų, kad neliktų didelių elementų (pvz., iframe ar image preview)
-        // Tai svarbu, kad burbulas susitrauktų
-        while (element.firstChild) {
-            element.removeChild(element.firstChild);
-        }
-        element.innerHTML = '&nbsp;'; // Tuščia eilutė
+        // JS Fallback: tiesioginis stiliaus nustatymas
+        element.style.display = 'none';
     }
 
     function isBadUrl(url) {
@@ -108,43 +85,62 @@
         return false;
     }
 
+    function getContainer(node) {
+        // Bandome rasti visą eilutę (su avataru ir laiku)
+        // Messenger naudoja role="row" arba specifines klases
+        let row = node.closest('div[role="row"]');
+        if (row) return row;
+
+        // Jei nerandame row, bandome rasti pagrindinį žinutės konteinerį
+        let msgContainer = node.closest('div[data-testid="message-container"]');
+        if (msgContainer) return msgContainer;
+
+        // Fallback: tiesiog tėvinis elementas (burbulas)
+        let bubble = node.closest('div[dir="auto"]');
+        if (bubble) return bubble;
+
+        return node.parentElement;
+    }
+
     function cleanMess() {
         const currentTime = Date.now();
         const isInSpamMode = currentTime < spamProtectionUntil;
 
         // 1. NUORODŲ VALYMAS
-        const links = document.querySelectorAll('a:not([data-v13-processed])');
+        const links = document.querySelectorAll('a:not([data-v14-processed])');
         links.forEach(link => {
             const href = link.getAttribute('href');
             if (isBadUrl(href)) {
                 spamProtectionUntil = Date.now() + SPAM_WINDOW_MS;
 
-                // Ieškome artimiausio logiško konteinerio
-                let container = link.closest('div[dir="auto"]');
-                if (!container) container = link.closest('.x1n2onr6');
-                if (!container) container = link.parentElement;
+                // Čia pagrindinis pakeitimas: ieškome VISOS EILUTĖS
+                let container = getContainer(link);
 
                 lastBadLinkElement = container || link;
                 cleanElement(lastBadLinkElement);
             }
-            link.setAttribute('data-v13-processed', 'true');
+            link.setAttribute('data-v14-processed', 'true');
         });
 
-        // 2. APSAUGA NUO SEKIMO
+        // 2. APSAUGA NUO SEKIMO (Grandininė reakcija)
+        // Pastaba: Jei paslėpėme eilutę, ji vis tiek yra DOM, tad compareDocumentPosition veikia
         if (isInSpamMode && lastBadLinkElement && lastBadLinkElement.isConnected) {
-             const messageBubbles = document.querySelectorAll('div[dir="auto"]:not([data-v13-cleaned])');
+             // Čia taip pat norime slėpti VISĄ eilutę, ne tik burbulą
+             // Todėl ieškome žinučių burbulų, bet slepiame jų konteinerius
+             const messageBubbles = document.querySelectorAll('div[dir="auto"]:not([data-v14-cleaned])');
 
              messageBubbles.forEach(msg => {
                  if (msg.innerText && msg.innerText.length > 0) {
                       if (lastBadLinkElement.compareDocumentPosition(msg) & Node.DOCUMENT_POSITION_FOLLOWING) {
-                           cleanElement(msg);
+                           let container = getContainer(msg);
+                           cleanElement(container);
                       }
                  }
              });
         }
 
         // 3. TEKSTO/SIDEBARO VALYMAS
-        const potentialTextNodes = document.querySelectorAll('div[role="gridcell"] span:not([data-v13-cleaned]), div[data-testid="mwthreadlist-item"] span:not([data-v13-cleaned])');
+        const potentialTextNodes = document.querySelectorAll('div[role="gridcell"] span:not([data-v14-cleaned]), div[data-testid="mwthreadlist-item"] span:not([data-v14-cleaned])');
 
         potentialTextNodes.forEach(node => {
             const text = node.innerText || "";
@@ -167,7 +163,9 @@
             }
 
             if (shouldClean) {
-                 cleanElement(node);
+                 // Sidebar atveju irgi bandome rasti visą elementą
+                 let container = node.closest('div[role="gridcell"]') || node.closest('div[data-testid="mwthreadlist-item"]') || node;
+                 cleanElement(container);
             }
         });
     }
