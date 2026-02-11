@@ -439,7 +439,8 @@
 const READ_KEYS = {
   463450: "VAL3TD2W5LADX7K1", // PLXE 1-4
   703669: "S44OBKWC5C7FODZ5", // NOBO 1-4
-  802414: "I6NIZAVZYLPVV1ME"  // NOBO 5-7, PLXE 5
+  802414: "I6NIZAVZYLPVV1ME", // NOBO 5-7, PLXE 5
+  807602: ""                  // UI 1 (Public)
 };
 
 const LINES = [
@@ -454,7 +455,8 @@ const LINES = [
   { name:"NOBO 5", channel:802414, fieldCount:1, fieldBarcode:2 },
   { name:"NOBO 6", channel:802414, fieldCount:3, fieldBarcode:4 },
   { name:"NOBO 7", channel:802414, fieldCount:5, fieldBarcode:6 },
-  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8 }
+  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8 },
+  { name:"UI 1",   channel:807602, fieldCount:1, fieldBarcode:null }
 ];
 // Alias for Status code compatibility
 const LINE_MAP = LINES;
@@ -645,7 +647,9 @@ function renderVizPlaceholder(id, name, type) {
 
   // Ikonėlės (paveikslėliai): Pulse (Būsena) ir Gauge (Greitis)
   const iconPulse = `<img src="icons/pulse.png" class="viz-icon" alt="Status" />`;
-  const iconSpeed = `<img src="icons/speed.jpg" class="viz-icon" alt="Speed" />`;
+  const iconSpeed = (name === "UI 1")
+      ? `<img src="icons/computer.png" class="viz-icon" alt="Speed" />`
+      : `<img src="icons/speed.jpg" class="viz-icon" alt="Speed" />`;
 
   el.innerHTML = `
     <div class="viz-box ${boxClass}">
@@ -689,6 +693,19 @@ function renderVizPlaceholder(id, name, type) {
   ['NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'h');
   });
+
+  // UI 1 (Top Right) - Inject dynamically if not in HTML
+  const container = document.querySelector('.viz-container');
+  if(container && !document.getElementById('viz-UI 1')) {
+     const d = document.createElement('div');
+     d.id = 'viz-UI 1';
+     d.className = 'viz-item viz-item-v';
+     d.style.position = 'absolute';
+     d.style.top = '40px';
+     d.style.right = '40px';
+     container.appendChild(d);
+     renderVizPlaceholder('viz-UI 1', 'UI 1', 'v');
+  }
 })();
 
 /* ================================================================================================
@@ -749,30 +766,46 @@ function renderVizPlaceholder(id, name, type) {
         const promises = LINE_MAP.map(async (L) => {
             const key = READ_KEYS[L.channel];
             try {
-                const [countData, barcodeData, history] = await Promise.all([
+                // If fieldBarcode is null, don't fetch it
+                const promises = [
                     getFieldLast(L.channel, L.fieldCount, key),
-                    getFieldLast(L.channel, L.fieldBarcode, key),
+                    // Only fetch barcode if configured
+                    (L.fieldBarcode ? getFieldLast(L.channel, L.fieldBarcode, key) : Promise.resolve(null)),
                     getFieldHistory(L.channel, L.fieldCount, key, 50)
-                ]);
+                ];
+
+                const [countData, barcodeData, history] = await Promise.all(promises);
 
                 const countValRaw = countData?.[`field${L.fieldCount}`];
                 const countValStr = countValRaw ?? "-";
                 const countValNum = parseFloat(countValRaw);
                 const hasCount = isFinite(countValNum);
 
-                const barcodeVal = barcodeData?.[`field${L.fieldBarcode}`] ?? "-";
+                // If barcode field exists, use data; otherwise static "UI v5"
+                const barcodeVal = L.fieldBarcode
+                    ? (barcodeData?.[`field${L.fieldBarcode}`] ?? "-")
+                    : "UI v5";
 
                 let productName = "—";
-                if (barcodeVal && barcodeVal !== "-") {
+                if (!L.fieldBarcode) {
+                    productName = "UI v5"; // Static for UI 1
+                } else if (barcodeVal && barcodeVal !== "-") {
                     const code = normalizeCode(barcodeVal);
                     if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
                 }
 
-                const tStart = toLT(barcodeData?.created_at);
+                // If no barcode field, tStart relies on countData or is just "Static"
+                const tStart = L.fieldBarcode ? toLT(barcodeData?.created_at) : "-";
                 const tLast  = toLT(countData?.created_at);
 
-                const latestIso = (new Date(barcodeData?.created_at||0) > new Date(countData?.created_at||0))
-                    ? barcodeData?.created_at : countData?.created_at;
+                // Latest activity logic
+                let latestIso;
+                if (!L.fieldBarcode) {
+                    latestIso = countData?.created_at;
+                } else {
+                    latestIso = (new Date(barcodeData?.created_at||0) > new Date(countData?.created_at||0))
+                        ? barcodeData?.created_at : countData?.created_at;
+                }
 
                 let status="NEAKTYVI", statusCls="status-offline";
                 let active = false;
@@ -1134,7 +1167,9 @@ function renderVizPlaceholder(id, name, type) {
                 units, avg,
                 startTs: startT,
                 endTs: endT,
-                barcodeTime: bTimeLT
+                barcodeTime: bTimeLT,
+                start: startLT,
+                end: endLT
             });
         }
         return segs;
@@ -1236,9 +1271,16 @@ function renderVizPlaceholder(id, name, type) {
             const promises = useLines.map(async (L) => {
                 const key = READ_KEYS[L.channel];
                 try {
-                    // Always fetch BOTH for better insights (product lookup)
+                    let barProm;
+                    if (L.fieldBarcode) {
+                        barProm = fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
+                    } else {
+                        // Static "UI v5" covering the whole period
+                        barProm = Promise.resolve([{ t: from.getTime(), val: "UI v5", at: from.toISOString() }]);
+                    }
+
                     const [bar, cnt] = await Promise.all([
-                        fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays),
+                        barProm,
                         fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays)
                     ]);
 
@@ -1719,18 +1761,25 @@ function renderVizPlaceholder(id, name, type) {
             for(const L of useLines){
                 const key=READ_KEYS[L.channel];
                 st.textContent=`${L.name}: barkodai…`;
-                const bar = await fetchWholePeriodText   (L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
 
-                // If no barcode found in window (or starts late), try to find what was running before
-                if (bar.length === 0 || bar[0].t > from.getTime()) {
-                    const startFeed = await fetchStartBarcode(L.channel, L.fieldBarcode, key, from, tz);
-                    if (startFeed) {
-                        bar.unshift({
-                            t: from.getTime(),
-                            val: String(startFeed[`field${L.fieldBarcode}`]),
-                            at: startFeed.created_at
-                        });
+                let bar = [];
+                if (L.fieldBarcode) {
+                    bar = await fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
+
+                    // If no barcode found in window (or starts late), try to find what was running before
+                    if (bar.length === 0 || bar[0].t > from.getTime()) {
+                        const startFeed = await fetchStartBarcode(L.channel, L.fieldBarcode, key, from, tz);
+                        if (startFeed) {
+                            bar.unshift({
+                                t: from.getTime(),
+                                val: String(startFeed[`field${L.fieldBarcode}`]),
+                                at: startFeed.created_at
+                            });
+                        }
                     }
+                } else {
+                    // Static barcode logic for UI 1
+                    bar = [{ t: from.getTime(), val: "UI v5", at: from.toISOString() }];
                 }
 
                 st.textContent=`${L.name}: COUNT…`;
@@ -1809,12 +1858,16 @@ function renderVizPlaceholder(id, name, type) {
     LINES.forEach(L=>{
         // Populate Report Filter
         const opt=document.createElement('option');
-        opt.value=L.name; opt.textContent=L.name; lf.appendChild(opt);
+        opt.value=L.name; opt.textContent=L.name;
+        opt.selected = true; // Numatytasis: pasirinkti visus
+        lf.appendChild(opt);
 
         // Populate Chart Filter
         if(clf) {
             const opt2=document.createElement('option');
-            opt2.value=L.name; opt2.textContent=L.name; clf.appendChild(opt2);
+            opt2.value=L.name; opt2.textContent=L.name;
+            opt2.selected = true; // Numatytasis: pasirinkti visus
+            clf.appendChild(opt2);
         }
     });
 
@@ -2129,8 +2182,17 @@ function renderVizPlaceholder(id, name, type) {
 
                 // Fetch Barcodes & Counts
                 // Re-implementing simplified fetch
+                let barProm;
+                if (L.fieldBarcode) {
+                    barProm = _fetchSeries(L.channel, L.fieldBarcode, key, tz, from, now);
+                } else {
+                    barProm = Promise.resolve([{ t: from.getTime(), v: "UI v5" }]); // note: _buildSegmentsAI expects .v from _fetchSeries? No, _fetchSeries maps to v.
+                    // Wait, _fetchSeries maps fieldValue to 'v'.
+                    // So we should simulate that.
+                }
+
                 const [bar, cnt] = await Promise.all([
-                    _fetchSeries(L.channel, L.fieldBarcode, key, tz, from, now),
+                    barProm,
                     _fetchSeries(L.channel, L.fieldCount, key, tz, from, now, true) // numeric
                 ]);
 

@@ -75,7 +75,8 @@
 const READ_KEYS = {
   463450: "VAL3TD2W5LADX7K1", // PLXE 1-4
   703669: "S44OBKWC5C7FODZ5", // NOBO 1-4
-  802414: "I6NIZAVZYLPVV1ME"  // NOBO 5-7, PLXE 5
+  802414: "I6NIZAVZYLPVV1ME", // NOBO 5-7, PLXE 5
+  807602: ""                  // UI 1 (Public)
 };
 
 const LINES = [
@@ -90,7 +91,8 @@ const LINES = [
   { name:"NOBO 5", channel:802414, fieldCount:1, fieldBarcode:2 },
   { name:"NOBO 6", channel:802414, fieldCount:3, fieldBarcode:4 },
   { name:"NOBO 7", channel:802414, fieldCount:5, fieldBarcode:6 },
-  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8 }
+  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8 },
+  { name:"UI 1",   channel:807602, fieldCount:1, fieldBarcode:null }
 ];
 
 // žemėlapis: "090775" -> "PLX070E" ir pan. (užpildomas įkėlus Excel)
@@ -430,18 +432,25 @@ async function generateReport(){
   for(const L of useLines){
     const key=READ_KEYS[L.channel];
     st.textContent=`${L.name}: barkodai…`;
-    const bar = await fetchWholePeriodText   (L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
 
-    // If no barcode found in window (or starts late), try to find what was running before
-    if (bar.length === 0 || bar[0].t > from.getTime()) {
-      const startFeed = await fetchStartBarcode(L.channel, L.fieldBarcode, key, from, tz);
-      if (startFeed) {
-        bar.unshift({
-          t: from.getTime(),
-          val: String(startFeed[`field${L.fieldBarcode}`]),
-          at: startFeed.created_at
-        });
-      }
+    let bar = [];
+    if (L.fieldBarcode) {
+        bar = await fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays);
+
+        // If no barcode found in window (or starts late), try to find what was running before
+        if (bar.length === 0 || bar[0].t > from.getTime()) {
+          const startFeed = await fetchStartBarcode(L.channel, L.fieldBarcode, key, from, tz);
+          if (startFeed) {
+            bar.unshift({
+              t: from.getTime(),
+              val: String(startFeed[`field${L.fieldBarcode}`]),
+              at: startFeed.created_at
+            });
+          }
+        }
+    } else {
+        // Static barcode logic for UI 1
+        bar = [{ t: from.getTime(), val: "UI v5", at: from.toISOString() }];
     }
 
     st.textContent=`${L.name}: COUNT…`;
