@@ -339,8 +339,8 @@ async function exportXLSX(rows){
       barcode: r.barcode,
       product: r.product || "",
       barcodeTime: r.barcodeTime || null,
-      start: r.startDate || null,
-      end:   r.endDate   || null,
+      start: r.start || "", // Use the formatted string directly
+      end:   r.end   || "", // Use the formatted string directly
       duration: r.duration || "",
       units: r.units,
       avg: (r.avg!=null? Number(r.avg.toFixed(2)) : null)
