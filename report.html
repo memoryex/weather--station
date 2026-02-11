@@ -251,7 +251,11 @@ function buildSegments(barcodes, counts, tz){
           units += batchCounts[0].v;
       }
 
-      const startT = batchCounts[0].t;
+      // Start time: first record > 0 (start of production), or start of batch if all 0
+      const firstPos = batchCounts.find(c => c.v > 0);
+      const startT = firstPos ? firstPos.t : batchCounts[0].t;
+
+      // End time: last record of the batch (peak before reset/end)
       const endT = batchCounts[batchCounts.length-1].t;
 
       // Find matching barcode: Last one with t <= endT
@@ -265,7 +269,9 @@ function buildSegments(barcodes, counts, tz){
           }
       }
 
-      const bVal = activeB ? activeB.val : "N/A";
+      let bVal = (activeB && activeB.val != null) ? activeB.val : "Nuskanuota iš seniau";
+      if (bVal === "null") bVal = "Nuskanuota iš seniau";
+
       const bTime = activeB ? activeB.at : "";
 
       pushSegment(bVal, units, startT, endT, bTime);
