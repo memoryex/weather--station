@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Messenger Cleaner V11.0 (Su Šluotele 🧹)
 // @namespace    http://tampermonkey.net/
-// @version      11.2
+// @version      11.4
 // @description  Blokuoja Shorts/Reels ir pakeičia juos į 🧹. Taip pat blokuoja 10 sek. po jų einančias žinutes.
 // @author       Jūs
 // @match        https://www.messenger.com/*
@@ -13,28 +13,32 @@
 (function() {
     'use strict';
 
-    console.log("Messenger Cleaner V11.2: Startuoja su CSS-based valymu...");
+    console.log("Messenger Cleaner V11.4: Startuoja su tikslesniu valymu...");
 
     // 1. Įterpiame CSS stilių
     const style = document.createElement('style');
     style.innerHTML = `
+        /* Paslepia patį elementą */
         .v11-cleaned {
             visibility: hidden !important;
-            position: relative !important;
-            min-height: 20px;
         }
+
+        /* Rodo "šluotelės" pranešimą */
         .v11-cleaned::after {
             content: '🧹 ' attr(data-v11-reason);
             visibility: visible !important;
             position: absolute !important;
-            top: 5px;
-            left: 5px;
-            display: block;
+            top: 0;
+            left: 0;
+            display: inline-block;
             color: #bbb;
-            font-size: 12px;
+            font-size: 11px;
             font-family: sans-serif;
-            z-index: 999;
+            background: rgba(0,0,0,0.05);
+            padding: 2px 5px;
+            border-radius: 4px;
             white-space: nowrap;
+            z-index: 10;
         }
     `;
     document.head.appendChild(style);
@@ -61,15 +65,29 @@
         return false;
     }
 
+    // Apsaugos funkcija: ar elementas nėra per didelis (kad nepaslėptume viso puslapio)
+    function isTooBig(element) {
+        if (!element) return true;
+        const rect = element.getBoundingClientRect();
+        // Jei elementas užima daugiau nei pusę ekrano aukščio arba pločio - jis per didelis žinutei
+        if (rect.height > window.innerHeight * 0.5) return true;
+        if (rect.width > window.innerWidth * 0.8) return true;
+        return false;
+    }
+
     // Pagalbinė funkcija - PAKEISTI elementą į šluotelę (CSS būdu)
-    // Svarbu: Niekada nenaudoti innerHTML, nes tai sugadina React aplikaciją.
     function cleanElement(element, reason) {
         if (!element) return;
 
         // Jei jau išvalytas, nieko nedarom
         if (element.classList.contains('v11-cleaned')) return;
 
-        // Naudojame CSS klases ir atributus - tai mažiausiai invazyvus būdas
+        // Apsauga nuo "viso ekrano" paslėpimo
+        if (isTooBig(element)) {
+            // Jei konteineris per didelis, bandome valyti patį linką, o ne konteinerį
+            return;
+        }
+
         element.setAttribute('data-v11-reason', reason);
         element.setAttribute('data-v11-cleaned-time', Date.now().toString());
         element.classList.add('v11-cleaned');
@@ -93,18 +111,7 @@
     }
 
     function processCleaning() {
-        const currentTime = Date.now();
-
-        // Bandome surasti visus pagrindinius žinučių blokus (eilutes)
-        let messageRows = document.querySelectorAll('div[role="row"], div[data-testid="message-container"], div.x1n2onr6');
-
-        if (messageRows.length === 0) {
-            const articles = document.querySelectorAll('div[role="article"]');
-            if (articles.length > 0) messageRows = articles;
-            else messageRows = document.querySelectorAll('div[dir="auto"]');
-        }
-
-        // --- 1. NUORODŲ VALYMAS ---
+        // --- 1. RANDAME BLOGAS NUORODAS ---
         const links = document.querySelectorAll('a');
         links.forEach(link => {
             // Tikriname tik tas, kurios dar neapdorotos
@@ -132,53 +139,64 @@
             }
 
             if (isBadLink) {
+                // Svarbu: pasirenkame tik artimiausią ŽINUTĖS eilutę
+                // Messenger struktūra: div[role="row"] -> ... -> a
                 let container = link.closest('div[role="row"]');
-                if (!container) container = link.closest('.x1n2onr6');
-                if (!container) container = link.closest('div[dir="auto"]');
-                if (!container) container = link.parentElement;
 
-                cleanElement(container || link, reason);
+                // Jei nerandame role="row", bandome rasti žinutės burbulą (specifinės klasės)
+                // x1n2onr6 dažnai naudojama žinutės eilutei
+                if (!container) container = link.closest('.x1n2onr6');
+
+                // Jei vis dar neradome, bandome div su dir="auto" (pats tekstas), bet tik jei jis tėvas
+                if (!container) container = link.closest('div[dir="auto"]');
+
+                // Jei nieko neradome arba elementas per didelis, valome patį linką (saugiausia)
+                if (!container || isTooBig(container)) {
+                    cleanElement(link, reason);
+                } else {
+                    cleanElement(container, reason);
+                }
             }
 
             link.setAttribute('data-v11-processed', 'true');
         });
 
-        // --- 2. APSAUGA NUO SEKIMO (Grandininė reakcija) ---
-        let blockUntil = 0;
+        // --- 2. APSAUGA NUO SEKIMO (Kaimynų principas) ---
+        // Svarbu: iteruojame tik per role="row", nes jie garantuotai yra žinutės
+        const rows = document.querySelectorAll('div[role="row"]');
+        if (rows.length > 0) {
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
 
-        if (messageRows.length > 0) {
-            messageRows.forEach(row => {
-                // Ar šis elementas jau išvalytas?
-                const isCleaned = row.classList.contains('v11-cleaned') || row.querySelector('.v11-cleaned');
+                // Ar ši eilutė yra "išvalyta" (turi mūsų klasę)?
+                // Arba jos VIDUJE yra išvalytas elementas (pvz. linkas)?
+                const cleanedInside = row.querySelector('.v11-cleaned');
+                const isRowCleaned = row.classList.contains('v11-cleaned');
 
-                if (isCleaned) {
+                if (isRowCleaned || cleanedInside) {
                     // Randame priežastį
-                    let cleanedEl = row.classList.contains('v11-cleaned') ? row : row.querySelector('.v11-cleaned');
-                    let reasonText = cleanedEl.getAttribute('data-v11-reason') || "";
+                    let reason = "";
+                    if (isRowCleaned) reason = row.getAttribute('data-v11-reason') || "";
+                    else if (cleanedInside) reason = cleanedInside.getAttribute('data-v11-reason') || "";
 
-                    if (reasonText.includes('TikTok') ||
-                        reasonText.includes('Facebook') ||
-                        reasonText.includes('Shorts') ||
-                        reasonText.includes('Reel') ||
-                        reasonText.includes('Spam Link')) {
+                    if (reason.includes('TikTok') || reason.includes('Facebook') || reason.includes('Shorts')) {
 
-                        const cleanedTime = parseInt(cleanedEl.getAttribute('data-v11-cleaned-time') || "0");
-                        blockUntil = Math.max(blockUntil, cleanedTime + SPAM_WINDOW_MS);
-                    }
-                } else {
-                    // Jei blokavimas aktyvus -> valome šitą žinutę
-                    if (currentTime < blockUntil) {
-                        if (row.innerText && row.innerText.trim().length > 0) {
-                             // Svarbu: valome patį konteinerį, ne vidinį tekstą, kad struktūra išliktų
-                             cleanElement(row, "Sekanti žinutė (10s)");
+                        // Patikriname SEKANTĮ elementą (i + 1)
+                        if (i + 1 < rows.length) {
+                            const nextRow = rows[i + 1];
+
+                            // Jei jis dar neišvalytas
+                            if (!nextRow.classList.contains('v11-cleaned') && !nextRow.querySelector('.v11-cleaned')) {
+                                cleanElement(nextRow, "Sekanti žinutė");
+                            }
                         }
                     }
                 }
-            });
+            }
         }
 
         // --- 3. FRAZIŲ VALYMAS ---
-        // Naudojame atsargiau
+        // Čia irgi atsargiau
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
         let node;
         while (node = walker.nextNode()) {
@@ -188,7 +206,10 @@
             for (let phrase of blockedPhrases) {
                 if (text.toLowerCase().includes(phrase.toLowerCase())) {
                     if (node.parentElement && !node.parentElement.classList.contains('v11-cleaned')) {
-                         cleanElement(node.parentElement, `Frazė: ${phrase}`);
+                        // Tikriname, ar nevalome viso puslapio
+                        if (!isTooBig(node.parentElement)) {
+                             cleanElement(node.parentElement, `Frazė: ${phrase}`);
+                        }
                     }
                 }
             }
