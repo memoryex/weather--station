@@ -198,7 +198,7 @@
   <button class="tab-btn active" onclick="openTab('status')">GD linijų statusas</button>
   <button class="tab-btn" onclick="openTab('visual')">Vizualizacija</button>
   <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
-  <button class="tab-btn" onclick="openTab('ai')">DI / Įžvalgos</button>
+  <button class="tab-btn" onclick="openTab('ai')">beta / Įžvalgos</button>
   <button class="tab-btn" id="themeToggle" type="button" title="Keisti temą">🌙/☀️</button>
 </div>
 
@@ -269,7 +269,7 @@
 
 <!-- ========================= TAB: AI (SMART ANALYTICS) ========================= -->
 <div id="tab-ai" class="tab-pane">
-  <h1>Intelektuali Gamybos Analizė (DI)</h1>
+  <h1>Intelektuali Gamybos Analizė (beta)</h1>
   <div class="wrap">
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
@@ -286,19 +286,19 @@
       <div class="settings-grid" style="margin-top:20px;">
         <!-- Kairė: Gaminio Efektyvumas -->
         <div class="file-section">
-          <h3 style="margin-top:0;">Gaminio Efektyvumas (Lyginamoji analizė)</h3>
+          <h3 style="margin-top:0;">Gaminio Efektyvumas (Detali analizė)</h3>
           <p style="font-size:13px; color:var(--text-muted);">
-            Čia matysite, kaip skirtingos linijos tvarkosi su tuo pačiu gaminiu.
-            Sistema automatiškai identifikuoja greičiausią ir lėčiausią liniją.
+            Detali statistika pagal gaminį ir liniją (Vidutinis greitis / Maksimalus greitis).
           </p>
           <div style="max-height:400px; overflow-y:auto;">
-            <table style="width:100%; font-size:14px;">
+            <table style="width:100%; font-size:14px; border-collapse: collapse;">
               <thead>
-                <tr>
-                  <th>Gaminys</th>
-                  <th>Geriausia Linija</th>
-                  <th>Vidutinė Linija</th>
-                  <th>Skirtumas</th>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                  <th style="text-align:left; padding:6px;">Gaminys</th>
+                  <th style="text-align:left; padding:6px;">Linija</th>
+                  <th style="text-align:right; padding:6px;">Vid. (vnt/h)</th>
+                  <th style="text-align:right; padding:6px;">Max. (vnt/h)</th>
+                  <th style="text-align:right; padding:6px;">Potencialas</th>
                 </tr>
               </thead>
               <tbody id="aiProductTable"></tbody>
@@ -1492,11 +1492,31 @@ function renderVizPlaceholder(id, name, type) {
         }
     }
     // --- INSIGHTS LOGIC START ---
-    function getInsightText(minutes) {
+    function getInsightText(minutes, startTs) {
         const m = Math.round(minutes);
+        let date = startTs ? new Date(startTs) : null;
+
+        // 1. Shift Change Logic (around 06:00, 14:00, 22:00)
+        // Check if startTs is within +/- 30 mins of shift change
+        if (date) {
+            const h = date.getHours();
+            const min = date.getMinutes();
+            const totalMin = h * 60 + min;
+
+            // 06:00 = 360, 14:00 = 840, 22:00 = 1320
+            const shifts = [360, 840, 1320];
+            for (let s of shifts) {
+                if (Math.abs(totalMin - s) <= 45) return "Pamainos keitimas";
+            }
+
+            // Lunch Logic (11:00 - 13:00 approx range for lunch breaks)
+            // If break is 25-45 min and happens around noon
+            if (m >= 20 && m <= 50 && h >= 10 && h <= 13) return "Pietų pertrauka";
+        }
+
         if (m >= 61) return "Linija neaktyvi";
         if (m >= 34) return "Nėra detalių / ruošimasis kitam gaminiui";
-        if (m >= 25) return "Pietų pertrauka";
+        if (m >= 25) return "Pietų pertrauka (nenumatyta)";
         if (m >= 13) return "Nenumatyta prastova";
         if (m >= 8) return "Pertrauka";
         return "";
@@ -1507,6 +1527,7 @@ function renderVizPlaceholder(id, name, type) {
         if (text.includes("Linija neaktyvi")) return "🔴";
         if (text.includes("Nėra detalių")) return "🛠️";
         if (text.includes("Pietų pertrauka")) return "🍽️";
+        if (text.includes("Pamainos keitimas")) return "🔄";
         if (text === "Pertrauka") return "☕";
         return "⚠️";
     }
@@ -1695,7 +1716,7 @@ function renderVizPlaceholder(id, name, type) {
 
                 let html = `<div style="font-weight:bold; margin-bottom:4px; color:var(--text-main);">${lineName}</div>`;
                 gaps.forEach(g => {
-                    let reason = getInsightText(g.duration);
+                    let reason = getInsightText(g.duration, g.start);
                     if (!reason) return;
 
                     let icon = getInsightIcon(reason);
@@ -1998,11 +2019,16 @@ function renderVizPlaceholder(id, name, type) {
             let pKey = seg.product || seg.barcode || "Unknown";
 
             if (!aiModel.products[pKey]) aiModel.products[pKey] = {};
-            if (!aiModel.products[pKey][seg.line]) aiModel.products[pKey][seg.line] = { sumSpeed: 0, count: 0 };
+            // Track sum, count, min, max
+            if (!aiModel.products[pKey][seg.line]) {
+                aiModel.products[pKey][seg.line] = { sumSpeed: 0, count: 0, minSpeed: Infinity, maxSpeed: -Infinity };
+            }
 
             const entry = aiModel.products[pKey][seg.line];
             entry.sumSpeed += speed;
             entry.count++;
+            if (speed < entry.minSpeed) entry.minSpeed = speed;
+            if (speed > entry.maxSpeed) entry.maxSpeed = speed;
             learnedCount++;
 
             // 2.2 Detect Breaks (Gap > 15 min between segments on SAME line)
@@ -2063,38 +2089,50 @@ function renderVizPlaceholder(id, name, type) {
         // Iterate products
         const products = Object.keys(aiModel.products);
         if (!products.length) {
-            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#888;'>Nėra duomenų.</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color:#888;'>Nėra duomenų.</td></tr>";
             return;
         }
 
         products.forEach(pName => {
             const lineData = aiModel.products[pName];
             const lines = Object.keys(lineData);
-            if (lines.length < 2) return; // Need at least 2 lines to compare
 
-            // Calculate Avg Speed per Line
+            // Calculate Stats per Line
             const stats = lines.map(L => {
                 const d = lineData[L];
-                return { line: L, avg: d.sumSpeed / d.count };
-            }).sort((a,b) => b.avg - a.avg); // Descending
+                const avg = d.sumSpeed / d.count;
+                const max = (isFinite(d.maxSpeed) && d.maxSpeed > 0) ? d.maxSpeed : avg;
+                // Potential = improvement if running at max speed
+                const potential = ((max - avg) / avg) * 100;
+                return { line: L, avg, max, potential };
+            }).sort((a,b) => b.avg - a.avg); // Descending by Average Speed
 
-            const best = stats[0];
-            // Find global avg for this product
-            const globalSum = stats.reduce((acc, x) => acc + x.avg, 0);
-            const globalAvg = globalSum / stats.length; // Average of Averages (to equalize line weight)
+            // Render each line for this product
+            stats.forEach((s, idx) => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = "1px solid #333";
 
-            const diff = ((best.avg - globalAvg) / globalAvg) * 100;
-            const diffStr = (diff > 0 ? "+" : "") + diff.toFixed(1) + "%";
+                // Show Product Name only on first line row
+                const prodCell = (idx === 0)
+                    ? `<td rowspan="${stats.length}" style="vertical-align:top; font-weight:bold; color:var(--text-main); padding:6px;">${pName}</td>`
+                    : "";
 
-            // Row
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="font-weight:bold; color:var(--text-main);">${pName}</td>
-                <td style="color:#00d67a;">${best.line} (${Math.round(best.avg)} vnt/h)</td>
-                <td style="color:#888;">~${Math.round(globalAvg)} vnt/h</td>
-                <td style="font-weight:bold; color:${diff > 10 ? '#00d67a' : '#ffa726'}">${diffStr}</td>
-            `;
-            tbody.appendChild(tr);
+                // Color code Potential: >20% green, >10% yellow, else gray
+                let potColor = "#888";
+                if(s.potential > 20) potColor = "#00d67a";
+                else if(s.potential > 10) potColor = "#ffa726";
+
+                tr.innerHTML = `
+                    ${prodCell}
+                    <td style="padding:6px; color:var(--text-muted);">${s.line}</td>
+                    <td style="text-align:right; padding:6px; color:var(--text-main);">${Math.round(s.avg)}</td>
+                    <td style="text-align:right; padding:6px; color:#bbb;">${Math.round(s.max)}</td>
+                    <td style="text-align:right; padding:6px; color:${potColor}; font-weight:bold;">
+                       ${(s.potential > 0) ? '+' + s.potential.toFixed(0) + '%' : '-'}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
         });
     }
 
