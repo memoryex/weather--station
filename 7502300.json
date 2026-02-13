@@ -1,9 +1,9 @@
 {
     "data": {
         "test_script_id": "43",
-        "test_script_name": "750W/230V",
+        "test_script_name": "750W/230V no earth",
         "test_version": "1",
-        "product": "DTD4R 073L-062 DX",
+        "product": "750W/230V no earth",
         "brand": "<Dimplex>",
         "series": "C",
         "sku_id": "17",
