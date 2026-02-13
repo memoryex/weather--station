@@ -1,0 +1,259 @@
+{
+    "data": {
+        "test_script_id": "43",
+        "test_script_name": "DTD4R 07 750W 230-240V_Safety_Power_MinBLE",
+        "test_version": "1",
+        "product": "DTD4R 073L-062 DX",
+        "brand": "<Dimplex>",
+        "series": "C",
+        "sku_id": "17",
+        "sku_component_id": [
+            "18",
+            "19"
+        ],
+        "tests": [
+            {
+                "step_id": "517",
+                "test_name": "High Potential",
+                "test_description": "High Potential Flash Test",
+                "test_type": "NEW_HAL",
+                "test_subtype": "safety",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "0",
+                "test_params": {
+                    "start_request": "1",
+                    "target": "2500",
+                    "ramp_up": "5",
+                    "hold": "15",
+                    "low_limit": "0.350",
+                    "high_limit": "35.000",
+                    "measure_string": "Leakage",
+                    "unit": "mA",
+                    "channel": "1",
+                    "arc_detect": "0",
+                    "ramp_down": "5",
+                    "write": "1",
+                    "read": "1",
+                    "id": "22"
+                }
+            },
+            {
+                "step_id": "518",
+                "test_name": "DCIR",
+                "test_description": "DC Insulation Resistance Test",
+                "test_type": "NEW_HAL",
+                "test_subtype": "safety",
+                "test_delay": "2",
+                "test_visible": "1",
+                "test_underline": "1",
+                "test_params": {
+                    "start_request": "4",
+                    "target": "500",
+                    "ramp_up": "5",
+                    "hold": "15",
+                    "low_limit": "2.000",
+                    "high_limit": "500.000",
+                    "measure_string": "IR",
+                    "unit": "M\u03a9",
+                    "channel": "1",
+                    "arc_detect": "0",
+                    "ramp_down": "5",
+                    "write": "1",
+                    "read": "1",
+                    "id": "23"
+                }
+            },
+            {
+                "step_id": "519",
+                "test_name": "Product Start",
+                "test_description": "Appliance On",
+                "test_type": "NEW_HAL",
+                "test_subtype": "POWER",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "0",
+                "test_params": {
+                    "start_request": "7",
+                    "target": "",
+                    "ramp_up": "",
+                    "hold": "1800",
+                    "low_limit": "0.000",
+                    "high_limit": "3.000",
+                    "measure_string": "",
+                    "unit": "kW",
+                    "channel": "",
+                    "arc_detect": "",
+                    "ramp_down": "",
+                    "write": "1",
+                    "read": "1",
+                    "id": "30"
+                }
+            },
+            {
+                "step_id": "521",
+                "test_name": "BLE Discovery",
+                "test_description": "Search for Appliance",
+                "test_type": "BLE",
+                "test_subtype": "SCAN",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "0",
+                "test_params": {
+                    "id": "32"
+                }
+            },
+            {
+                "step_id": "522",
+                "test_name": "BLE Connection",
+                "test_description": "Connect to Appliance",
+                "test_type": "BLE",
+                "test_subtype": "CONNECT",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "1",
+                "test_params": {
+                    "id": "33"
+                }
+            },
+            {
+                "step_id": "527",
+                "test_name": "TRIAC On",
+                "test_description": "TRIAC On",
+                "test_type": "BLE",
+                "test_subtype": "LAN_KEY",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "0",
+                "test_params": {
+                    "ble_characteristic": "00000002-0000-1000-8000-00805f9b34fb",
+                    "write_to_read": "0",
+                    "reset_hal": "1",
+                    "check_single_byte_index": "",
+                    "low_value": "0.000",
+                    "high_value": "0.000",
+                    "ble_value": {
+                        "data": [
+                            1,
+                            1,
+                            0
+                        ]
+                    },
+                    "write": "1",
+                    "read": "0",
+                    "christening_function": "",
+                    "result_comparison": "",
+                    "id": "50"
+                }
+            },
+            {
+                "step_id": "528",
+                "test_name": "Current Test",
+                "test_description": "Read Power",
+                "test_type": "NEW_HAL",
+                "test_subtype": "product",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "0",
+                "test_params": {
+                    "start_request": "7",
+                    "target": "",
+                    "ramp_up": "",
+                    "hold": "1800",
+                    "low_limit": "0.670",
+                    "high_limit": "0.830",
+                    "measure_string": "",
+                    "unit": "kW",
+                    "channel": "",
+                    "arc_detect": "",
+                    "ramp_down": "",
+                    "write": "1",
+                    "read": "1",
+                    "id": "51"
+                }
+            },
+            {
+                "step_id": "529",
+                "test_name": "TRIAC Off",
+                "test_description": "TRIAC Off",
+                "test_type": "BLE",
+                "test_subtype": "LAN_KEY",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "0",
+                "test_params": {
+                    "ble_characteristic": "00000002-0000-1000-8000-00805f9b34fb",
+                    "write_to_read": "0",
+                    "reset_hal": "1",
+                    "check_single_byte_index": "",
+                    "low_value": "0.000",
+                    "high_value": "0.000",
+                    "ble_value": {
+                        "data": [
+                            1,
+                            0,
+                            0
+                        ]
+                    },
+                    "write": "1",
+                    "read": "0",
+                    "christening_function": "",
+                    "result_comparison": "",
+                    "id": "52"
+                }
+            },
+            {
+                "step_id": "530",
+                "test_name": "Current Test",
+                "test_description": "Read Power",
+                "test_type": "NEW_HAL",
+                "test_subtype": "product",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "1",
+                "test_params": {
+                    "start_request": "7",
+                    "target": "",
+                    "ramp_up": "",
+                    "hold": "1800",
+                    "low_limit": "0.001",
+                    "high_limit": "0.015",
+                    "measure_string": "",
+                    "unit": "kW",
+                    "channel": "",
+                    "arc_detect": "",
+                    "ramp_down": "",
+                    "write": "1",
+                    "read": "1",
+                    "id": "53"
+                }
+            },
+            {
+                "step_id": "536",
+                "test_name": "Product Stop",
+                "test_description": "Appliance Off",
+                "test_type": "NEW_HAL",
+                "test_subtype": "DEPOWER",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "1",
+                "test_params": {
+                    "start_request": "7",
+                    "target": "",
+                    "ramp_up": "",
+                    "hold": "1800",
+                    "low_limit": "0.000",
+                    "high_limit": "0.000",
+                    "measure_string": "",
+                    "unit": "kW",
+                    "channel": "",
+                    "arc_detect": "",
+                    "ramp_down": "",
+                    "write": "1",
+                    "read": "1",
+                    "id": "100"
+                }
+            }
+        ]
+    }
+}
