@@ -198,7 +198,7 @@
   <button class="tab-btn active" onclick="openTab('status')">GD linijų statusas</button>
   <button class="tab-btn" onclick="openTab('visual')">Vizualizacija</button>
   <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
-  <button class="tab-btn" onclick="openTab('ai')">beta / Įžvalgos</button>
+  <button class="tab-btn" onclick="openTab('ai')">Įžvalgos(beta)</button>
   <button class="tab-btn" id="themeToggle" type="button" title="Keisti temą">🌙/☀️</button>
 </div>
 
@@ -1649,7 +1649,13 @@ function renderVizPlaceholder(id, name, type) {
                         }
 
                         if (duration >= threshold) {
-                            gaps.push({ start: effectiveStart, end: curr.startTs, duration });
+                            // Resolve product
+                            let gapProd = getActiveProduct(effectiveStart, textFeeds);
+                            if(gapProd) {
+                                const c = normalizeCode(gapProd);
+                                if(PRODUCT_MAP.get(c)) gapProd = PRODUCT_MAP.get(c);
+                            }
+                            gaps.push({ start: effectiveStart, end: curr.startTs, duration, product: gapProd });
                         }
 
                         // Production happened at curr, so reset gap accumulator
@@ -1661,9 +1667,13 @@ function renderVizPlaceholder(id, name, type) {
                 const last = lineData[lineData.length-1];
                 if (gapStart !== null) {
                     const duration = (last.startTs - gapStart) / 60000;
-                    if (duration >= 10) { // Keep fixed 10 for trailing/terminal gaps or apply AI? Apply AI if possible.
-                        // It's safer to keep 10 as we don't know if production resumed.
-                        gaps.push({ start: gapStart, end: last.startTs, duration });
+                    if (duration >= 10) {
+                        let gapProd = getActiveProduct(gapStart, textFeeds);
+                        if(gapProd) {
+                             const c = normalizeCode(gapProd);
+                             if(PRODUCT_MAP.get(c)) gapProd = PRODUCT_MAP.get(c);
+                        }
+                        gaps.push({ start: gapStart, end: last.startTs, duration, product: gapProd });
                     }
                 }
 
@@ -1675,10 +1685,12 @@ function renderVizPlaceholder(id, name, type) {
                     if (endTs > lastTs + 60000) {
                         const duration = (endTs - lastTs) / 60000;
                         if (duration >= 10) {
-                            // If gapStart was active, we might double count?
-                            // No, gapStart logic handled up to lastTs.
-                            // This is strictly post-data gap.
-                            gaps.push({ start: lastTs, end: endTs, duration });
+                            let gapProd = getActiveProduct(lastTs, textFeeds);
+                            if(gapProd) {
+                                 const c = normalizeCode(gapProd);
+                                 if(PRODUCT_MAP.get(c)) gapProd = PRODUCT_MAP.get(c);
+                            }
+                            gaps.push({ start: lastTs, end: endTs, duration, product: gapProd });
                         }
                     }
                 }
@@ -1695,7 +1707,7 @@ function renderVizPlaceholder(id, name, type) {
                     if (t1 && t2 && t2 > t1) {
                         const duration = (t2 - t1) / 60000;
                         if (duration >= 10) {
-                            gaps.push({ start: t1, end: t2, duration });
+                            gaps.push({ start: t1, end: t2, duration, product: seg1.product || seg2.product });
                         }
                     }
                 }
@@ -1709,7 +1721,7 @@ function renderVizPlaceholder(id, name, type) {
                     if (endTs > lastTs + 60000) {
                          const duration = (endTs - lastTs) / 60000;
                          if (duration >= 10) {
-                             gaps.push({ start: lastTs, end: endTs, duration });
+                             gaps.push({ start: lastTs, end: endTs, duration, product: lastSeg.product });
                          }
                     }
                 }
@@ -1758,7 +1770,11 @@ function renderVizPlaceholder(id, name, type) {
 
                     // OVERRIDE if Slow Product
                     if (g.isSlowProduct) {
-                        reason = "Tikėtina, tai lėtai renkamas gaminys";
+                        if (g.product && g.product !== "UI v5" && g.product !== "—") {
+                            reason = `Tai gaminys (${g.product}) lėtai renkamas`;
+                        } else {
+                            reason = "Tikėtina, tai lėtai renkamas gaminys";
+                        }
                         icon = "🐢";
                         color = "#4fc3f7"; // Light blue for info/slow
                     } else {
