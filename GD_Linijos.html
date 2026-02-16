@@ -318,22 +318,14 @@
           <!-- Rankinis pertraukų konfigūravimas -->
           <div style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:10px;">
              <h4 style="margin:0 0 10px 0; font-size:14px; color:var(--text-header);">Pertraukų grafikas (Mokymui)</h4>
-             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <div>
-                   <label class="report-label">Pertraukėlė 1</label>
-                   <input type="time" id="breakTime1" class="report-input" value="10:00">
-                </div>
-                <div>
-                   <label class="report-label">Pietų pertrauka</label>
-                   <input type="time" id="breakTimeLunch" class="report-input" value="12:00">
-                </div>
-                <div>
-                   <label class="report-label">Pertraukėlė 2</label>
-                   <input type="time" id="breakTime2" class="report-input" value="14:00">
-                </div>
-                <div style="display:flex; align-items:flex-end;">
-                   <button id="saveBreaksBtn" class="action-btn" style="width:100%;">Išsaugoti grafiką</button>
-                </div>
+             <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Įveskite laiką, pavadinimą ir trukmę (min), kad sistema atpažintų šias pertraukas.</p>
+
+             <div id="customBreaksContainer" style="display:flex; flex-direction:column; gap:8px;">
+                <!-- 5 Eilutės bus sugeneruotos JS -->
+             </div>
+
+             <div style="margin-top:10px;">
+                <button id="saveBreaksBtn" class="action-btn" style="width:100%;">Išsaugoti grafiką</button>
              </div>
              <div id="breakSaveStatus" class="msg" style="font-size:11px; min-height:16px;"></div>
           </div>
@@ -624,27 +616,27 @@ window.getInsightText = function(minutes, startTs) {
     let date = startTs ? new Date(startTs) : null;
 
     // Check manual configuration first
-    if (date && window.aiConfig && window.aiConfig.breaks) {
+    if (date && window.aiConfig && Array.isArray(window.aiConfig.breaks)) {
         const h = date.getHours();
         const min = date.getMinutes();
         const totalMin = h * 60 + min;
 
-        const checkBreak = (confTime, label, tolerance=30) => {
-            if(!confTime) return null;
-            const [cH, cM] = confTime.split(':').map(Number);
+        for (const b of window.aiConfig.breaks) {
+            if (!b.time || !b.name) continue;
+
+            const [cH, cM] = b.time.split(':').map(Number);
+            if (isNaN(cH)) continue;
+
             const confTotal = cH * 60 + cM;
-            if (Math.abs(totalMin - confTotal) <= tolerance) return label;
-            return null;
-        };
 
-        let manual = checkBreak(window.aiConfig.breaks.b1, "Pertraukėlė");
-        if(manual) return manual;
-
-        manual = checkBreak(window.aiConfig.breaks.lunch, "Pietų pertrauka", 45);
-        if(manual) return manual;
-
-        manual = checkBreak(window.aiConfig.breaks.b2, "Pertraukėlė");
-        if(manual) return manual;
+            // 1. Time Alignment Check (+/- 30 min tolerance for start time)
+            if (Math.abs(totalMin - confTotal) <= 30) {
+                // 2. Duration Check (if configured)
+                // If duration is set > 0, check if actual duration is somewhat close (e.g. 50%-150% or +/- 15 min)
+                // Let's use loose matching: if start aligns, it's a strong signal.
+                return b.name;
+            }
+        }
     }
 
     // 1. Shift Change Logic (around 06:00, 14:00, 22:00)
@@ -738,7 +730,13 @@ const AI_CONFIG_KEY = 'gd_ai_config';
 
 // Global Config
 window.aiConfig = {
-    breaks: { b1: "10:00", lunch: "12:00", b2: "14:00" }
+    breaks: [
+        { time: "09:00", name: "Pertraukėlė 1", duration: 15 },
+        { time: "11:30", name: "Pietų pertrauka", duration: 30 },
+        { time: "14:00", name: "Pertraukėlė 2", duration: 15 },
+        { time: "", name: "", duration: 0 },
+        { time: "", name: "", duration: 0 }
+    ]
 };
 
 // Helper to load model globally if needed, though InitAI handles logic.
@@ -2345,11 +2343,17 @@ function renderVizPlaceholder(id, name, type) {
 
     // Save Break Config
     document.getElementById('saveBreaksBtn').addEventListener('click', () => {
-        const b1 = document.getElementById('breakTime1').value;
-        const lu = document.getElementById('breakTimeLunch').value;
-        const b2 = document.getElementById('breakTime2').value;
+        const rows = document.querySelectorAll('#customBreaksContainer .break-row');
+        const newBreaks = [];
 
-        window.aiConfig.breaks = { b1, lunch: lu, b2 };
+        rows.forEach(row => {
+            const time = row.querySelector('.b-time').value;
+            const name = row.querySelector('.b-name').value;
+            const dur  = parseInt(row.querySelector('.b-dur').value, 10) || 0;
+            newBreaks.push({ time, name, duration: dur });
+        });
+
+        window.aiConfig.breaks = newBreaks;
         try {
             localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(window.aiConfig));
             const st = document.getElementById('breakSaveStatus');
@@ -2361,11 +2365,39 @@ function renderVizPlaceholder(id, name, type) {
 
     // Load Break Config to UI
     (function loadConfigUI(){
-       if(window.aiConfig && window.aiConfig.breaks) {
-           if(window.aiConfig.breaks.b1) document.getElementById('breakTime1').value = window.aiConfig.breaks.b1;
-           if(window.aiConfig.breaks.lunch) document.getElementById('breakTimeLunch').value = window.aiConfig.breaks.lunch;
-           if(window.aiConfig.breaks.b2) document.getElementById('breakTime2').value = window.aiConfig.breaks.b2;
+       const container = document.getElementById('customBreaksContainer');
+       if(!container) return;
+       container.innerHTML = "";
+
+       let breaks = window.aiConfig.breaks;
+       // Ensure array format (migration from old object if needed)
+       if (!Array.isArray(breaks)) {
+           // Fallback/Migrate
+           breaks = [
+               { time: breaks.b1||"10:00", name: "Pertraukėlė 1", duration: 15 },
+               { time: breaks.lunch||"12:00", name: "Pietų pertrauka", duration: 30 },
+               { time: breaks.b2||"14:00", name: "Pertraukėlė 2", duration: 15 },
+               { time: "", name: "", duration: 0 },
+               { time: "", name: "", duration: 0 }
+           ];
        }
+       // Ensure exactly 5 rows
+       while(breaks.length < 5) breaks.push({ time: "", name: "", duration: 0 });
+
+       breaks.slice(0,5).forEach((b, idx) => {
+           const div = document.createElement('div');
+           div.className = 'break-row';
+           div.style.display = 'grid';
+           div.style.gridTemplateColumns = '80px 1fr 60px';
+           div.style.gap = '8px';
+
+           div.innerHTML = `
+             <input type="time" class="report-input b-time" value="${b.time}" title="Pradžia">
+             <input type="text" class="report-input b-name" value="${b.name}" placeholder="Pavadinimas" title="Pertraukos pavadinimas">
+             <input type="number" class="report-input b-dur" value="${b.duration}" placeholder="min" title="Trukmė (min)">
+           `;
+           container.appendChild(div);
+       });
     })();
 
     // Learning Handler
