@@ -290,7 +290,7 @@
           <p style="font-size:13px; color:var(--text-muted);">
             Detali statistika pagal gaminį ir liniją (Vidutinis greitis / Maksimalus greitis).
           </p>
-          <div style="max-height:400px; overflow-y:auto;">
+          <div style="max-height:600px; overflow-y:auto;">
             <table style="width:100%; font-size:14px; border-collapse: collapse;">
               <thead>
                 <tr style="border-bottom: 1px solid var(--border-color);">
@@ -314,6 +314,30 @@
           </p>
           <div id="aiBreakChart" style="width:100%; height:300px;"></div>
           <div id="aiBreakStats" style="font-size:13px; color:var(--text-main); margin-top:10px;"></div>
+
+          <!-- Rankinis pertraukų konfigūravimas -->
+          <div style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:10px;">
+             <h4 style="margin:0 0 10px 0; font-size:14px; color:var(--text-header);">Pertraukų grafikas (Mokymui)</h4>
+             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div>
+                   <label class="report-label">Pertraukėlė 1</label>
+                   <input type="time" id="breakTime1" class="report-input" value="10:00">
+                </div>
+                <div>
+                   <label class="report-label">Pietų pertrauka</label>
+                   <input type="time" id="breakTimeLunch" class="report-input" value="12:00">
+                </div>
+                <div>
+                   <label class="report-label">Pertraukėlė 2</label>
+                   <input type="time" id="breakTime2" class="report-input" value="14:00">
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                   <button id="saveBreaksBtn" class="action-btn" style="width:100%;">Išsaugoti grafiką</button>
+                </div>
+             </div>
+             <div id="breakSaveStatus" class="msg" style="font-size:11px; min-height:16px;"></div>
+          </div>
+
         </div>
       </div>
 
@@ -599,6 +623,30 @@ window.getInsightText = function(minutes, startTs) {
     const m = Math.round(minutes);
     let date = startTs ? new Date(startTs) : null;
 
+    // Check manual configuration first
+    if (date && window.aiConfig && window.aiConfig.breaks) {
+        const h = date.getHours();
+        const min = date.getMinutes();
+        const totalMin = h * 60 + min;
+
+        const checkBreak = (confTime, label, tolerance=30) => {
+            if(!confTime) return null;
+            const [cH, cM] = confTime.split(':').map(Number);
+            const confTotal = cH * 60 + cM;
+            if (Math.abs(totalMin - confTotal) <= tolerance) return label;
+            return null;
+        };
+
+        let manual = checkBreak(window.aiConfig.breaks.b1, "Pertraukėlė");
+        if(manual) return manual;
+
+        manual = checkBreak(window.aiConfig.breaks.lunch, "Pietų pertrauka", 45);
+        if(manual) return manual;
+
+        manual = checkBreak(window.aiConfig.breaks.b2, "Pertraukėlė");
+        if(manual) return manual;
+    }
+
     // 1. Shift Change Logic (around 06:00, 14:00, 22:00)
     // Check if startTs is within +/- 30 mins of shift change
     if (date) {
@@ -612,7 +660,7 @@ window.getInsightText = function(minutes, startTs) {
             if (Math.abs(totalMin - s) <= 45) return "Pamainos keitimas";
         }
 
-        // Lunch Logic (11:00 - 13:00 approx range for lunch breaks)
+        // Fallback Lunch Logic if not manually configured
         // If break is 20-50 min and happens around noon
         if (m >= 20 && m <= 50 && h >= 10 && h <= 13) return "Pietų pertrauka";
     }
@@ -686,19 +734,27 @@ window.aiModel = {
     lastUpdated: null
 };
 const AI_MODEL_KEY = 'gd_ai_model';
+const AI_CONFIG_KEY = 'gd_ai_config';
+
+// Global Config
+window.aiConfig = {
+    breaks: { b1: "10:00", lunch: "12:00", b2: "14:00" }
+};
 
 // Helper to load model globally if needed, though InitAI handles logic.
 try {
     const raw = localStorage.getItem(AI_MODEL_KEY);
     if (raw) {
         const loaded = JSON.parse(raw);
-        // Merge into global object to keep reference
         Object.assign(window.aiModel, loaded);
-        // Migration: Convert old number-based breaks to empty objects
         if (!window.aiModel.lineProgress) window.aiModel.lineProgress = {};
         for (let h=0; h<24; h++) {
             if (typeof window.aiModel.breaks[h] === 'number') window.aiModel.breaks[h] = {};
         }
+    }
+    const conf = localStorage.getItem(AI_CONFIG_KEY);
+    if(conf) {
+        Object.assign(window.aiConfig, JSON.parse(conf));
     }
 } catch (e) { console.error("AI Global Load Error", e); }
 
@@ -2286,6 +2342,31 @@ function renderVizPlaceholder(id, name, type) {
     document.getElementById('aiClearBtn').addEventListener('click', () => {
         if(confirm("Ar tikrai ištrinti visas sukauptas žinias?")) clearModel();
     });
+
+    // Save Break Config
+    document.getElementById('saveBreaksBtn').addEventListener('click', () => {
+        const b1 = document.getElementById('breakTime1').value;
+        const lu = document.getElementById('breakTimeLunch').value;
+        const b2 = document.getElementById('breakTime2').value;
+
+        window.aiConfig.breaks = { b1, lunch: lu, b2 };
+        try {
+            localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(window.aiConfig));
+            const st = document.getElementById('breakSaveStatus');
+            st.textContent = "Grafikas išsaugotas.";
+            st.style.color = "#00d67a";
+            setTimeout(()=>st.textContent="", 3000);
+        } catch(e) { console.error(e); }
+    });
+
+    // Load Break Config to UI
+    (function loadConfigUI(){
+       if(window.aiConfig && window.aiConfig.breaks) {
+           if(window.aiConfig.breaks.b1) document.getElementById('breakTime1').value = window.aiConfig.breaks.b1;
+           if(window.aiConfig.breaks.lunch) document.getElementById('breakTimeLunch').value = window.aiConfig.breaks.lunch;
+           if(window.aiConfig.breaks.b2) document.getElementById('breakTime2').value = window.aiConfig.breaks.b2;
+       }
+    })();
 
     // Learning Handler
     document.getElementById('aiLearnBtn').addEventListener('click', async () => {
