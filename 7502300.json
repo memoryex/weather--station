@@ -91,18 +91,30 @@
                 }
             },
             {
+                "step_id": "530",
+                "test_name": "SEGMENT OCR",
+                "test_description": "Read Bluetooth ID from Segmented UI",
+                "test_type": "CAMERA",
+                "test_subtype": "CV",
+                "test_delay": "10",
+                "test_visible": "1",
+                "test_underline": "0",
+                "test_params": {
+                    "colour": null,
+                    "id": "31"
+                }
+            },
+            {
                 "step_id": "520",
                 "test_name": "BLE Discovery",
                 "test_description": "Search for Appliance",
                 "test_type": "BLE",
                 "test_subtype": "SCAN",
-                "test_delay": "10",
+                "test_delay": "0",
                 "test_visible": "1",
                 "test_underline": "0",
                 "test_params": {
-                    "id": "32",
-                    "target_name": "PH3312",
-                    "target_id": "12"
+                    "id": "32"
                 }
             },
             {
