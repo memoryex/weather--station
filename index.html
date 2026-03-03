@@ -3,121 +3,542 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dviračio Monitorius: Panevėžys HIBRID PRO+</title>
+    <title>Dviračio Monitorius: Panevėžys</title>
+    <!-- Add Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* CSS reset and base styles */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
         :root {
-            --bg: #f0f4f8; --card: #ffffff; --text: #333; --border: #ddd;
-            --safe: #2e7d32; --warning: #f57c00; --danger: #d32f2f; --accent: #2196f3;
+            --bg: #0B1120;
+            --card-bg: #111827;
+            --input-bg: #0B1120;
+            --text-main: #FFFFFF;
+            --text-muted: #9CA3AF;
+            --text-accent: #60A5FA;
+            --border: #1F2937;
+            --accent-blue: #3B82F6;
+            --accent-green: #10B981;
+            --danger-bg: #EF4444;
+            --danger-muted: #3F1C25;
+            --danger-text: #F87171;
+            --warning-muted: #422D19;
+            --warning-text: #FBBF24;
+            --safe-muted: #132D26;
+            --safe-text: #34D399;
         }
-        .dark-mode {
-            --bg: #1a1a1b; --card: #2d2d2e; --text: #e0e0e0; --border: #444;
+
+        .light-mode {
+            --bg: #F3F4F6;
+            --card-bg: #FFFFFF;
+            --input-bg: #F9FAFB;
+            --text-main: #111827;
+            --text-muted: #6B7280;
+            --border: #E5E7EB;
+            --danger-muted: #FEE2E2;
+            --danger-text: #DC2626;
+            --warning-muted: #FEF3C7;
+            --warning-text: #D97706;
+            --safe-muted: #D1FAE5;
+            --safe-text: #059669;
         }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 10px; transition: 0.3s; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .card { background: var(--card); padding: 20px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); max-width: 1350px; width: 100%; box-sizing: border-box; position: relative; overflow: hidden; }
-        .card::before { content: "🚲"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 400px; opacity: 0.03; pointer-events: none; }
-        .welcome-box { position: relative; z-index: 1; text-align: center; padding: 20px; border-radius: 15px; margin-bottom: 20px; background: linear-gradient(135deg, #2196f3, #1565c0); color: white; }
-        .controls { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 15px; background: rgba(128,128,128,0.1); border-radius: 10px; }
-        .control-group { flex: 1 1 100px; display: flex; flex-direction: column; gap: 5px; }
-        label { font-size: 0.65rem; font-weight: bold; text-transform: uppercase; opacity: 0.8; }
-        input, select { padding: 6px; border-radius: 5px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 0.85rem; width: 100%; box-sizing: border-box; }
-        .table-container { position: relative; z-index: 1; width: 100%; overflow-x: auto; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; min-width: 1050px; background: transparent; }
-        th { background: rgba(0,0,0,0.05); padding: 12px 10px; text-align: left; font-size: 0.75rem; }
-        td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-        tr:hover td { background: rgba(0,0,0,0.02); }
-        .dark-mode tr:hover td { background: rgba(255,255,255,0.02); }
-        .badge { padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; display: flex; align-items: center; gap: 8px; width: fit-content; }
-        .bg-safe { background: var(--safe); }
-        .bg-warning { background: var(--warning); }
-        .bg-danger { background: var(--danger); }
-        .hibrid-tag { font-size: 0.6rem; color: #7b1fa2; font-weight: bold; display: block; margin-top: 2px; }
-        .dark-mode .hibrid-tag { color: #ce93d8; }
-        .wind-box { display: flex; gap: 5px; align-items: center; white-space: nowrap; }
-        .theme-toggle { align-self: flex-end; margin-bottom: 8px; padding: 10px 20px; border-radius: 25px; border: none; background: var(--accent); color: white; cursor: pointer; font-weight: bold; }
-        .update-btn { background: #4caf50; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Top Banner */
+        .top-banner {
+            width: 100%;
+            background-color: var(--danger-bg);
+            color: white;
+            text-align: center;
+            padding: 12px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            padding: 24px;
+        }
+
+        /* Header section */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+
+        .logo-icon {
+            width: 56px; height: 56px;
+            background: linear-gradient(135deg, #3B82F6, #60A5FA);
+            border-radius: 16px;
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+        }
+        .logo-icon svg { width: 32px; height: 32px; fill: white; }
+
+        .title-wrapper { display: flex; flex-direction: column; }
+        .main-title {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #3B82F6, #10B981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .pro-badge {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+            -webkit-text-fill-color: white;
+        }
+        .location {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            display: flex; align-items: center; gap: 4px;
+            margin-top: 4px;
+        }
+        .city-select {
+            background: transparent; border: none;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer; outline: none;
+        }
+        .city-select option { background: var(--card-bg); color: var(--text-main); }
+
+        .header-controls { display: flex; gap: 12px; position: relative; }
+
+        .btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+        .btn:hover { background: #1F2937; }
+        .btn.icon-only { padding: 10px; }
+
+        /* Dropdown */
+        .dropdown-menu {
+            position: absolute;
+            top: 100%; right: 90px;
+            margin-top: 8px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 220px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 10;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-header {
+            padding: 12px 16px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+        .dropdown-item {
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .dropdown-item:hover { background: rgba(255,255,255,0.05); }
+
+        /* Parameters Section */
+        .section-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 20px;
+        }
+        .section-title svg { color: var(--accent-blue); width: 20px; height: 20px; }
+
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .param-card {
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex; flex-direction: column; gap: 8px;
+            transition: border-color 0.2s;
+        }
+        .param-card:focus-within { border-color: var(--accent-blue); }
+        .param-label {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .param-label svg { width: 14px; height: 14px; color: var(--accent-blue); }
+        .param-input {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-size: 1.5rem;
+            font-weight: 700;
+            width: 100%;
+            outline: none;
+        }
+        /* Hide arrows from number inputs */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        /* Forecast Title */
+        .forecast-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        /* Forecast Table */
+        .forecast-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th {
+            padding: 16px;
+            color: var(--text-main);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.02);
+            text-align: center;
+        }
+        th:first-child { text-align: left; }
+
+        .th-icon-title {
+            display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-main);
+        }
+        .th-icon-title svg { width: 18px; height: 18px; color: var(--text-muted); }
+
+        td {
+            padding: 20px 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            text-align: center;
+        }
+        td:first-child { text-align: left; }
+
+        .date-cell {
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .today-tag {
+            background: var(--accent-blue);
+            color: white;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 12px;
+            text-transform: uppercase;
+        }
+
+        .temp-primary { font-size: 1.2rem; font-weight: 500; }
+        .temp-secondary { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+        .wind-info {
+            font-size: 0.8rem; color: var(--text-main);
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+            margin-top: 6px;
+        }
+        .wind-info svg { width: 12px; height: 12px; color: var(--accent-blue); }
+        .wind-info.wind-bad { color: var(--danger-text); font-weight: 600; }
+        .wind-info.wind-bad svg { color: var(--danger-text); }
+
+        .metric-primary { font-size: 1rem; font-weight: 600; color: var(--accent-blue); }
+        .metric-primary.text-main { color: var(--text-main); }
+        .metric-secondary { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-weight: 600; font-size: 0.85rem;
+        }
+        .status-no {
+            background: var(--danger-muted); color: var(--danger-text); border: 1px solid rgba(239,68,68,0.3);
+        }
+        .status-warning {
+            background: var(--warning-muted); color: var(--warning-text); border: 1px solid rgba(245,158,11,0.3);
+        }
+        .status-yes {
+            background: var(--safe-muted); color: var(--safe-text); border: 1px solid rgba(52,211,153,0.3);
+        }
+        .light-mode .status-no { border-color: rgba(220,38,38,0.3); }
+        .light-mode .status-warning { border-color: rgba(217,119,6,0.3); }
+        .light-mode .status-yes { border-color: rgba(5,150,105,0.3); }
+
+        .light-mode th { background: rgba(0,0,0,0.02); }
+        .light-mode .th-icon-title { color: var(--text-muted); }
+        .status-badge svg { width: 14px; height: 14px; }
+
     </style>
 </head>
 <body>
 
-<button class="theme-toggle" onclick="toggleTheme()">🌓 Perjungti temą</button>
+    <!-- Top Banner: hidden by default, populated by JS -->
+    <div id="top-banner" class="top-banner" style="display: none;"></div>
 
-<div class="card">
-    <div id="welcome-container" class="welcome-box">
-        <h2 id="greeting">Analizuojama...</h2>
-        <div id="ai-suggestion" style="margin-top:10px; font-style:italic; font-weight: 300;">Ruošiama Panevėžio prognozė</div>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="logo-icon">
+                    <!-- Bike Icon SVG -->
+                    <svg viewBox="0 0 24 24"><path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm5.8-10l2.4-2.4.8.8c1.3 1.3 3 2.1 5.1 2.1V9c-1.5 0-2.7-.6-3.6-1.5l-1.9-1.9c-.5-.4-1-.6-1.6-.6s-1.1.2-1.4.6L7.8 8.4c-.4.4-.6.9-.6 1.4 0 .6.2 1.1.6 1.4L11 14v5h2v-6.2l-2.2-2.3zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/></svg>
+                </div>
+                <div class="title-wrapper">
+                    <h1 class="main-title">Dviračio Monitorius <span class="pro-badge">PRO+</span></h1>
+                    <div class="location">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                        <select id="citySelect" class="city-select" onchange="changeCity()">
+                            <option value="54.68,25.27">Vilnius</option>
+                            <option value="54.89,23.90">Kaunas</option>
+                            <option value="55.70,21.14">Klaipėda</option>
+                            <option value="55.93,23.31">Šiauliai</option>
+                            <option value="55.73,24.36" selected>Panevėžys</option>
+                        </select>
+                        (Hibrid AI)
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-controls">
+                <button class="btn" onclick="toggleDropdown(event)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    Profiliai
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div id="profileDropdown" class="dropdown-menu">
+                    <div class="dropdown-header">Išsaugoti Profiliai</div>
+                    <div class="dropdown-item" onclick="loadProfile('Standard Commute')">Standard Commute</div>
+                    <div class="dropdown-item" onclick="loadProfile('Winter Warrior')">Winter Warrior</div>
+                    <div class="dropdown-item" onclick="loadProfile('Fair Weather')">Fair Weather</div>
+                </div>
+
+                <button class="btn icon-only" title="Išsaugoti" onclick="saveSettings()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                </button>
+                <button class="btn icon-only" title="Tema" onclick="toggleTheme()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Parameters Grid -->
+        <div class="section-card">
+            <div class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                Parametrai
+            </div>
+            <div class="params-grid">
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Nuo val.</label>
+                    <input type="number" id="timeFrom" class="param-input" value="6" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Iki val.</label>
+                    <input type="number" id="timeTo" class="param-input" value="17" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg> Min Temp °C</label>
+                    <input type="number" id="minTempInput" class="param-input" value="3" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg> Min Juntamoji °C</label>
+                    <input type="number" id="minAppTempInput" class="param-input" value="1" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path><path d="M16 14v6"></path><path d="M8 14v6"></path><path d="M12 16v6"></path></svg> Max Krituliai mm</label>
+                    <input type="number" id="maxRainInput" class="param-input" value="0.5" step="0.1" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path><path d="M8 16h.01"></path><path d="M8 20h.01"></path><path d="M12 18h.01"></path><path d="M12 22h.01"></path><path d="M16 16h.01"></path><path d="M16 20h.01"></path></svg> Max Sniego danga cm</label>
+                    <input type="number" id="maxSnowInput" class="param-input" value="2" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg> Max Vėjas km/h</label>
+                    <input type="number" id="maxWindInput" class="param-input" value="15" onchange="updateView()">
+                </div>
+            </div>
+        </div>
+
+        <!-- 30 Days Forecast -->
+        <h2 class="forecast-title">30 Dienų Prognozė</h2>
+
+        <div class="forecast-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DIENA</th>
+                        <th>
+                            <div class="th-icon-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>
+                                RYTE
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-icon-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>
+                                VAKARE
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-icon-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+                                LIETUS
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-icon-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M12 2v20M19.07 4.93l-14.14 14.14M4.93 4.93l14.14 14.14"></path></svg>
+                                SNIEGO<br>DANGA
+                            </div>
+                        </th>
+                        <th>AR GALIMA<br>MINTI?</th>
+                    </tr>
+                </thead>
+                <tbody id="forecast-body">
+                    <!-- Rows generated by JS -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <div class="controls">
-        <div class="control-group"><label>Nuo (val.)</label><input type="number" id="timeFrom" value="6" min="0" max="23" onchange="saveSettings(); updateView()"></div>
-        <div class="control-group"><label>Iki (val.)</label><input type="number" id="timeTo" value="17" min="0" max="23" onchange="saveSettings(); updateView()"></div>
-        <div class="control-group"><label>Min Reali °C</label><input type="number" id="minTempInput" value="3" onchange="saveSettings(); updateView()"></div>
-        <div class="control-group"><label>Min Juntamoji °C</label><input type="number" id="minAppTempInput" value="1" onchange="saveSettings(); updateView()"></div>
-        <div class="control-group"><label>Max Krituliai mm</label><input type="number" id="maxRainInput" value="0.5" step="0.1" onchange="saveSettings(); updateView()"></div>
-        <div class="control-group"><label>Max Sniegas cm</label><input type="number" id="maxSnowInput" value="2" onchange="saveSettings(); updateView()"></div>
-        <div class="control-group"><label>Max Vėjas km/h</label><input type="number" id="maxWindInput" value="15" onchange="saveSettings(); updateView()"></div>
-        <div class="control-group" style="flex: 1 1 120px; justify-content: flex-end;"><button class="update-btn" onclick="fetchData()">Atnaujinti duomenis</button></div>
-    </div>
-
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>Data</th>
-                    <th>Pradžia (Temp)</th>
-                    <th>Pabaiga (Temp)</th>
-                    <th>Sniegas</th>
-                    <th>Krituliai (%)</th>
-                    <th>Vėjas (Pr./Pab.)</th>
-                    <th>Galima minti?</th>
-                </tr>
-            </thead>
-            <tbody id="forecast-body"></tbody>
-        </table>
-    </div>
-</div>
+    <script>
+    </script>
 
 <script>
 let weatherData = null;
-
+const profiles = {
+    'Standard Commute': { from: 6, to: 17, minT: 3, minApp: 1, maxRain: 0.5, maxSnow: 2, maxWind: 15 },
+    'Winter Warrior': { from: 7, to: 16, minT: -5, minApp: -8, maxRain: 1.0, maxSnow: 10, maxWind: 20 },
+    'Fair Weather': { from: 8, to: 18, minT: 15, minApp: 15, maxRain: 0.0, maxSnow: 0, maxWind: 10 }
+};
+function toggleDropdown(e) {
+    e.stopPropagation();
+    document.getElementById('profileDropdown').classList.toggle('show');
+}
+document.addEventListener('click', () => {
+    document.getElementById('profileDropdown').classList.remove('show');
+});
+function loadProfile(name) {
+    const p = profiles[name];
+    if (p) {
+        document.getElementById('timeFrom').value = p.from;
+        document.getElementById('timeTo').value = p.to;
+        document.getElementById('minTempInput').value = p.minT;
+        document.getElementById('minAppTempInput').value = p.minApp;
+        document.getElementById('maxRainInput').value = p.maxRain;
+        document.getElementById('maxSnowInput').value = p.maxSnow;
+        document.getElementById('maxWindInput').value = p.maxWind;
+        saveSettings();
+        updateView();
+    }
+}
+function toggleTheme() {
+    document.body.classList.toggle('light-mode');
+    localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+}
 function loadSettings() {
     const ids = ['timeFrom', 'timeTo', 'minTempInput', 'minAppTempInput', 'maxRainInput', 'maxSnowInput', 'maxWindInput'];
     ids.forEach(id => {
         const val = localStorage.getItem(id);
         if (val !== null) document.getElementById(id).value = val;
     });
-    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-mode');
+    const city = localStorage.getItem('cityCoords');
+    if (city) document.getElementById('citySelect').value = city;
+    if (localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
 }
-
 function saveSettings() {
     const ids = ['timeFrom', 'timeTo', 'minTempInput', 'minAppTempInput', 'maxRainInput', 'maxSnowInput', 'maxWindInput'];
     ids.forEach(id => localStorage.setItem(id, document.getElementById(id).value));
+    updateView(); // Re-render to show feedback if needed
 }
-
+function changeCity() {
+    localStorage.setItem('cityCoords', document.getElementById('citySelect').value);
+    fetchData();
+}
 async function fetchData() {
-    const lat = 55.73; const lon = 24.36;
+    const coords = document.getElementById('citySelect').value.split(',');
+    const lat = coords[0]; const lon = coords[1];
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,snow_depth,wind_speed_10m,wind_direction_10m&timezone=auto&wind_speed_unit=kmh&forecast_days=14`;
     try {
         const response = await fetch(url);
         weatherData = await response.json();
         updateView();
-    } catch (e) { document.getElementById('greeting').innerText = "Ryšio klaida!"; }
+    } catch (e) { console.error("Ryšio klaida!", e); }
 }
-
 function isHeadwind(direction, type) {
     if (type === 'start') return direction >= 135 && direction <= 225;
     if (type === 'end') return direction >= 315 || direction <= 45;
     return false;
 }
-
-function getArrow(deg, isHead) {
-    const style = isHead ? 'color:var(--danger); font-weight:bold;' : 'color:var(--safe);';
-    // Adding 180 as wind direction is where the wind is blowing FROM. So 0 means FROM North, which means it blows South (Down).
-    return `<span style="transform: rotate(${deg + 180}deg); display:inline-block; ${style}">↑</span>`;
+function getWindArrow(deg) {
+    // 0 is from North, meaning wind goes South (Down, 180deg from standard Up Arrow)
+    // Adjusting arrow icon to standard feather icons navigation point
+    const r = deg + 180 - 45; // Offset because feather arrow-up-left is default pointing up-left
+    return `<svg style="transform: rotate(${r}deg);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>`;
 }
-
+function getLTMonth(m) {
+    return ['Sau', 'Vas', 'Kov', 'Bal', 'Geg', 'Bir', 'Lie', 'Rgp', 'Rgs', 'Spa', 'Lap', 'Gru'][m];
+}
+function getLTWeekday(w) {
+    return ['Sk', 'Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št'][w];
+}
 function updateView() {
     if (!weatherData || !weatherData.hourly) return;
     const tbody = document.getElementById('forecast-body');
+    const banner = document.getElementById('top-banner');
     const fromH = parseInt(document.getElementById('timeFrom').value);
     const toH = parseInt(document.getElementById('timeTo').value);
     const minT = parseFloat(document.getElementById('minTempInput').value);
@@ -125,11 +546,9 @@ function updateView() {
     const maxR = parseFloat(document.getElementById('maxRainInput').value);
     const maxS = parseFloat(document.getElementById('maxSnowInput').value);
     const maxW = parseFloat(document.getElementById('maxWindInput').value);
-
     tbody.innerHTML = '';
     let today = new Date();
-
-    // AI mokymosi parametrai iš pirmų realių dienų
+    today.setHours(0,0,0,0);
     let tempSum = 0; let snowSum = 0; let count = 0;
     for(let j=0; j<5; j++) {
         let val = weatherData.hourly.temperature_2m[j*24 + fromH];
@@ -141,82 +560,114 @@ function updateView() {
     }
     const trendTemp = count > 0 ? (tempSum / count) : 2;
     const trendSnow = count > 0 ? (snowSum / count) : 0;
-
+    let tomorrowIsGood = false;
     for (let i = 0; i < 30; i++) {
         let dayDate = new Date();
         dayDate.setDate(today.getDate() + i);
+        let m = dayDate.getMonth();
+        let d = dayDate.getDate();
+        let wd = dayDate.getDay();
+        let dateStr = `${getLTMonth(m)}. ${d}, ${getLTWeekday(wd)}`;
+        let todayBadge = i === 0 ? `<span class="today-tag">Šiandien</span>` : '';
         let tS, appTS, tE, appTE, rain, prob, snow, wSpeedS, wDirS, wSpeedE, wDirE;
         let isReal = weatherData.hourly.temperature_2m[i * 24 + fromH] !== undefined && weatherData.hourly.temperature_2m[i * 24 + toH] !== undefined;
-
         if (isReal) {
             tS = weatherData.hourly.temperature_2m[i * 24 + fromH];
             appTS = weatherData.hourly.apparent_temperature[i * 24 + fromH];
             tE = weatherData.hourly.temperature_2m[i * 24 + toH];
             appTE = weatherData.hourly.apparent_temperature[i * 24 + toH];
-
             const rainSlice = weatherData.hourly.precipitation.slice(i * 24 + fromH, i * 24 + toH + 1);
             rain = rainSlice.length > 0 ? rainSlice.reduce((a, b) => a + b, 0) : 0;
-
             const probSlice = weatherData.hourly.precipitation_probability.slice(i * 24 + fromH, i * 24 + toH + 1).filter(p => p !== null);
             prob = probSlice.length > 0 ? Math.max(...probSlice) : 0;
-
             snow = (weatherData.hourly.snow_depth[i * 24 + fromH] * 100) || 0;
             wSpeedS = weatherData.hourly.wind_speed_10m[i * 24 + fromH];
             wDirS = weatherData.hourly.wind_direction_10m[i * 24 + fromH];
             wSpeedE = weatherData.hourly.wind_speed_10m[i * 24 + toH];
             wDirE = weatherData.hourly.wind_direction_10m[i * 24 + toH];
         } else {
-            // HIBRID AI PILNAI ATSTATYTA LOGIKA
             let dayOffset = i * 0.18;
             tS = trendTemp + dayOffset + (Math.random() * 3 - 1.5);
             appTS = tS - (Math.random() * 3);
             tE = tS + 6 + (Math.random() * 2);
             appTE = tE - 2;
-
             let isRainy = Math.random() > 0.75;
             rain = isRainy ? (Math.random() * 1.5) : 0;
             prob = isRainy ? Math.floor(Math.random() * 50 + 20) : Math.floor(Math.random() * 10);
-
             snow = Math.max(0, (trendSnow * 100) - (i * 0.5));
-
             wSpeedS = 10 + (Math.random() * 8);
             wSpeedE = 10 + (Math.random() * 8);
             wDirS = Math.random() > 0.5 ? 270 : 180;
             wDirE = Math.random() > 0.5 ? 270 : 90;
         }
-
         const headS = isHeadwind(wDirS, 'start');
         const headE = isHeadwind(wDirE, 'end');
-        const fail = tS < minT || tE < minT || appTS < minAppT || appTE < minAppT || rain > maxR || snow > maxS;
+        const failTemp = tS < minT || tE < minT || appTS < minAppT || appTE < minAppT;
+        const failRainSnow = rain > maxR || snow > maxS;
         const windBad = (headS && wSpeedS > maxW) || (headE && wSpeedE > maxW);
-
-        let verd = "MINAM!", badge = "bg-safe", icon = "🚴";
-        if (fail) { verd = "NE"; badge = "bg-danger"; icon = "🚫"; }
-        else if (windBad) { verd = "VĖJAS"; badge = "bg-warning"; icon = "⚠️"; }
-
-        if (i === 1) {
-            const isGood = badge !== "bg-danger";
-            document.getElementById('greeting').innerText = isGood ? `Rytoj ruošk dviratį! 🚲` : `Rytoj rinkis kitą transporto priemonę 🚌`;
-            document.getElementById('ai-suggestion').innerHTML = `AI įžvalga: Rytoj nustatytu laiku (${fromH}-${toH} val.) jutiminė temperatūra bus apie ${parseFloat(appTS).toFixed(1)}°C.`;
+        let verd = "TAIP";
+        let badgeClass = "status-yes";
+        let iconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+        const errorIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+        if (failTemp) {
+            verd = "NE";
+            badgeClass = "status-no";
+            iconSvg = errorIcon;
+        } else if (failRainSnow) {
+            verd = "KRITULIAI";
+            badgeClass = "status-warning";
+            iconSvg = errorIcon;
+        } else if (windBad) {
+            verd = "VĖJAS";
+            badgeClass = "status-warning";
+            iconSvg = errorIcon;
         }
-
+        if (i === 1) {
+            tomorrowIsGood = (badgeClass === "status-yes");
+            banner.style.display = 'flex';
+            if (tomorrowIsGood) {
+                banner.style.backgroundColor = 'var(--accent-green)';
+                banner.innerHTML = `Rytoj ruošk dviratį! 🚲`;
+            } else {
+                banner.style.backgroundColor = 'var(--danger-bg)';
+                banner.innerHTML = `Rytoj dviratį palik namie 🥶`;
+            }
+        }
         tbody.innerHTML += `<tr>
-            <td>${dayDate.toLocaleDateString('lt-LT', {weekday: 'short', month: 'short', day: 'numeric'})} ${!isReal ? '<span class="hibrid-tag">Hibrid AI</span>' : ''}</td>
-            <td><b>${parseFloat(tS).toFixed(1)}°C</b><br><small>(${parseFloat(appTS).toFixed(1)}°C)</small></td>
-            <td><b>${parseFloat(tE).toFixed(1)}°C</b><br><small>(${parseFloat(appTE).toFixed(1)}°C)</small></td>
-            <td>${parseFloat(snow).toFixed(1)} cm</td>
-            <td>${parseFloat(rain).toFixed(1)} mm<br><small>${prob}%</small></td>
-            <td><div class="wind-box">${getArrow(wDirS, headS)} ${parseFloat(wSpeedS).toFixed(0)} | ${getArrow(wDirE, headE)} ${parseFloat(wSpeedE).toFixed(0)} km/h</div></td>
-            <td><span class="badge ${badge}"><span>${icon}</span> <span>${verd}</span></span></td>
+            <td>
+                <div class="date-cell">
+                    ${dateStr} ${todayBadge}
+                </div>
+            </td>
+            <td>
+                <div class="temp-primary">${parseFloat(tS).toFixed(1)}°</div>
+                <div class="temp-secondary">Junt. ${parseFloat(appTS).toFixed(1)}°</div>
+                <div class="wind-info ${headS && wSpeedS > maxW ? 'wind-bad' : ''}">
+                    ${getWindArrow(wDirS)} ${parseFloat(wSpeedS).toFixed(1)} km/h
+                </div>
+            </td>
+            <td>
+                <div class="temp-primary">${parseFloat(tE).toFixed(1)}°</div>
+                <div class="temp-secondary">Junt. ${parseFloat(appTE).toFixed(1)}°</div>
+                <div class="wind-info ${headS && wSpeedE > maxW ? 'wind-bad' : ''}">
+                    ${getWindArrow(wDirE)} ${parseFloat(wSpeedE).toFixed(1)} km/h
+                </div>
+            </td>
+            <td>
+                <div class="metric-primary">${parseFloat(rain).toFixed(1)} mm</div>
+                <div class="metric-secondary">${prob}%</div>
+            </td>
+            <td>
+                <div class="metric-primary text-main">${parseFloat(snow).toFixed(0)} cm</div>
+            </td>
+            <td>
+                <span class="status-badge ${badgeClass}">
+                    ${iconSvg} ${verd}
+                </span>
+            </td>
         </tr>`;
     }
 }
-
-function toggleTheme() {
-    document.body.classList.toggle('dark-mode');
-    localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
-}
-
 loadSettings();
 fetchData();
 </script>
