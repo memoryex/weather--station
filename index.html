@@ -669,13 +669,28 @@ function updateView() {
                 dangerCondition = true;
             } else if (snow > 5) {
                 extremeText = "Dėmesio: Gausus sniegas! ⛄";
+                extremeClass = "extreme-warning";
                 dangerCondition = true;
             } else if (rain > 5) {
-                extremeText = "Dėmesio: Stiprus lietus! 🌧️";
+                extremeText = "Dėmesio: Stiprus lietus! 🌧️ Rekomenduojama nevažiuoti.";
+                extremeClass = "extreme-warning";
                 dangerCondition = true;
-            } else if (wSpeedS > 25 || wSpeedE > 25) {
-                extremeText = "Dėmesio: Pavojingas vėjas! 🌪️";
+            } else if (wSpeedS > 35 || wSpeedE > 35) {
+                extremeText = "Škvalas - Pavojingas lygis! 🌪️ Labai stiprūs vėjo gūsiai";
+                extremeClass = "extreme-warning";
                 dangerCondition = true;
+            } else if (tS > 30 || tE > 30) {
+                extremeText = "Pavojingas karštis! ☀️ Nepamirškite vandens ir venkite saulės.";
+                extremeClass = "extreme-warning";
+                dangerCondition = true;
+            } else if (wSpeedS > 15 && headS && wSpeedE > 15 && headE) {
+                extremeText = "Pastovus priešpriešinis vėjas 🌬️ Prireiks daugiau ištvermės!";
+            } else if (tomorrowIsGood && tS >= 15 && tE <= 25 && rain === 0 && wSpeedS < 10 && wSpeedE < 10) {
+                extremeText = "Idealios sąlygos minti! ✨ Geras oras garantuotas.";
+            } else if (tomorrowIsGood && appTS < 5) {
+                extremeText = "Rytas bus vėsokas 🧣 Apsirenkite šilčiau, bet minti saugu.";
+            } else if (!tomorrowIsGood && (failTemp && tS > 0)) {
+                extremeText = "Per šalta komfortiškam važiavimui pagal tavo profilį 🥶";
             }
 
             if (extremeClass === "extreme-warning") {
@@ -685,10 +700,10 @@ function updateView() {
             } else {
                 if (tomorrowIsGood) {
                     banner.style.backgroundColor = 'var(--accent-green)';
-                    banner.innerHTML = `Rytoj ruošk dviratį! 🚲 ${extremeText ? ' <span style="margin-left:12px; font-weight:400;">' + extremeText + '</span>' : ''}`;
+                    banner.innerHTML = `Rytoj ruošk dviratį! 🚲 ${extremeText ? ' <span style="margin-left:12px; font-weight:400; font-style: italic;">| AI Įžvalga: ' + extremeText + '</span>' : ''}`;
                 } else {
                     banner.style.backgroundColor = 'var(--danger-bg)';
-                    banner.innerHTML = `Rytoj dviratį palik namie 🥶 ${extremeText ? ' <span style="margin-left:12px; font-weight:400;">' + extremeText + '</span>' : ''}`;
+                    banner.innerHTML = `Rytoj dviratį palik namie 🥶 ${extremeText ? ' <span style="margin-left:12px; font-weight:400; font-style: italic;">| AI Įžvalga: ' + extremeText + '</span>' : ''}`;
                 }
             }
         }
