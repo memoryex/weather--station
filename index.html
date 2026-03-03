@@ -245,6 +245,37 @@
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type="number"] { -moz-appearance: textfield; }
 
+        /* Summary Blocks */
+        .summary-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            margin-bottom: 30px;
+        }
+        .summary-card {
+            flex: 1;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .summary-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+        }
+        .summary-safe { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+        .summary-warn { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
+
+        .summary-content { flex: 1; }
+        .summary-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+        .summary-value { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
+
         /* Forecast Title */
         .forecast-title {
             font-size: 1.5rem;
@@ -351,16 +382,16 @@
     <!-- Top Banner: hidden by default, populated by JS -->
     <div id="top-banner" class="top-banner" style="display: none;"></div>
 
-    <!-- Navigation Tabs -->
-    <div class="tabs-container">
-        <button class="tab-btn active" onclick="switchTab('forecast')">☁️ Orų Prognozė</button>
-        <button class="tab-btn" onclick="switchTab('komoot')">🚴 Komoot Statistika</button>
-    </div>
-
-    <!-- Forecast Tab Content -->
-    <div id="tab-forecast" class="tab-content active">
-
     <div class="container">
+        <!-- Navigation Tabs -->
+        <div class="tabs-container">
+            <button class="tab-btn active" onclick="switchTab('forecast')">☁️ Orų Prognozė</button>
+            <button class="tab-btn" onclick="switchTab('komoot')">🚴 Komoot Statistika</button>
+        </div>
+
+        <!-- Forecast Tab Content -->
+        <div id="tab-forecast" class="tab-content active">
+
         <!-- Header -->
         <div class="header">
             <div class="header-left">
@@ -444,6 +475,25 @@
             </div>
         </div>
 
+        <!-- Next Days Summary -->
+        <div class="summary-container">
+            <div class="summary-card">
+                <div class="summary-icon summary-safe">🚴</div>
+                <div class="summary-content">
+                    <div class="summary-label">Artimiausia diena minti</div>
+                    <div class="summary-value" id="next-best-day">Ieškoma...</div>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="summary-icon summary-warn">⚠️</div>
+                <div class="summary-content">
+                    <div class="summary-label">Tinkama diena su perspėjimu</div>
+                    <div class="summary-value" id="next-warn-day">Ieškoma...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- 30 Days Forecast -->
         <h2 class="forecast-title">30 Dienų Prognozė</h2>
 
@@ -491,7 +541,7 @@
             <div class="card" style="margin-bottom: 20px;">
                 <div class="card-header">
                     <div class="card-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        <svg style="width: 24px; height: 24px; color: var(--accent-blue); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                         Prisijungimas
                     </div>
                 </div>
@@ -652,6 +702,9 @@ function updateView() {
     const maxW = parseFloat(document.getElementById('maxWindInput').value);
     tbody.innerHTML = '';
     let today = new Date();
+
+    let nextBestDay = null;
+    let nextWarnDay = null;
     today.setHours(0,0,0,0);
     let tempSum = 0; let snowSum = 0; let count = 0;
     for(let j=0; j<5; j++) {
@@ -739,6 +792,15 @@ function updateView() {
             badgeClass = "status-warning";
             iconSvg = errorIcon;
         }
+
+        const dayFormatted = `${getLTMonth(dayDate.getMonth())} ${dayDate.getDate()}, ${getLTWeekday(dayDate.getDay())}`;
+        if (verd === "TAIP" && !nextBestDay && i > 0) {
+            nextBestDay = dayFormatted;
+        }
+        if (verd !== "TAIP" && verd !== "NE" && !nextWarnDay && i > 0) {
+            nextWarnDay = `${dayFormatted} (${verd})`;
+        }
+
         if (i === 1) {
             tomorrowIsGood = (badgeClass === "status-yes");
             banner.style.display = 'flex';
@@ -826,6 +888,9 @@ function updateView() {
             </td>
         </tr>`;
     }
+
+    document.getElementById('next-best-day').innerText = nextBestDay || "Nėra numatoma";
+    document.getElementById('next-warn-day').innerText = nextWarnDay || "Nėra numatoma";
 }
 loadSettings();
 fetchData();
