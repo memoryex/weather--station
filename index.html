@@ -685,10 +685,10 @@ function updateView() {
             } else {
                 if (tomorrowIsGood) {
                     banner.style.backgroundColor = 'var(--accent-green)';
-                    banner.innerHTML = `Rytoj ruošk dviratį! 🚲 ${extremeText ? ' - ' + extremeText : ''}`;
+                    banner.innerHTML = `Rytoj ruošk dviratį! 🚲 ${extremeText ? ' <span style="margin-left:12px; font-weight:400;">' + extremeText + '</span>' : ''}`;
                 } else {
                     banner.style.backgroundColor = 'var(--danger-bg)';
-                    banner.innerHTML = `Rytoj dviratį palik namie 🥶 ${extremeText ? '<span style="margin-left:12px; font-weight:400;">' + extremeText + '</span>' : ''}`;
+                    banner.innerHTML = `Rytoj dviratį palik namie 🥶 ${extremeText ? ' <span style="margin-left:12px; font-weight:400;">' + extremeText + '</span>' : ''}`;
                 }
             }
         }
