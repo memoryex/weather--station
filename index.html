@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dviračio Monitorius: Panevėžys</title>
+    <title>Dviračio minimo prognozė</title>
     <!-- Add Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -119,15 +119,20 @@
             margin-top: 4px;
         }
         .city-select {
-            background: transparent; border: none;
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border);
             color: var(--text-muted);
             font-family: 'Inter', sans-serif;
             font-size: 0.85rem;
+            padding: 4px 8px; border-radius: 6px;
             cursor: pointer; outline: none;
+            transition: 0.2s;
         }
+        .city-select:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
         .city-select option { background: var(--card-bg); color: var(--text-main); }
+        .light-mode .city-select { background: rgba(0,0,0,0.05); }
+        .light-mode .city-select:hover { background: rgba(0,0,0,0.1); }
 
-        .header-controls { display: flex; gap: 12px; position: relative; }
+        .header-controls { display: flex; gap: 12px; position: relative; align-items: center; }
 
         .btn {
             background: var(--card-bg);
@@ -298,6 +303,12 @@
         .metric-primary.text-main { color: var(--text-main); }
         .metric-secondary { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
 
+        /* New warning classes */
+        .temp-primary.temp-bad, .temp-secondary.temp-bad,
+        .metric-primary.metric-bad, .metric-primary.text-main.metric-bad {
+            color: var(--danger-text);
+        }
+
         .status-badge {
             display: inline-flex; align-items: center; gap: 6px;
             padding: 6px 14px;
@@ -337,7 +348,7 @@
                     <svg viewBox="0 0 24 24"><path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm5.8-10l2.4-2.4.8.8c1.3 1.3 3 2.1 5.1 2.1V9c-1.5 0-2.7-.6-3.6-1.5l-1.9-1.9c-.5-.4-1-.6-1.6-.6s-1.1.2-1.4.6L7.8 8.4c-.4.4-.6.9-.6 1.4 0 .6.2 1.1.6 1.4L11 14v5h2v-6.2l-2.2-2.3zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/></svg>
                 </div>
                 <div class="title-wrapper">
-                    <h1 class="main-title">Dviračio Monitorius <span class="pro-badge">PRO+</span></h1>
+                    <h1 class="main-title">Dviračio minimo prognozė <span class="pro-badge">PRO+</span></h1>
                     <div class="location">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                         <select id="citySelect" class="city-select" onchange="changeCity()">
@@ -353,16 +364,16 @@
             </div>
 
             <div class="header-controls">
-                <button class="btn" onclick="toggleDropdown(event)">
+                <button id="profileBtn" class="btn" onclick="toggleDropdown(event)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                    Profiliai
+                    <span>Profiliai</span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
                 <div id="profileDropdown" class="dropdown-menu">
                     <div class="dropdown-header">Išsaugoti Profiliai</div>
-                    <div class="dropdown-item" onclick="loadProfile('Standard Commute')">Standard Commute</div>
-                    <div class="dropdown-item" onclick="loadProfile('Winter Warrior')">Winter Warrior</div>
-                    <div class="dropdown-item" onclick="loadProfile('Fair Weather')">Fair Weather</div>
+                    <div class="dropdown-item" onclick="loadProfile('Vasara')">☀️ Vasara</div>
+                    <div class="dropdown-item" onclick="loadProfile('Pavasaris/Ruduo')">🍂 Pavasaris/Ruduo</div>
+                    <div class="dropdown-item" onclick="loadProfile('Žiema')">❄️ Žiema</div>
                 </div>
 
                 <button class="btn icon-only" title="Išsaugoti" onclick="saveSettings()">
@@ -460,9 +471,9 @@
 <script>
 let weatherData = null;
 const profiles = {
-    'Standard Commute': { from: 6, to: 17, minT: 3, minApp: 1, maxRain: 0.5, maxSnow: 2, maxWind: 15 },
-    'Winter Warrior': { from: 7, to: 16, minT: -5, minApp: -8, maxRain: 1.0, maxSnow: 10, maxWind: 20 },
-    'Fair Weather': { from: 8, to: 18, minT: 15, minApp: 15, maxRain: 0.0, maxSnow: 0, maxWind: 10 }
+    'Vasara': { from: 6, to: 18, minT: 15, minApp: 15, maxRain: 0.2, maxSnow: 0, maxWind: 12 },
+    'Pavasaris/Ruduo': { from: 7, to: 17, minT: 5, minApp: 2, maxRain: 0.5, maxSnow: 0, maxWind: 15 },
+    'Žiema': { from: 8, to: 16, minT: -10, minApp: -12, maxRain: 1.5, maxSnow: 15, maxWind: 20 }
 };
 function toggleDropdown(e) {
     e.stopPropagation();
@@ -471,7 +482,7 @@ function toggleDropdown(e) {
 document.addEventListener('click', () => {
     document.getElementById('profileDropdown').classList.remove('show');
 });
-function loadProfile(name) {
+function loadProfile(name, displayIconText = null) {
     const p = profiles[name];
     if (p) {
         document.getElementById('timeFrom').value = p.from;
@@ -481,6 +492,11 @@ function loadProfile(name) {
         document.getElementById('maxRainInput').value = p.maxRain;
         document.getElementById('maxSnowInput').value = p.maxSnow;
         document.getElementById('maxWindInput').value = p.maxWind;
+
+        let labelText = displayIconText || name;
+        document.querySelector('#profileBtn span').innerText = labelText;
+        localStorage.setItem('activeProfileLabel', labelText);
+
         saveSettings();
         updateView();
     }
@@ -498,6 +514,9 @@ function loadSettings() {
     const city = localStorage.getItem('cityCoords');
     if (city) document.getElementById('citySelect').value = city;
     if (localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
+
+    const activeLabel = localStorage.getItem('activeProfileLabel');
+    if (activeLabel) document.querySelector('#profileBtn span').innerText = activeLabel;
 }
 function saveSettings() {
     const ids = ['timeFrom', 'timeTo', 'minTempInput', 'minAppTempInput', 'maxRainInput', 'maxSnowInput', 'maxWindInput'];
@@ -511,7 +530,7 @@ function changeCity() {
 async function fetchData() {
     const coords = document.getElementById('citySelect').value.split(',');
     const lat = coords[0]; const lon = coords[1];
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,snow_depth,wind_speed_10m,wind_direction_10m&timezone=auto&wind_speed_unit=kmh&forecast_days=14`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,snow_depth,wind_speed_10m,wind_direction_10m,weathercode&timezone=auto&wind_speed_unit=kmh&forecast_days=14`;
     try {
         const response = await fetch(url);
         weatherData = await response.json();
@@ -571,6 +590,7 @@ function updateView() {
         let todayBadge = i === 0 ? `<span class="today-tag">Šiandien</span>` : '';
         let tS, appTS, tE, appTE, rain, prob, snow, wSpeedS, wDirS, wSpeedE, wDirE;
         let isReal = weatherData.hourly.temperature_2m[i * 24 + fromH] !== undefined && weatherData.hourly.temperature_2m[i * 24 + toH] !== undefined;
+        let isFreezingRain = false;
         if (isReal) {
             tS = weatherData.hourly.temperature_2m[i * 24 + fromH];
             appTS = weatherData.hourly.apparent_temperature[i * 24 + fromH];
@@ -585,6 +605,13 @@ function updateView() {
             wDirS = weatherData.hourly.wind_direction_10m[i * 24 + fromH];
             wSpeedE = weatherData.hourly.wind_speed_10m[i * 24 + toH];
             wDirE = weatherData.hourly.wind_direction_10m[i * 24 + toH];
+
+            if (weatherData.hourly.weathercode) {
+                let codes = weatherData.hourly.weathercode.slice(i * 24 + fromH, i * 24 + toH + 1);
+                if (codes.includes(66) || codes.includes(67) || codes.includes(56) || codes.includes(57)) {
+                    isFreezingRain = true;
+                }
+            }
         } else {
             let dayOffset = i * 0.18;
             tS = trendTemp + dayOffset + (Math.random() * 3 - 1.5);
@@ -603,7 +630,8 @@ function updateView() {
         const headS = isHeadwind(wDirS, 'start');
         const headE = isHeadwind(wDirE, 'end');
         const failTemp = tS < minT || tE < minT || appTS < minAppT || appTE < minAppT;
-        const failRainSnow = rain > maxR || snow > maxS;
+        const failRain = rain > maxR;
+        const failSnow = snow > maxS;
         const windBad = (headS && wSpeedS > maxW) || (headE && wSpeedE > maxW);
         let verd = "TAIP";
         let badgeClass = "status-yes";
@@ -613,7 +641,11 @@ function updateView() {
             verd = "NE";
             badgeClass = "status-no";
             iconSvg = errorIcon;
-        } else if (failRainSnow) {
+        } else if (failSnow) {
+            verd = "SNIEGAS";
+            badgeClass = "status-warning";
+            iconSvg = errorIcon;
+        } else if (failRain) {
             verd = "KRITULIAI";
             badgeClass = "status-warning";
             iconSvg = errorIcon;
@@ -625,12 +657,39 @@ function updateView() {
         if (i === 1) {
             tomorrowIsGood = (badgeClass === "status-yes");
             banner.style.display = 'flex';
-            if (tomorrowIsGood) {
-                banner.style.backgroundColor = 'var(--accent-green)';
-                banner.innerHTML = `Rytoj ruošk dviratį! 🚲`;
+
+            // Extreme weather logic for tomorrow based on conditions
+            let extremeText = "";
+            let extremeClass = "";
+            let dangerCondition = false;
+
+            if (isFreezingRain || (tS >= -2 && tS <= 2 && rain > 0)) {
+                extremeText = "Plikledis - Pavojingas lygis! 🧊 Būkite ypač atsargūs";
+                extremeClass = "extreme-warning";
+                dangerCondition = true;
+            } else if (snow > 5) {
+                extremeText = "Dėmesio: Gausus sniegas! ⛄";
+                dangerCondition = true;
+            } else if (rain > 5) {
+                extremeText = "Dėmesio: Stiprus lietus! 🌧️";
+                dangerCondition = true;
+            } else if (wSpeedS > 25 || wSpeedE > 25) {
+                extremeText = "Dėmesio: Pavojingas vėjas! 🌪️";
+                dangerCondition = true;
+            }
+
+            if (extremeClass === "extreme-warning") {
+                banner.style.backgroundColor = '#b45309'; // Darker orange/brown to indicate danger
+                banner.style.color = 'white';
+                banner.innerHTML = `⚠️ ${extremeText}`;
             } else {
-                banner.style.backgroundColor = 'var(--danger-bg)';
-                banner.innerHTML = `Rytoj dviratį palik namie 🥶`;
+                if (tomorrowIsGood) {
+                    banner.style.backgroundColor = 'var(--accent-green)';
+                    banner.innerHTML = `Rytoj ruošk dviratį! 🚲 ${extremeText ? ' - ' + extremeText : ''}`;
+                } else {
+                    banner.style.backgroundColor = 'var(--danger-bg)';
+                    banner.innerHTML = `Rytoj dviratį palik namie 🥶 ${extremeText ? '<span style="margin-left:12px; font-weight:400;">' + extremeText + '</span>' : ''}`;
+                }
             }
         }
         tbody.innerHTML += `<tr>
@@ -640,25 +699,25 @@ function updateView() {
                 </div>
             </td>
             <td>
-                <div class="temp-primary">${parseFloat(tS).toFixed(1)}°</div>
-                <div class="temp-secondary">Junt. ${parseFloat(appTS).toFixed(1)}°</div>
+                <div class="temp-primary ${tS < minT ? 'temp-bad' : ''}">${parseFloat(tS).toFixed(1)}°</div>
+                <div class="temp-secondary ${appTS < minAppT ? 'temp-bad' : ''}">Junt. ${parseFloat(appTS).toFixed(1)}°</div>
                 <div class="wind-info ${headS && wSpeedS > maxW ? 'wind-bad' : ''}">
                     ${getWindArrow(wDirS)} ${parseFloat(wSpeedS).toFixed(1)} km/h
                 </div>
             </td>
             <td>
-                <div class="temp-primary">${parseFloat(tE).toFixed(1)}°</div>
-                <div class="temp-secondary">Junt. ${parseFloat(appTE).toFixed(1)}°</div>
+                <div class="temp-primary ${tE < minT ? 'temp-bad' : ''}">${parseFloat(tE).toFixed(1)}°</div>
+                <div class="temp-secondary ${appTE < minAppT ? 'temp-bad' : ''}">Junt. ${parseFloat(appTE).toFixed(1)}°</div>
                 <div class="wind-info ${headS && wSpeedE > maxW ? 'wind-bad' : ''}">
                     ${getWindArrow(wDirE)} ${parseFloat(wSpeedE).toFixed(1)} km/h
                 </div>
             </td>
             <td>
-                <div class="metric-primary">${parseFloat(rain).toFixed(1)} mm</div>
+                <div class="metric-primary ${rain > maxR ? 'metric-bad' : ''}">${parseFloat(rain).toFixed(1)} mm</div>
                 <div class="metric-secondary">${prob}%</div>
             </td>
             <td>
-                <div class="metric-primary text-main">${parseFloat(snow).toFixed(0)} cm</div>
+                <div class="metric-primary text-main ${snow > maxS ? 'metric-bad' : ''}">${parseFloat(snow).toFixed(0)} cm</div>
             </td>
             <td>
                 <span class="status-badge ${badgeClass}">
