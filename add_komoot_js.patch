@@ -1,0 +1,150 @@
+--- index.html
++++ index.html
+@@ -750,5 +750,119 @@
+ }
+
+ toggleTheme(true); // init
++
++/* --- Komoot Integration --- */
++
++let komootUserId = null;
++let komootTours = [];
++
++function b64EncodeUnicode(str) {
++    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
++        return String.fromCharCode('0x' + p1);
++    }));
++}
++
++async function fetchKomootData() {
++    const email = document.getElementById('komootEmail').value;
++    const password = document.getElementById('komootPassword').value;
++    const statusEl = document.getElementById('komoot-status');
++
++    if (!email || !password) {
++        statusEl.innerText = 'Įveskite el. paštą ir slaptažodį.';
++        statusEl.style.display = 'block';
++        return;
++    }
++
++    statusEl.innerText = 'Prisijungiama... (1/2)';
++    statusEl.style.color = 'var(--text-main)';
++    statusEl.style.display = 'block';
++    document.getElementById('komoot-stats-container').style.display = 'none';
++
++    const authStr = 'Basic ' + b64EncodeUnicode(email + ':' + password);
++    const proxyBase = 'http://localhost:5050/proxy?url=';
++
++    try {
++        // 1. Get User ID
++        const loginUrl = proxyBase + encodeURIComponent(`https://api.komoot.de/v006/account/email/${email}/`);
++        const loginRes = await fetch(loginUrl, { headers: { 'Authorization': authStr } });
++
++        if (!loginRes.ok) throw new Error('Nepavyko prisijungti. Patikrinkite duomenis arba proxy serverį.');
++        const loginData = await loginRes.json();
++
++        if (!loginData.username) throw new Error('Nerastas vartotojo ID.');
++        komootUserId = loginData.username;
++
++        statusEl.innerText = 'Gaunami maršrutai... (2/2)';
++        komootTours = [];
++
++        // 2. Fetch all recorded tours
++        let toursUrl = `https://api.komoot.de/v007/users/${komootUserId}/tours/?type=tour_recorded&sort=date&limit=100`;
++
++        while (toursUrl) {
++            const res = await fetch(proxyBase + encodeURIComponent(toursUrl), { headers: { 'Authorization': authStr } });
++            if (!res.ok) throw new Error('Klaida gaunant maršrutus.');
++            const data = await res.json();
++
++            if (data._embedded && data._embedded.tours) {
++                komootTours = komootTours.concat(data._embedded.tours);
++            }
++
++            if (data._links && data._links.next && data._links.next.href) {
++                toursUrl = data._links.next.href;
++            } else {
++                toursUrl = null;
++            }
++        }
++
++        statusEl.innerText = `Sėkmingai gauta ${komootTours.length} maršrutų!`;
++        statusEl.style.color = 'var(--status-yes)';
++
++        renderKomootStats();
++
++    } catch (e) {
++        statusEl.innerText = 'Klaida: ' + e.message;
++        statusEl.style.color = 'var(--danger-text)';
++    }
++}
++
++function renderKomootStats() {
++    if (komootTours.length === 0) return;
++
++    document.getElementById('komoot-stats-container').style.display = 'block';
++
++    // Calculations
++    const statsByYear = {};
++    const locations = {};
++
++    komootTours.forEach(tour => {
++        if (!tour.date || tour.sport !== 'touringbicycle' && tour.sport !== 'mtb' && tour.sport !== 'racebike') return; // approximate filter
++
++        const year = new Date(tour.date).getFullYear();
++        const distKm = (tour.distance || 0) / 1000;
++
++        if (!statsByYear[year]) statsByYear[year] = { dist: 0, count: 0, elevation: 0 };
++        statsByYear[year].dist += distKm;
++        statsByYear[year].count += 1;
++        statsByYear[year].elevation += tour.elevation_up || 0;
++
++        if (tour.start_point && tour.start_point.city) {
++            const loc = `${tour.start_point.country || ''} ${tour.start_point.city}`.trim();
++            if (loc) {
++                locations[loc] = (locations[loc] || 0) + 1;
++            }
++        }
++    });
++
++    const statsContent = document.getElementById('komoot-stats-content');
++    statsContent.innerHTML = '';
++
++    Object.keys(statsByYear).sort((a,b) => b - a).forEach(year => {
++        const s = statsByYear[year];
++        statsContent.innerHTML += `
++            <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color);">
++                <div style="font-size: 20px; font-weight: bold; color: var(--accent-blue); margin-bottom: 10px;">${year} metai</div>
++                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
++                    <span style="color: var(--text-muted);">Atstumas</span>
++                    <span style="font-weight: 600; color: var(--text-main);">${s.dist.toFixed(1)} km</span>
++                </div>
++                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
++                    <span style="color: var(--text-muted);">Maršrutai</span>
++                    <span style="font-weight: 600; color: var(--text-main);">${s.count}</span>
++                </div>
++                <div style="display: flex; justify-content: space-between;">
++                    <span style="color: var(--text-muted);">Pakilimas</span>
++                    <span style="font-weight: 600; color: var(--text-main);">${Math.round(s.elevation)} m</span>
++                </div>
++            </div>
++        `;
++    });
++
++    const locBody = document.getElementById('komoot-locations-body');
++    locBody.innerHTML = '';
++    const sortedLocs = Object.entries(locations).sort((a,b) => b[1] - a[1]).slice(0, 10);
++
++    sortedLocs.forEach(([loc, count]) => {
++        locBody.innerHTML += `
++            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
++                <td style="padding: 12px; font-weight: 500;">${loc}</td>
++                <td style="padding: 12px; text-align: right; color: var(--accent-blue); font-weight: bold;">${count}</td>
++            </tr>
++        `;
++    });
++}
++
+ </script>
+ </body>
+ </html>

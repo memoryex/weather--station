@@ -9,6 +9,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* Tabs */
+        .tabs-container { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
+        .tab-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); padding: 12px 24px; border-radius: 12px; cursor: pointer; font-weight: 600; transition: 0.3s; font-size: 15px; }
+        .tab-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
+        .tab-btn.active { background: var(--bg-accent); color: var(--text-main); border-color: rgba(96, 165, 250, 0.5); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .light-mode .tab-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); color: var(--text-muted); }
+        .light-mode .tab-btn:hover { background: rgba(0,0,0,0.1); color: var(--text-main); }
+        .light-mode .tab-btn.active { background: var(--bg-accent); color: white; border-color: transparent; }
+
         /* CSS reset and base styles */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
         :root {
@@ -339,6 +351,15 @@
     <!-- Top Banner: hidden by default, populated by JS -->
     <div id="top-banner" class="top-banner" style="display: none;"></div>
 
+    <!-- Navigation Tabs -->
+    <div class="tabs-container">
+        <button class="tab-btn active" onclick="switchTab('forecast')">☁️ Orų Prognozė</button>
+        <button class="tab-btn" onclick="switchTab('komoot')">🚴 Komoot Statistika</button>
+    </div>
+
+    <!-- Forecast Tab Content -->
+    <div id="tab-forecast" class="tab-content active">
+
     <div class="container">
         <!-- Header -->
         <div class="header">
@@ -463,9 +484,73 @@
                 </tbody>
             </table>
         </div>
+        </div> <!-- End Forecast Tab -->
+
+        <!-- Komoot Tab Content -->
+        <div id="tab-komoot" class="tab-content">
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        Prisijungimas
+                    </div>
+                </div>
+
+                <div class="params-grid" style="align-items: end;">
+                    <div class="param-group">
+                        <label class="param-label">El. Paštas</label>
+                        <input type="email" id="komootEmail" class="param-input" placeholder="vardenis@pavyzdys.lt">
+                    </div>
+                    <div class="param-group">
+                        <label class="param-label">Slaptažodis</label>
+                        <input type="password" id="komootPassword" class="param-input">
+                    </div>
+                    <div class="param-group">
+                        <button onclick="fetchKomootData()" class="action-btn" style="width: 100%; height: 50px; background: var(--accent-blue); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer;">Prisijungti ir Užkrauti</button>
+                    </div>
+                </div>
+                <div id="komoot-status" style="margin-top: 15px; font-size: 14px; font-weight: 500; color: var(--danger-text);"></div>
+                <div id="komoot-proxy-info" style="margin-top: 10px; font-size: 12px; opacity: 0.6; color: var(--text-muted);">
+                    * Reikalingas veikiantis vietinis komoot_proxy.py serveris (http://localhost:5050)
+                </div>
+            </div>
+
+            <div id="komoot-stats-container" style="display: none;">
+                <h2 class="forecast-title" style="margin-top: 0;">Metų Statistika</h2>
+                <div class="params-grid" id="komoot-stats-content" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                    <!-- Stats will be injected here -->
+                </div>
+
+                <h2 class="forecast-title" style="margin-top: 30px;">Populiariausios Vietovės</h2>
+                <div class="card">
+                    <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <th style="padding: 12px; font-size: 13px; color: var(--text-muted);">ŠALIS / MIESTAS</th>
+                                <th style="padding: 12px; font-size: 13px; color: var(--text-muted); text-align: right;">KIEKIS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="komoot-locations-body">
+                            <!-- Locations will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- End Komoot Tab -->
+
     </div>
 
     <script>
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+        document.getElementById('tab-' + tabId).classList.add('active');
+        const btns = document.querySelectorAll('.tab-btn');
+        if(tabId === 'forecast') btns[0].classList.add('active');
+        if(tabId === 'komoot') btns[1].classList.add('active');
+    }
     </script>
 
 <script>
@@ -632,7 +717,7 @@ function updateView() {
         const failTemp = tS < minT || tE < minT || appTS < minAppT || appTE < minAppT;
         const failRain = rain > maxR;
         const failSnow = snow > maxS;
-        const windBad = (headS && wSpeedS > maxW) || (headE && wSpeedE > maxW);
+        const windBad = wSpeedS > maxW || wSpeedE > maxW;
         let verd = "TAIP";
         let badgeClass = "status-yes";
         let iconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
@@ -716,14 +801,14 @@ function updateView() {
             <td>
                 <div class="temp-primary ${tS < minT ? 'temp-bad' : ''}">${parseFloat(tS).toFixed(1)}°</div>
                 <div class="temp-secondary ${appTS < minAppT ? 'temp-bad' : ''}">Junt. ${parseFloat(appTS).toFixed(1)}°</div>
-                <div class="wind-info ${headS && wSpeedS > maxW ? 'wind-bad' : ''}">
+                <div class="wind-info ${wSpeedS > maxW ? 'wind-bad' : ''}">
                     ${getWindArrow(wDirS)} ${parseFloat(wSpeedS).toFixed(1)} km/h
                 </div>
             </td>
             <td>
                 <div class="temp-primary ${tE < minT ? 'temp-bad' : ''}">${parseFloat(tE).toFixed(1)}°</div>
                 <div class="temp-secondary ${appTE < minAppT ? 'temp-bad' : ''}">Junt. ${parseFloat(appTE).toFixed(1)}°</div>
-                <div class="wind-info ${headS && wSpeedE > maxW ? 'wind-bad' : ''}">
+                <div class="wind-info ${wSpeedE > maxW ? 'wind-bad' : ''}">
                     ${getWindArrow(wDirE)} ${parseFloat(wSpeedE).toFixed(1)} km/h
                 </div>
             </td>
@@ -744,6 +829,167 @@ function updateView() {
 }
 loadSettings();
 fetchData();
+
+/* --- Komoot Integration --- */
+
+let komootUserId = null;
+let komootTours = [];
+
+function b64EncodeUnicode(str) {
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+        return String.fromCharCode('0x' + p1);
+    }));
+}
+
+async function fetchKomootData() {
+    const email = document.getElementById('komootEmail').value;
+    const password = document.getElementById('komootPassword').value;
+    const statusEl = document.getElementById('komoot-status');
+
+    if (!email || !password) {
+        statusEl.innerText = 'Įveskite el. paštą ir slaptažodį.';
+        statusEl.style.display = 'block';
+        return;
+    }
+
+    statusEl.innerText = 'Prisijungiama... (1/2)';
+    statusEl.style.color = 'var(--text-main)';
+    statusEl.style.display = 'block';
+    document.getElementById('komoot-stats-container').style.display = 'none';
+
+    const authStr = 'Basic ' + b64EncodeUnicode(email + ':' + password);
+    const proxyBase = 'http://localhost:5050/proxy?url=';
+
+    try {
+        // 1. Get User ID
+        const loginUrl = proxyBase + encodeURIComponent(`https://api.komoot.de/v006/account/email/${email}/`);
+        const loginRes = await fetch(loginUrl, { headers: { 'Authorization': authStr } });
+
+        if (!loginRes.ok) throw new Error('Nepavyko prisijungti. Patikrinkite duomenis arba proxy serverį.');
+        const loginData = await loginRes.json();
+
+        if (!loginData.username) throw new Error('Nerastas vartotojo ID.');
+        komootUserId = loginData.username;
+
+        statusEl.innerText = 'Gaunami maršrutai... (2/2)';
+
+        // 2. Fetch all recorded tours
+        let toursUrl = `https://api.komoot.de/v007/users/${komootUserId}/tours/?type=tour_recorded&sort=date&limit=100`;
+        komootTours = [];
+
+        while (toursUrl) {
+            const res = await fetch(proxyBase + encodeURIComponent(toursUrl), { headers: { 'Authorization': authStr } });
+            if (!res.ok) throw new Error('Klaida gaunant maršrutus.');
+            const data = await res.json();
+
+            if (data._embedded && data._embedded.tours) {
+                komootTours = komootTours.concat(data._embedded.tours);
+            }
+
+            if (data._links && data._links.next && data._links.next.href) {
+                toursUrl = data._links.next.href;
+            } else {
+                toursUrl = null;
+            }
+        }
+
+        statusEl.innerText = `Sėkmingai gauta ${komootTours.length} maršrutų!`;
+        statusEl.style.color = 'var(--status-yes)';
+
+        renderKomootStats();
+
+    } catch (e) {
+        statusEl.innerText = 'Klaida: ' + e.message;
+        statusEl.style.color = 'var(--danger-text)';
+    }
+}
+
+function renderKomootStats() {
+    if (komootTours.length === 0) return;
+
+    document.getElementById('komoot-stats-container').style.display = 'block';
+
+    // Calculations
+    const statsByYear = {};
+    const locations = {};
+
+    komootTours.forEach(tour => {
+        // approximate filter for cycling. Note: komoot sport types: touringbicycle, mtb, racebike, e_touringbicycle, e_mtb, gravelbike
+        if (!tour.date || !tour.sport || !tour.sport.includes('bike') && !tour.sport.includes('mtb') && !tour.sport.includes('bicycle')) return;
+
+        const year = new Date(tour.date).getFullYear();
+        const distKm = (tour.distance || 0) / 1000;
+        const elevUp = tour.elevation_up || 0;
+
+        if (!statsByYear[year]) statsByYear[year] = { dist: 0, count: 0, elevation: 0 };
+        statsByYear[year].dist += distKm;
+        statsByYear[year].count += 1;
+        statsByYear[year].elevation += elevUp;
+
+        if (tour.start_point) {
+            let loc = 'Nežinoma';
+            // Use coordinates to fetch location name? Komoot API usually returns start_point.city but sometimes it's nested or missing.
+            // Actually, we can just use the start_point coordinates if city is not available, but let's try to extract name from tour or assume komoot returns it.
+            // The v007 tours endpoint does NOT always return city in start_point. It returns alt, lat, lng.
+            // If we don't have city, we might have to use reverse geocoding, but let's just group by year first and leave location empty if not found.
+            // Oh wait, `tour.start_point` in the basic list might not have city. `tour.name` might be the best we have, or we skip locations if not available.
+            // Let's check `tour.start_point.lat` and `tour.start_point.lng`. For a simple implementation, let's use the tour title's first word, or just show the top 10 longest rides if locations are unavailable.
+            // Let's stick to the plan: if we can't get city, we just show "Top rides".
+        }
+    });
+
+    const statsContent = document.getElementById('komoot-stats-content');
+    statsContent.innerHTML = '';
+
+    Object.keys(statsByYear).sort((a,b) => b - a).forEach(year => {
+        const s = statsByYear[year];
+        statsContent.innerHTML += `
+            <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 15px;">
+                <div style="font-size: 20px; font-weight: bold; color: var(--accent-blue); margin-bottom: 10px;">${year} metai</div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: var(--text-muted);">Atstumas</span>
+                    <span style="font-weight: 600; color: var(--text-main);">${s.dist.toFixed(1)} km</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: var(--text-muted);">Maršrutai</span>
+                    <span style="font-weight: 600; color: var(--text-main);">${s.count}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Pakilimas</span>
+                    <span style="font-weight: 600; color: var(--text-main);">${Math.round(s.elevation)} m</span>
+                </div>
+            </div>
+        `;
+    });
+
+    // For locations, since v007 basic tour list doesn't include detailed city strings in start_point reliably without reverse geocoding,
+    // let's instead show the Top 10 Longest Rides in the locations table.
+    const locBody = document.getElementById('komoot-locations-body');
+    locBody.innerHTML = '';
+
+    // Filter bikes and sort by distance
+    const topRides = komootTours
+        .filter(t => t.sport && (t.sport.includes('bike') || t.sport.includes('mtb') || t.sport.includes('bicycle')))
+        .sort((a,b) => (b.distance || 0) - (a.distance || 0))
+        .slice(0, 10);
+
+    document.querySelector('#komoot-stats-container h2:nth-of-type(2)').innerText = "Ilgiausi Maršrutai";
+    document.querySelector('#komoot-locations-body').parentElement.querySelector('thead tr th:nth-child(1)').innerText = "MARŠRUTAS";
+    document.querySelector('#komoot-locations-body').parentElement.querySelector('thead tr th:nth-child(2)').innerText = "ATSTUMAS";
+
+    topRides.forEach(tour => {
+        const dist = ((tour.distance || 0) / 1000).toFixed(1);
+        const name = tour.name || 'Belaidis maršrutas';
+        const dateStr = tour.date ? new Date(tour.date).toLocaleDateString('lt-LT') : '';
+
+        locBody.innerHTML += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 12px; font-weight: 500;">${name}<br><small style="color: var(--text-muted);">${dateStr}</small></td>
+                <td style="padding: 12px; text-align: right; color: var(--accent-blue); font-weight: bold;">${dist} km</td>
+            </tr>
+        `;
+    });
+}
 </script>
 </body>
 </html>

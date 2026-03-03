@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+async function testCORS() {
+    try {
+        const response = await fetch("https://api.komoot.de/v007/users/1/tours/", {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/hal+json'
+            }
+        });
+        console.log("Status:", response.status);
+        console.log("Success! Reached API.");
+    } catch (e) {
+        console.error("Fetch failed! Likely CORS.", e);
+    }
+}
+testCORS();
+</script>
+</body>
+</html>
