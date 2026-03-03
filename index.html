@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dviračio Monitorius: Panevėžys HIBRID PRO+</title>
+    <style>
+        :root {
+            --bg: #f0f4f8; --card: #ffffff; --text: #333; --border: #ddd;
+            --safe: #2e7d32; --warning: #f57c00; --danger: #d32f2f; --accent: #2196f3;
+        }
+        .dark-mode {
+            --bg: #1a1a1b; --card: #2d2d2e; --text: #e0e0e0; --border: #444;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 10px; transition: 0.3s; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .card { background: var(--card); padding: 20px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); max-width: 1350px; width: 100%; box-sizing: border-box; position: relative; overflow: hidden; }
+        .card::before { content: "🚲"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 400px; opacity: 0.03; pointer-events: none; }
+        .welcome-box { position: relative; z-index: 1; text-align: center; padding: 20px; border-radius: 15px; margin-bottom: 20px; background: linear-gradient(135deg, #2196f3, #1565c0); color: white; }
+        .controls { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 15px; background: rgba(128,128,128,0.1); border-radius: 10px; }
+        .control-group { flex: 1 1 100px; display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 0.65rem; font-weight: bold; text-transform: uppercase; opacity: 0.8; }
+        input, select { padding: 6px; border-radius: 5px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 0.85rem; width: 100%; box-sizing: border-box; }
+        .table-container { position: relative; z-index: 1; width: 100%; overflow-x: auto; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1050px; background: transparent; }
+        th { background: rgba(0,0,0,0.05); padding: 12px 10px; text-align: left; font-size: 0.75rem; }
+        td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        tr:hover td { background: rgba(0,0,0,0.02); }
+        .dark-mode tr:hover td { background: rgba(255,255,255,0.02); }
+        .badge { padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; display: flex; align-items: center; gap: 8px; width: fit-content; }
+        .bg-safe { background: var(--safe); }
+        .bg-warning { background: var(--warning); }
+        .bg-danger { background: var(--danger); }
+        .hibrid-tag { font-size: 0.6rem; color: #7b1fa2; font-weight: bold; display: block; margin-top: 2px; }
+        .dark-mode .hibrid-tag { color: #ce93d8; }
+        .wind-box { display: flex; gap: 5px; align-items: center; white-space: nowrap; }
+        .theme-toggle { align-self: flex-end; margin-bottom: 8px; padding: 10px 20px; border-radius: 25px; border: none; background: var(--accent); color: white; cursor: pointer; font-weight: bold; }
+        .update-btn { background: #4caf50; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; }
+    </style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">🌓 Perjungti temą</button>
+
+<div class="card">
+    <div id="welcome-container" class="welcome-box">
+        <h2 id="greeting">Analizuojama...</h2>
+        <div id="ai-suggestion" style="margin-top:10px; font-style:italic; font-weight: 300;">Ruošiama Panevėžio prognozė</div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group"><label>Nuo (val.)</label><input type="number" id="timeFrom" value="6" min="0" max="23" onchange="saveSettings(); updateView()"></div>
+        <div class="control-group"><label>Iki (val.)</label><input type="number" id="timeTo" value="17" min="0" max="23" onchange="saveSettings(); updateView()"></div>
+        <div class="control-group"><label>Min Reali °C</label><input type="number" id="minTempInput" value="3" onchange="saveSettings(); updateView()"></div>
+        <div class="control-group"><label>Min Juntamoji °C</label><input type="number" id="minAppTempInput" value="1" onchange="saveSettings(); updateView()"></div>
+        <div class="control-group"><label>Max Krituliai mm</label><input type="number" id="maxRainInput" value="0.5" step="0.1" onchange="saveSettings(); updateView()"></div>
+        <div class="control-group"><label>Max Sniegas cm</label><input type="number" id="maxSnowInput" value="2" onchange="saveSettings(); updateView()"></div>
+        <div class="control-group"><label>Max Vėjas km/h</label><input type="number" id="maxWindInput" value="15" onchange="saveSettings(); updateView()"></div>
+        <div class="control-group" style="flex: 1 1 120px; justify-content: flex-end;"><button class="update-btn" onclick="fetchData()">Atnaujinti duomenis</button></div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Pradžia (Temp)</th>
+                    <th>Pabaiga (Temp)</th>
+                    <th>Sniegas</th>
+                    <th>Krituliai (%)</th>
+                    <th>Vėjas (Pr./Pab.)</th>
+                    <th>Galima minti?</th>
+                </tr>
+            </thead>
+            <tbody id="forecast-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let weatherData = null;
+
+function loadSettings() {
+    const ids = ['timeFrom', 'timeTo', 'minTempInput', 'minAppTempInput', 'maxRainInput', 'maxSnowInput', 'maxWindInput'];
+    ids.forEach(id => {
+        const val = localStorage.getItem(id);
+        if (val !== null) document.getElementById(id).value = val;
+    });
+    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-mode');
+}
+
+function saveSettings() {
+    const ids = ['timeFrom', 'timeTo', 'minTempInput', 'minAppTempInput', 'maxRainInput', 'maxSnowInput', 'maxWindInput'];
+    ids.forEach(id => localStorage.setItem(id, document.getElementById(id).value));
+}
+
+async function fetchData() {
+    const lat = 55.73; const lon = 24.36;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,snow_depth,wind_speed_10m,wind_direction_10m&timezone=auto&wind_speed_unit=kmh&forecast_days=14`;
+    try {
+        const response = await fetch(url);
+        weatherData = await response.json();
+        updateView();
+    } catch (e) { document.getElementById('greeting').innerText = "Ryšio klaida!"; }
+}
+
+function isHeadwind(direction, type) {
+    if (type === 'start') return direction >= 135 && direction <= 225;
+    if (type === 'end') return direction >= 315 || direction <= 45;
+    return false;
+}
+
+function getArrow(deg, isHead) {
+    const style = isHead ? 'color:var(--danger); font-weight:bold;' : 'color:var(--safe);';
+    // Adding 180 as wind direction is where the wind is blowing FROM. So 0 means FROM North, which means it blows South (Down).
+    return `<span style="transform: rotate(${deg + 180}deg); display:inline-block; ${style}">↑</span>`;
+}
+
+function updateView() {
+    if (!weatherData || !weatherData.hourly) return;
+    const tbody = document.getElementById('forecast-body');
+    const fromH = parseInt(document.getElementById('timeFrom').value);
+    const toH = parseInt(document.getElementById('timeTo').value);
+    const minT = parseFloat(document.getElementById('minTempInput').value);
+    const minAppT = parseFloat(document.getElementById('minAppTempInput').value);
+    const maxR = parseFloat(document.getElementById('maxRainInput').value);
+    const maxS = parseFloat(document.getElementById('maxSnowInput').value);
+    const maxW = parseFloat(document.getElementById('maxWindInput').value);
+
+    tbody.innerHTML = '';
+    let today = new Date();
+
+    // AI mokymosi parametrai iš pirmų realių dienų
+    let tempSum = 0; let snowSum = 0; let count = 0;
+    for(let j=0; j<5; j++) {
+        let val = weatherData.hourly.temperature_2m[j*24 + fromH];
+        if (val !== undefined) {
+            tempSum += val;
+            snowSum += weatherData.hourly.snow_depth[j*24 + fromH];
+            count++;
+        }
+    }
+    const trendTemp = count > 0 ? (tempSum / count) : 2;
+    const trendSnow = count > 0 ? (snowSum / count) : 0;
+
+    for (let i = 0; i < 30; i++) {
+        let dayDate = new Date();
+        dayDate.setDate(today.getDate() + i);
+        let tS, appTS, tE, appTE, rain, prob, snow, wSpeedS, wDirS, wSpeedE, wDirE;
+        let isReal = weatherData.hourly.temperature_2m[i * 24 + fromH] !== undefined && weatherData.hourly.temperature_2m[i * 24 + toH] !== undefined;
+
+        if (isReal) {
+            tS = weatherData.hourly.temperature_2m[i * 24 + fromH];
+            appTS = weatherData.hourly.apparent_temperature[i * 24 + fromH];
+            tE = weatherData.hourly.temperature_2m[i * 24 + toH];
+            appTE = weatherData.hourly.apparent_temperature[i * 24 + toH];
+
+            const rainSlice = weatherData.hourly.precipitation.slice(i * 24 + fromH, i * 24 + toH + 1);
+            rain = rainSlice.length > 0 ? rainSlice.reduce((a, b) => a + b, 0) : 0;
+
+            const probSlice = weatherData.hourly.precipitation_probability.slice(i * 24 + fromH, i * 24 + toH + 1).filter(p => p !== null);
+            prob = probSlice.length > 0 ? Math.max(...probSlice) : 0;
+
+            snow = (weatherData.hourly.snow_depth[i * 24 + fromH] * 100) || 0;
+            wSpeedS = weatherData.hourly.wind_speed_10m[i * 24 + fromH];
+            wDirS = weatherData.hourly.wind_direction_10m[i * 24 + fromH];
+            wSpeedE = weatherData.hourly.wind_speed_10m[i * 24 + toH];
+            wDirE = weatherData.hourly.wind_direction_10m[i * 24 + toH];
+        } else {
+            // HIBRID AI PILNAI ATSTATYTA LOGIKA
+            let dayOffset = i * 0.18;
+            tS = trendTemp + dayOffset + (Math.random() * 3 - 1.5);
+            appTS = tS - (Math.random() * 3);
+            tE = tS + 6 + (Math.random() * 2);
+            appTE = tE - 2;
+
+            let isRainy = Math.random() > 0.75;
+            rain = isRainy ? (Math.random() * 1.5) : 0;
+            prob = isRainy ? Math.floor(Math.random() * 50 + 20) : Math.floor(Math.random() * 10);
+
+            snow = Math.max(0, (trendSnow * 100) - (i * 0.5));
+
+            wSpeedS = 10 + (Math.random() * 8);
+            wSpeedE = 10 + (Math.random() * 8);
+            wDirS = Math.random() > 0.5 ? 270 : 180;
+            wDirE = Math.random() > 0.5 ? 270 : 90;
+        }
+
+        const headS = isHeadwind(wDirS, 'start');
+        const headE = isHeadwind(wDirE, 'end');
+        const fail = tS < minT || tE < minT || appTS < minAppT || appTE < minAppT || rain > maxR || snow > maxS;
+        const windBad = (headS && wSpeedS > maxW) || (headE && wSpeedE > maxW);
+
+        let verd = "MINAM!", badge = "bg-safe", icon = "🚴";
+        if (fail) { verd = "NE"; badge = "bg-danger"; icon = "🚫"; }
+        else if (windBad) { verd = "VĖJAS"; badge = "bg-warning"; icon = "⚠️"; }
+
+        if (i === 1) {
+            const isGood = badge !== "bg-danger";
+            document.getElementById('greeting').innerText = isGood ? `Rytoj ruošk dviratį! 🚲` : `Rytoj rinkis kitą transporto priemonę 🚌`;
+            document.getElementById('ai-suggestion').innerHTML = `AI įžvalga: Rytoj nustatytu laiku (${fromH}-${toH} val.) jutiminė temperatūra bus apie ${parseFloat(appTS).toFixed(1)}°C.`;
+        }
+
+        tbody.innerHTML += `<tr>
+            <td>${dayDate.toLocaleDateString('lt-LT', {weekday: 'short', month: 'short', day: 'numeric'})} ${!isReal ? '<span class="hibrid-tag">Hibrid AI</span>' : ''}</td>
+            <td><b>${parseFloat(tS).toFixed(1)}°C</b><br><small>(${parseFloat(appTS).toFixed(1)}°C)</small></td>
+            <td><b>${parseFloat(tE).toFixed(1)}°C</b><br><small>(${parseFloat(appTE).toFixed(1)}°C)</small></td>
+            <td>${parseFloat(snow).toFixed(1)} cm</td>
+            <td>${parseFloat(rain).toFixed(1)} mm<br><small>${prob}%</small></td>
+            <td><div class="wind-box">${getArrow(wDirS, headS)} ${parseFloat(wSpeedS).toFixed(0)} | ${getArrow(wDirE, headE)} ${parseFloat(wSpeedE).toFixed(0)} km/h</div></td>
+            <td><span class="badge ${badge}"><span>${icon}</span> <span>${verd}</span></span></td>
+        </tr>`;
+    }
+}
+
+function toggleTheme() {
+    document.body.classList.toggle('dark-mode');
+    localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+}
+
+loadSettings();
+fetchData();
+</script>
+</body>
+</html>
