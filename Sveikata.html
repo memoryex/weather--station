@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mano Sveikatos Valdymas 🚀</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f0f4f8;
+            --card: #ffffff;
+            --text: #2c3e50;
+            --primary: #3498db;
+            --primary-gradient: linear-gradient(135deg, #6dd5ed, #2193b0);
+            --success: #2ecc71;
+            --warn: #f39c12;
+            --danger: #e74c3c;
+            --gray: #bdc3c7;
+            --shadow: 0 15px 35px rgba(50, 50, 93, 0.1), 0 5px 15px rgba(0, 0, 0, 0.07);
+        }
+        .dark-mode {
+            --bg: #121212;
+            --card: #1e1e24;
+            --text: #e0e0e0;
+            --primary: #4fc3f7;
+            --primary-gradient: linear-gradient(135deg, #4fc3f7, #0288d1);
+            --success: #66bb6a;
+            --gray: #546e7a;
+            --shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 15px;
+            transition: background 0.4s ease, color 0.4s ease;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .header-wrap {
+            text-align: center;
+            margin-bottom: 25px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+        .header-wrap h1 {
+            font-size: 2rem;
+            margin: 0;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            justify-content: center;
+            animation: fadeIn 1s ease-out;
+        }
+        .tab-btn {
+            padding: 12px 22px;
+            border: 2px solid transparent;
+            border-radius: 30px;
+            background: var(--card);
+            color: var(--text);
+            cursor: pointer;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .tab-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(0,0,0,0.1);
+        }
+        .tab-btn.active {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: 0 10px 20px rgba(33, 147, 176, 0.3);
+            border-color: transparent;
+        }
+        .card {
+            background: var(--card);
+            padding: 35px;
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            max-width: 550px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: all 0.4s ease;
+            animation: slideUp 0.6s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 6px;
+            background: var(--primary-gradient);
+        }
+        #title {
+            margin-top: 0;
+            font-size: 1.8rem;
+            font-weight: 800;
+        }
+        #timer {
+            font-size: 2.8rem;
+            font-weight: 800;
+            margin: 20px 0;
+            color: var(--primary);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.05);
+            letter-spacing: -1px;
+        }
+        .checklist {
+            text-align: left;
+            margin-top: 30px;
+        }
+        .item {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            border-radius: 16px;
+            background: rgba(0,0,0,0.03);
+            border-left: 6px solid var(--gray);
+            transition: all 0.3s ease;
+        }
+        .item:hover {
+            transform: translateX(5px);
+            background: rgba(0,0,0,0.05);
+        }
+        .dark-mode .item { background: rgba(255,255,255,0.04); }
+        .dark-mode .item:hover { background: rgba(255,255,255,0.08); }
+        .item.done {
+            border-left-color: var(--success);
+            background: rgba(46, 204, 113, 0.05);
+        }
+        .item .icon {
+            font-size: 1.4rem;
+            margin-right: 12px;
+        }
+        .item span:nth-child(2) {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .lab-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            text-align: left;
+            margin-top: 25px;
+        }
+        .lab-input {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .lab-input label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--gray);
+        }
+        input {
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid var(--gray);
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Poppins', sans-serif;
+            font-weight: 600;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        #labAnalysis {
+            margin-top: 25px;
+            text-align: left;
+            font-size: 0.95rem;
+            padding: 20px;
+            border-radius: 16px;
+            background: rgba(52, 152, 219, 0.05);
+            border-left: 6px solid var(--primary);
+            line-height: 1.6;
+        }
+        .pancreas-safety {
+            margin-top: 35px;
+            text-align: left;
+            border-top: 2px dashed rgba(0,0,0,0.1);
+            padding-top: 25px;
+        }
+        .dark-mode .pancreas-safety { border-top-color: rgba(255,255,255,0.1); }
+        .pancreas-safety h3 {
+            font-size: 1.2rem;
+            color: var(--warn);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .safety-item {
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            line-height: 1.5;
+            padding: 10px;
+            background: rgba(0,0,0,0.02);
+            border-radius: 10px;
+        }
+        .dark-mode .safety-item { background: rgba(255,255,255,0.03); }
+
+        /* New section for insights */
+        .insight-section {
+            margin-top: 20px;
+            text-align: left;
+            font-size: 0.9rem;
+            padding: 15px;
+            border-radius: 12px;
+            background: rgba(230, 126, 34, 0.08);
+            border-left: 5px solid var(--warn);
+        }
+        .insight-section h4 {
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--warn);
+        }
+
+        .mode-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            cursor: pointer;
+            font-size: 1.6rem;
+            background: var(--card);
+            border: none;
+            border-radius: 50%;
+            width: 50px; height: 50px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.3s;
+            z-index: 100;
+        }
+        .mode-toggle:hover {
+            transform: rotate(30deg);
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <button class="mode-toggle" onclick="toggleDarkMode()" title="Keisti temą">🌓</button>
+
+    <div class="header-wrap">
+        <h1>Sveikatos Ekosistema</h1>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('alkoholio')">🍷 Alkoholis</button>
+        <button class="tab-btn" onclick="switchTab('rukymo')">🚬 Rūkymas</button>
+        <button class="tab-btn" onclick="switchTab('pirties')">🧖‍♂️ Pirtis</button>
+        <button class="tab-btn" onclick="switchTab('mityba')">🥗 Mityba / Judėjimas</button>
+        <button class="tab-btn" onclick="switchTab('tyrimai')">🧪 Tyrimai</button>
+    </div>
+
+    <div class="card">
+        <h1 id="title">Laisvė nuo alkoholio 🚀</h1>
+        <div id="timer">Skaičiuojama...</div>
+
+        <div id="mainContent">
+            <div id="dynamicInsights"></div>
+            <div class="checklist" id="checklist"></div>
+        </div>
+
+        <div id="labSection" style="display:none;">
+            <div class="lab-grid">
+                <div class="lab-input"><label>GGT (norma &lt;60 U/l)</label><input type="number" id="valGGT" placeholder="Pvz. 45" oninput="saveLab()"></div>
+                <div class="lab-input"><label>ALT (norma &lt;41 U/l)</label><input type="number" id="valALT" placeholder="Pvz. 30" oninput="saveLab()"></div>
+                <div class="lab-input"><label>AMYL (norma &lt;100 U/l)</label><input type="number" id="valAMYL" placeholder="Pvz. 80" oninput="saveLab()"></div>
+                <div class="lab-input"><label>Bendras Chol. (&lt;5 mmol/l)</label><input type="number" step="0.01" id="valTC" placeholder="Pvz. 4.8" oninput="saveLab()"></div>
+                <div class="lab-input"><label>MTL (blogas &lt;2.6 mmol/l)</label><input type="number" step="0.01" id="valMTL" placeholder="Pvz. 2.4" oninput="saveLab()"></div>
+                <div class="lab-input"><label>DTL (geras &gt;1.1 mmol/l)</label><input type="number" step="0.01" id="valDTL" placeholder="Pvz. 1.5" oninput="saveLab()"></div>
+            </div>
+            <div id="labAnalysis">Įveskite tyrimų duomenis analizei.</div>
+
+            <div class="pancreas-safety">
+                <h3>🛡️ Kasos ir Virškinimo Saugos Planas</h3>
+                <div class="safety-item">🚫 <div><b>Cukrus:</b> Visiškas saldumynų ir rafinuoto cukraus atsisakymas. Vaisiai ribotai pirmoje dienos pusėje.</div></div>
+                <div class="safety-item">⏳ <div><b>IF rėmai:</b> Griežtas 16:8 arba 18:6 langas. Leidžia kasai ir kepenims regeneruotis be insulino šuolių.</div></div>
+                <div class="safety-item">☕ <div><b>Žolelės:</b> Šlamučių, pelyno, margainio (kepenims) arbata prieš valgymą skatina tulžies išsiskyrimą.</div></div>
+                <div class="safety-item">🍔 <div><b>Riebalai:</b> Vengti trans-riebalų ir perdirbto maisto. Vartoti omega-3, alyvuogių aliejų, avokadus.</div></div>
+                <div class="safety-item">🍷 <div><b>Alkoholis:</b> Griežtas „NE“ – apsaugo nuo lėtinio pankreatito ir kepenų suriebėjimo.</div></div>
+                <div class="safety-item">💧 <div><b>Hidratacija:</b> Bent 30ml vandens 1kg kūno svorio (pvz. ~2.5L). Šiltas vanduo su citrina ryte.</div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'alkoholio';
+
+        // Data saugojimo ir nustatymo logika
+        function initDate(key, defaultVal) {
+            if (!localStorage.getItem(key)) {
+                localStorage.setItem(key, defaultVal);
+            }
+            return localStorage.getItem(key);
+        }
+
+        const dates = {
+            alkoholio: initDate('dateAlk', "2024-01-01"),
+            rukymo: initDate('dateSmk', "2008-04-01"),
+            pirties: initDate('dateSauna', "2024-01-01"),
+            mityba: initDate('dateMityba', "2024-01-01")
+        };
+
+        const milestones = {
+            alkoholio: [
+                { d: 7, i: "🛌", t: "Gilesnis miegas, dingsta nerimas" },
+                { d: 30, i: "🩺", t: "Kepenų riebalų mažėjimas (15-20%)" },
+                { d: 35, i: "🧠", t: "Skaidrus mąstymas ir geresnė atmintis" },
+                { d: 60, i: "🧪", t: "GGT ir ALT fermentų atsistatymas" },
+                { d: 180, i: "📉", t: "Pastebimas svorio kritimas, gražesnė oda" },
+                { d: 365, i: "❤️", t: "Širdies rizikos sumažėjimas 50%" }
+            ],
+            rukymo: [
+                { d: 365, i: "🫁", t: "Plaučių funkcijos žymus atsistatymas" },
+                { d: 1825, i: "🛡️", t: "Širdies ligų rizika lygi perpus mažesnė" },
+                { d: 5475, i: "🏆", t: "Kraujagyslės kaip niekada nerūkiusio žmogaus" }
+            ],
+            pirties: [
+                { d: 7, i: "🧖‍♂️", t: "Pirmasis detoksikacijos etapas" },
+                { d: 30, i: "🫀", t: "Geresnis kraujagyslių elastingumas" },
+                { d: 90, i: "🛡️", t: "Sustiprėjęs imunitetas, retesni peršalimai" },
+                { d: 180, i: "✨", t: "Sumažėjęs sisteminis uždegimas, streso hormonų balansas" }
+            ],
+            mityba: [
+                { d: 7, i: "⚡", t: "Atsiranda daugiau energijos rytais" },
+                { d: 21, i: "👅", t: "Atsistato skonio receptoriai (nereikia daug cukraus)" },
+                { d: 60, i: "⚖️", t: "Stabilizuojasi cukraus kiekis kraujyje" },
+                { d: 120, i: "🏋️", t: "Pagerėjusi fizinė ištvermė ir raumenų tonusas" }
+            ]
+        };
+
+        const insights = {
+            alkoholio: "Kiekviena diena be alkoholio duoda tiesioginę naudą tavo neuronams ir kasos audiniams. Organizmas šiuo metu aktyviai šalina metabolitus.",
+            rukymo: "Ilgalaikis nerūkymas jau leido ląstelėms visiškai atsinaujinti. Tavo plaučių tūris optimalus.",
+            pirties: "Reguliarus karščio stresas gamina 'Heat Shock Proteins' (HSP), kurie taiso pažeistas ląsteles ir lėtina senėjimą.",
+            mityba: "Protarpinis badavimas (IF) skatina autofagiją – procesą, kai organizmas pats suvalgo pažeistas ląsteles ir baltymų šiukšles. Optimalus laikas autofagijai prasideda po 14-16 valandų nevalgymo."
+        };
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
+                if(b.innerText.toLowerCase().includes(tab.substring(0,3))) {
+                    b.classList.add('active');
+                }
+            });
+
+            const titles = {
+                alkoholio: "Laisvė nuo alkoholio 🚀",
+                rukymo: "Gyvenimas be dūmų 🌬️",
+                pirties: "Pirties ritualai 🧖‍♂️",
+                mityba: "Mityba ir Judėjimas 🥗",
+                tyrimai: "Kraujo laboratorija 🧪"
+            };
+
+            document.getElementById('title').innerText = titles[tab];
+
+            document.getElementById('mainContent').style.display = tab === 'tyrimai' ? 'none' : 'block';
+            document.getElementById('labSection').style.display = tab === 'tyrimai' ? 'block' : 'none';
+            document.getElementById('timer').style.display = tab === 'tyrimai' ? 'none' : 'block';
+
+            updateDisplay();
+        }
+
+        function saveLab() {
+            const data = {
+                ggt: document.getElementById('valGGT').value,
+                alt: document.getElementById('valALT').value,
+                amyl: document.getElementById('valAMYL').value,
+                tc: document.getElementById('valTC').value,
+                mtl: document.getElementById('valMTL').value,
+                dtl: document.getElementById('valDTL').value
+            };
+            localStorage.setItem('labData', JSON.stringify(data));
+            analyzeLab(data);
+        }
+
+        function analyzeLab(data) {
+            let html = "<b>Dabartinės būklės analizė:</b><br><br>";
+            let hasData = false;
+
+            if (data.amyl) {
+                hasData = true;
+                if (data.amyl > 100) html += `❌ <b>AMYL (${data.amyl}):</b> Virš normos. Būtina stebėti kasą, vengti riebaus maisto ir alkoholio.<br><br>`;
+                else html += `✅ <b>AMYL (${data.amyl}):</b> Norma. Kasa dirba stabiliai!<br><br>`;
+            }
+            if (data.ggt) {
+                hasData = true;
+                if (data.ggt > 60) html += `⚠️ <b>GGT (${data.ggt}):</b> Padidėjęs. Kepenys reaguoja į toksinus arba tulžies sąstovį.<br><br>`;
+                else html += `✅ <b>GGT (${data.ggt}):</b> Kepenų fermentai geri, detoksikacija veikia puikiai!<br><br>`;
+            }
+            if (data.alt) {
+                hasData = true;
+                if (data.alt > 41) html += `⚠️ <b>ALT (${data.alt}):</b> Padidėjęs kepenų ląstelių irimas.<br><br>`;
+                else html += `✅ <b>ALT (${data.alt}):</b> Kepenų ląstelės nepažeistos.<br><br>`;
+            }
+            if (data.tc) {
+                hasData = true;
+                if (data.tc > 5) html += `⚠️ <b>TC (${data.tc}):</b> Bendras cholesterolis viršija 5.0 mmol/l tikslą. Peržiūrėti mitybą.<br><br>`;
+                else html += `✅ <b>TC (${data.tc}):</b> Bendras cholesterolis normos ribose!<br><br>`;
+            }
+            if (data.mtl) {
+                hasData = true;
+                if (data.mtl > 2.6) html += `❌ <b>MTL (${data.mtl}):</b> "Blogasis" cholesterolis aukštas. Rizika kraujagyslėms.<br><br>`;
+            }
+            if (data.dtl) {
+                hasData = true;
+                if (data.dtl > 1.1) html += `✅ <b>DTL (${data.dtl}):</b> "Gerasis" cholesterolis aukštas. Puiki kraujagyslių apsauga!<br><br>`;
+                else html += `⚠️ <b>DTL (${data.dtl}):</b> "Gerasis" cholesterolis per žemas. Trūksta judėjimo ar omega-3.<br><br>`;
+            }
+
+            if (!hasData) {
+                document.getElementById('labAnalysis').innerHTML = "Įveskite duomenis detaliai analizei. Rekomenduojama tyrimus atlikti bent 1 kartą per metus.";
+            } else {
+                document.getElementById('labAnalysis').innerHTML = html;
+            }
+        }
+
+        function updateDisplay() {
+            if (currentTab === 'tyrimai') return;
+
+            const startDateStr = dates[currentTab];
+            let start = new Date(startDateStr);
+            // Jei data neteisinga, resetinam į šiandieną
+            if (isNaN(start.getTime())) {
+                start = new Date();
+                localStorage.setItem(`date${currentTab === 'alkoholio'?'Alk':currentTab==='rukymo'?'Smk':currentTab==='pirties'?'Sauna':'Mityba'}`, start.toISOString().split('T')[0]);
+            }
+
+            const diff = new Date() - start;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+            // Laiko atvaizdavimas
+            if (currentTab === 'pirties') {
+                const sessions = Math.floor(days/7);
+                document.getElementById('timer').innerText = `~${sessions} seansų`;
+            } else {
+                let y = Math.floor(days/365);
+                let m = Math.floor((days%365)/30);
+                let d = (days%365)%30;
+                let text = "";
+                if (y > 0) text += `${y}m. `;
+                if (m > 0) text += `${m}mėn. `;
+                text += `${d}d.`;
+                document.getElementById('timer').innerText = text;
+            }
+
+            // Dinaminė įžvalga
+            const insightDiv = document.getElementById('dynamicInsights');
+            insightDiv.innerHTML = `
+                <div class="insight-section">
+                    <h4>💡 AI Įžvalga</h4>
+                    <span>${insights[currentTab]}</span>
+                </div>
+            `;
+
+            // Checklist
+            const checklist = document.getElementById('checklist');
+            checklist.innerHTML = "";
+            if (milestones[currentTab]) {
+                milestones[currentTab].forEach(item => {
+                    const isDone = days >= item.d;
+                    checklist.innerHTML += `
+                        <div class="item ${isDone ? 'done' : ''}">
+                            <span class="icon">${item.i}</span>
+                            <span>${item.t}</span>
+                            <span style="margin-left:auto; font-size:1.2rem;">${isDone ? '✅' : '⏳'}</span>
+                        </div>`;
+                });
+            }
+        }
+
+        window.onload = () => {
+            const savedLab = JSON.parse(localStorage.getItem('labData') || '{}');
+            document.getElementById('valGGT').value = savedLab.ggt || "";
+            document.getElementById('valALT').value = savedLab.alt || "";
+            document.getElementById('valAMYL').value = savedLab.amyl || "";
+            document.getElementById('valTC').value = savedLab.tc || "";
+            document.getElementById('valMTL').value = savedLab.mtl || "";
+            document.getElementById('valDTL').value = savedLab.dtl || "";
+            analyzeLab(savedLab);
+
+            if (localStorage.getItem('dark') === 'true' || window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem('dark', 'true');
+            }
+
+            setInterval(updateDisplay, 1000 * 60 * 60); // Atnaujinti kas valandą, užtenka
+            switchTab('alkoholio');
+        };
+
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('dark', document.body.classList.contains('dark-mode'));
+        }
+    </script>
+</body>
+</html>
