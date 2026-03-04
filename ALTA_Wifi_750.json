@@ -1,7 +1,7 @@
 {
     "data": {
         "test_script_id": "60",
-        "test_script_name": "ALTA_Wifi_750_Safety_Power_MinBLE",
+        "test_script_name": "ALTA_Wifi_750",
         "test_version": "1",
         "product": "ALTA_Wifi_750",
         "brand": "<Heatstore>",
@@ -117,75 +117,6 @@
             },
             {
                 "step_id": "1549",
-                "test_name": "Input ID",
-                "test_description": "Manual input 12-digit Bluetooth ID",
-                "test_type": "USER",
-                "test_subtype": "OCR",
-                "test_delay": "0",
-                "test_visible": "1",
-                "test_underline": "0",
-                "test_params": {
-                    "id": "31"
-                }
-            },
-            {
-                "step_id": "1550",
-                "test_name": "BLE Discovery",
-                "test_description": "Search for Appliance",
-                "test_type": "BLE",
-                "test_subtype": "SCAN",
-                "test_delay": "0",
-                "test_visible": "1",
-                "test_underline": "0",
-                "test_params": {
-                    "id": "32"
-                }
-            },
-            {
-                "step_id": "1551",
-                "test_name": "BLE Connection",
-                "test_description": "Connect to Appliance",
-                "test_type": "BLE",
-                "test_subtype": "CONNECT",
-                "test_delay": "0",
-                "test_visible": "1",
-                "test_underline": "1",
-                "test_params": {
-                    "id": "33"
-                }
-            },
-            {
-                "step_id": "1556",
-                "test_name": "TRIAC On",
-                "test_description": "TRIAC On",
-                "test_type": "BLE",
-                "test_subtype": "LAN_KEY",
-                "test_delay": "0",
-                "test_visible": "1",
-                "test_underline": "0",
-                "test_params": {
-                    "ble_characteristic": "00000002-0000-1000-8000-00805f9b34fb",
-                    "write_to_read": "0",
-                    "reset_hal": "1",
-                    "check_single_byte_index": "",
-                    "low_value": "0.000",
-                    "high_value": "0.000",
-                    "ble_value": {
-                        "data": [
-                            1,
-                            1,
-                            0
-                        ]
-                    },
-                    "write": "1",
-                    "read": "0",
-                    "christening_function": "",
-                    "result_comparison": "",
-                    "id": "50"
-                }
-            },
-            {
-                "step_id": "1557",
                 "test_name": "Current Test",
                 "test_description": "Read Power",
                 "test_type": "NEW_HAL",
@@ -198,8 +129,8 @@
                     "target": "",
                     "ramp_up": "",
                     "hold": "1800",
-                    "low_limit": "0.900",
-                    "high_limit": "1.100",
+                    "low_limit": "0.675",
+                    "high_limit": "0.825",
                     "measure_string": "",
                     "unit": "kW",
                     "channel": "",
@@ -211,91 +142,22 @@
                 }
             },
             {
-                "step_id": "1558",
-                "test_name": "TRIAC Off",
-                "test_description": "TRIAC Off",
-                "test_type": "BLE",
-                "test_subtype": "LAN_KEY",
-                "test_delay": "0",
-                "test_visible": "1",
-                "test_underline": "0",
-                "test_params": {
-                    "ble_characteristic": "00000002-0000-1000-8000-00805f9b34fb",
-                    "write_to_read": "0",
-                    "reset_hal": "1",
-                    "check_single_byte_index": "",
-                    "low_value": "0.000",
-                    "high_value": "0.000",
-                    "ble_value": {
-                        "data": [
-                            1,
-                            0,
-                            0
-                        ]
-                    },
-                    "write": "1",
-                    "read": "0",
-                    "christening_function": "",
-                    "result_comparison": "",
-                    "id": "52"
-                }
-            },
-            {
-                "step_id": "1559",
-                "test_name": "Current Test",
-                "test_description": "Read Power",
-                "test_type": "NEW_HAL",
-                "test_subtype": "product",
+                "step_id": "1550",
+                "test_name": "Print Test",
+                "test_description": "Print Label",
+                "test_type": "PRINTER",
+                "test_subtype": "",
                 "test_delay": "0",
                 "test_visible": "1",
                 "test_underline": "1",
                 "test_params": {
-                    "start_request": "7",
-                    "target": "",
-                    "ramp_up": "",
-                    "hold": "1800",
-                    "low_limit": "0.001",
-                    "high_limit": "0.015",
-                    "measure_string": "",
-                    "unit": "kW",
-                    "channel": "",
-                    "arc_detect": "",
-                    "ramp_down": "",
-                    "write": "1",
-                    "read": "1",
-                    "id": "53"
+                    "template": "lblHeatstore.prn",
+                    "frequency": "50Hz",
+                    "id": "99"
                 }
             },
             {
-                "step_id": "1576",
-                "test_name": "Disable EOLT",
-                "test_description": "Exit Factory Test Mode",
-                "test_type": "BLE",
-                "test_subtype": "EXIT_EOLT",
-                "test_delay": "0",
-                "test_visible": "1",
-                "test_underline": "1",
-                "test_params": {
-                    "ble_characteristic": "00001010-0000-1000-8000-00805f9b34fb",
-                    "write_to_read": "0",
-                    "reset_hal": "0",
-                    "check_single_byte_index": "",
-                    "low_value": "0.000",
-                    "high_value": "0.000",
-                    "ble_value": {
-                        "data": [
-                            71
-                        ]
-                    },
-                    "write": "1",
-                    "read": "0",
-                    "christening_function": "",
-                    "result_comparison": "",
-                    "id": "98"
-                }
-            },
-            {
-                "step_id": "1578",
+                "step_id": "1551",
                 "test_name": "Product Stop",
                 "test_description": "Appliance Off",
                 "test_type": "NEW_HAL",
