@@ -1,19 +1,44 @@
 {
     "data": {
-        "test_script_id": "43",
-        "test_script_name": "750W/230V no earth",
+        "test_script_id": "60",
+        "test_script_name": "ALTA_Wifi_750_Safety_Power_MinBLE",
         "test_version": "1",
-        "product": "750W/230V no earth",
-        "brand": "<Dimplex>",
+        "product": "ALTA_Wifi_750",
+        "brand": "<Heatstore>",
         "series": "C",
-        "sku_id": "17",
+        "sku_id": "58",
         "sku_component_id": [
-            "18",
-            "19"
+            "89"
         ],
         "tests": [
             {
-                "step_id": "517",
+                "step_id": "1545",
+                "test_name": "Earth Bond",
+                "test_description": "Earth Leakage Test",
+                "test_type": "NEW_HAL",
+                "test_subtype": "safety",
+                "test_delay": "0",
+                "test_visible": "1",
+                "test_underline": "0",
+                "test_params": {
+                    "start_request": "5",
+                    "target": "25000",
+                    "ramp_up": "5",
+                    "hold": "25",
+                    "low_limit": "10.000",
+                    "high_limit": "150.000",
+                    "measure_string": "Leakage",
+                    "unit": "m\u03a9",
+                    "channel": "0",
+                    "arc_detect": "0",
+                    "ramp_down": "0",
+                    "write": "1",
+                    "read": "1",
+                    "id": "21"
+                }
+            },
+            {
+                "step_id": "1546",
                 "test_name": "High Potential",
                 "test_description": "High Potential Flash Test",
                 "test_type": "NEW_HAL",
@@ -23,23 +48,23 @@
                 "test_underline": "0",
                 "test_params": {
                     "start_request": "1",
-                    "target": "2500",
+                    "target": "1300",
                     "ramp_up": "5",
-                    "hold": "15",
-                    "low_limit": "0.250",
-                    "high_limit": "35.000",
+                    "hold": "25",
+                    "low_limit": "0.000",
+                    "high_limit": "5.000",
                     "measure_string": "Leakage",
                     "unit": "mA",
                     "channel": "1",
                     "arc_detect": "0",
-                    "ramp_down": "5",
+                    "ramp_down": "0",
                     "write": "1",
                     "read": "1",
                     "id": "22"
                 }
             },
             {
-                "step_id": "518",
+                "step_id": "1547",
                 "test_name": "DCIR",
                 "test_description": "DC Insulation Resistance Test",
                 "test_type": "NEW_HAL",
@@ -51,28 +76,28 @@
                     "start_request": "4",
                     "target": "500",
                     "ramp_up": "5",
-                    "hold": "15",
+                    "hold": "25",
                     "low_limit": "2.000",
                     "high_limit": "500.000",
                     "measure_string": "IR",
                     "unit": "M\u03a9",
                     "channel": "1",
                     "arc_detect": "0",
-                    "ramp_down": "5",
+                    "ramp_down": "0",
                     "write": "1",
                     "read": "1",
                     "id": "23"
                 }
             },
             {
-                "step_id": "519",
+                "step_id": "1548",
                 "test_name": "Product Start",
                 "test_description": "Appliance On",
                 "test_type": "NEW_HAL",
                 "test_subtype": "POWER",
                 "test_delay": "0",
                 "test_visible": "1",
-                "test_underline": "0",
+                "test_underline": "1",
                 "test_params": {
                     "start_request": "7",
                     "target": "",
@@ -91,21 +116,20 @@
                 }
             },
             {
-                "step_id": "530",
-                "test_name": "SEGMENT OCR",
-                "test_description": "Read Bluetooth ID from Segmented UI",
-                "test_type": "CAMERA",
-                "test_subtype": "CV",
-                "test_delay": "10",
+                "step_id": "1549",
+                "test_name": "Input ID",
+                "test_description": "Manual input 12-digit Bluetooth ID",
+                "test_type": "USER",
+                "test_subtype": "OCR",
+                "test_delay": "0",
                 "test_visible": "1",
                 "test_underline": "0",
                 "test_params": {
-                    "colour": null,
                     "id": "31"
                 }
             },
             {
-                "step_id": "520",
+                "step_id": "1550",
                 "test_name": "BLE Discovery",
                 "test_description": "Search for Appliance",
                 "test_type": "BLE",
@@ -118,7 +142,7 @@
                 }
             },
             {
-                "step_id": "521",
+                "step_id": "1551",
                 "test_name": "BLE Connection",
                 "test_description": "Connect to Appliance",
                 "test_type": "BLE",
@@ -131,7 +155,7 @@
                 }
             },
             {
-                "step_id": "522",
+                "step_id": "1556",
                 "test_name": "TRIAC On",
                 "test_description": "TRIAC On",
                 "test_type": "BLE",
@@ -161,7 +185,7 @@
                 }
             },
             {
-                "step_id": "523",
+                "step_id": "1557",
                 "test_name": "Current Test",
                 "test_description": "Read Power",
                 "test_type": "NEW_HAL",
@@ -174,8 +198,8 @@
                     "target": "",
                     "ramp_up": "",
                     "hold": "1800",
-                    "low_limit": "0.670",
-                    "high_limit": "0.830",
+                    "low_limit": "0.900",
+                    "high_limit": "1.100",
                     "measure_string": "",
                     "unit": "kW",
                     "channel": "",
@@ -187,7 +211,7 @@
                 }
             },
             {
-                "step_id": "524",
+                "step_id": "1558",
                 "test_name": "TRIAC Off",
                 "test_description": "TRIAC Off",
                 "test_type": "BLE",
@@ -217,7 +241,7 @@
                 }
             },
             {
-                "step_id": "525",
+                "step_id": "1559",
                 "test_name": "Current Test",
                 "test_description": "Read Power",
                 "test_type": "NEW_HAL",
@@ -243,7 +267,7 @@
                 }
             },
             {
-                "step_id": "526",
+                "step_id": "1576",
                 "test_name": "Disable EOLT",
                 "test_description": "Exit Factory Test Mode",
                 "test_type": "BLE",
@@ -271,7 +295,7 @@
                 }
             },
             {
-                "step_id": "527",
+                "step_id": "1578",
                 "test_name": "Product Stop",
                 "test_description": "Appliance Off",
                 "test_type": "NEW_HAL",
