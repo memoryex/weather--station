@@ -236,6 +236,20 @@
             color: var(--warn);
         }
 
+        .date-picker-wrap {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .date-picker-wrap label {
+            font-weight: 600;
+            color: var(--gray);
+            font-size: 0.95rem;
+        }
+
         .mode-toggle {
             position: fixed;
             top: 20px;
@@ -290,6 +304,10 @@
         <div id="timer">Skaičiuojama...</div>
 
         <div id="mainContent">
+            <div class="date-picker-wrap" id="datePickerWrap">
+                <label for="startDate">Nuo kada: </label>
+                <input type="date" id="startDate" onchange="updateStartDate()">
+            </div>
             <div id="dynamicInsights"></div>
             <div class="checklist" id="checklist"></div>
         </div>
@@ -393,7 +411,24 @@
             document.getElementById('labSection').style.display = tab === 'tyrimai' ? 'block' : 'none';
             document.getElementById('timer').style.display = tab === 'tyrimai' ? 'none' : 'block';
 
+            if (tab !== 'tyrimai') {
+                const dateInput = document.getElementById('startDate');
+                if (dateInput) {
+                    dateInput.value = dates[tab] || new Date().toISOString().split('T')[0];
+                }
+            }
+
             updateDisplay();
+        }
+
+        function updateStartDate() {
+            const dateInput = document.getElementById('startDate');
+            if (dateInput.value) {
+                dates[currentTab] = dateInput.value;
+                const storageKey = `date${currentTab === 'alkoholio'?'Alk':currentTab==='rukymo'?'Smk':currentTab==='pirties'?'Sauna':'Mityba'}`;
+                localStorage.setItem(storageKey, dateInput.value);
+                updateDisplay();
+            }
         }
 
         function saveLab() {
