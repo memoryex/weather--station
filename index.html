@@ -687,7 +687,9 @@ async function fetchData() {
             weatherData = await response.json();
         } else if (apiSource === 'meteolt') {
             const url = `https://api.meteo.lt/v1/places/${slug}/forecasts/long-term`;
-            const response = await fetch(url);
+            // Meteo.lt API doesn't allow direct CORS requests, so we route it through the local proxy
+            const proxyUrl = `http://localhost:5050/proxy?url=${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl);
             const rawData = await response.json();
             weatherData = normalizeMeteoLtData(rawData);
         }
