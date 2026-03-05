@@ -404,11 +404,17 @@
                     <div class="location">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                         <select id="citySelect" class="city-select" onchange="changeCity()">
-                            <option value="54.68,25.27">Vilnius</option>
-                            <option value="54.89,23.90">Kaunas</option>
-                            <option value="55.70,21.14">Klaipėda</option>
-                            <option value="55.93,23.31">Šiauliai</option>
-                            <option value="55.73,24.36" selected>Panevėžys</option>
+                            <option value="vilnius|54.68,25.27">Vilnius</option>
+                            <option value="kaunas|54.89,23.90">Kaunas</option>
+                            <option value="klaipeda|55.70,21.14">Klaipėda</option>
+                            <option value="siauliai|55.93,23.31">Šiauliai</option>
+                            <option value="panevezys|55.73,24.36" selected>Panevėžys</option>
+                        </select>
+                        <span style="margin: 0 4px; color: var(--border);">|</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M12 2v20M19.07 4.93l-14.14 14.14M4.93 4.93l14.14 14.14"></path></svg>
+                        <select id="apiSourceSelect" class="city-select" onchange="changeCity()">
+                            <option value="openmeteo" selected>Open-Meteo</option>
+                            <option value="meteolt">Meteo.lt</option>
                         </select>
                         (Hibrid AI)
                     </div>
@@ -648,6 +654,8 @@ function loadSettings() {
     });
     const city = localStorage.getItem('cityCoords');
     if (city) document.getElementById('citySelect').value = city;
+    const apiSource = localStorage.getItem('apiSource');
+    if (apiSource) document.getElementById('apiSourceSelect').value = apiSource;
     if (localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
 
     const activeLabel = localStorage.getItem('activeProfileLabel');
@@ -660,17 +668,95 @@ function saveSettings() {
 }
 function changeCity() {
     localStorage.setItem('cityCoords', document.getElementById('citySelect').value);
+    localStorage.setItem('apiSource', document.getElementById('apiSourceSelect').value);
     fetchData();
 }
+
 async function fetchData() {
-    const coords = document.getElementById('citySelect').value.split(',');
+    const apiSource = document.getElementById('apiSourceSelect').value;
+    const cityVal = document.getElementById('citySelect').value;
+    const parts = cityVal.split('|');
+    const slug = parts[0];
+    const coords = parts[1].split(',');
     const lat = coords[0]; const lon = coords[1];
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,snow_depth,wind_speed_10m,wind_direction_10m,weathercode&timezone=auto&wind_speed_unit=kmh&forecast_days=14`;
+
     try {
-        const response = await fetch(url);
-        weatherData = await response.json();
+        if (apiSource === 'openmeteo') {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,snow_depth,wind_speed_10m,wind_direction_10m,weathercode&timezone=auto&wind_speed_unit=kmh&forecast_days=14`;
+            const response = await fetch(url);
+            weatherData = await response.json();
+        } else if (apiSource === 'meteolt') {
+            const url = `https://api.meteo.lt/v1/places/${slug}/forecasts/long-term`;
+            const response = await fetch(url);
+            const rawData = await response.json();
+            weatherData = normalizeMeteoLtData(rawData);
+        }
         updateView();
     } catch (e) { console.error("Ryšio klaida!", e); }
+}
+
+function normalizeMeteoLtData(rawData) {
+    // Convert Meteo.lt format to Open-Meteo format for compatibility
+    if (!rawData || !rawData.forecastTimestamps) return null;
+
+    // Determine the starting hour. Open-Meteo returns data starting from 00:00 of the current day.
+    // Meteo.lt returns data from the current hour. We need to align it so `j * 24 + fromH` logic still works.
+    // Actually, updateView uses `weatherData.hourly.temperature_2m[i * 24 + fromH]`, assuming index 0 = today 00:00.
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const hourly = {
+        temperature_2m: [],
+        apparent_temperature: [],
+        precipitation: [],
+        precipitation_probability: [], // meteo.lt doesn't provide this hourly reliably
+        snow_depth: [], // meteo.lt doesn't provide this as depth, we'll infer from condition
+        wind_speed_10m: [],
+        wind_direction_10m: [],
+        weathercode: []
+    };
+
+    // We need 14 days (336 hours) of data array to prevent out of bounds, filled with undefined initially
+    for(let k=0; k<336; k++) {
+        hourly.temperature_2m.push(undefined);
+        hourly.apparent_temperature.push(undefined);
+        hourly.precipitation.push(0);
+        hourly.precipitation_probability.push(0);
+        hourly.snow_depth.push(0);
+        hourly.wind_speed_10m.push(0);
+        hourly.wind_direction_10m.push(0);
+        hourly.weathercode.push(0);
+    }
+
+    rawData.forecastTimestamps.forEach(ts => {
+        const d = new Date(ts.forecastTimeUtc + "Z");
+
+        // Calculate hour offset from today 00:00 local time
+        const diffHours = Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60));
+
+        if (diffHours >= 0 && diffHours < 336) {
+            hourly.temperature_2m[diffHours] = ts.airTemperature;
+            hourly.apparent_temperature[diffHours] = ts.feelsLikeTemperature;
+            hourly.precipitation[diffHours] = ts.totalPrecipitation;
+
+            // convert m/s to km/h
+            hourly.wind_speed_10m[diffHours] = ts.windSpeed * 3.6;
+            hourly.wind_direction_10m[diffHours] = ts.windDirection;
+
+            // Approximate snow depth based on condition (if it's snowing, we simulate snow depth for the warning)
+            if (ts.conditionCode && (ts.conditionCode.includes('snow') || ts.conditionCode.includes('sleet'))) {
+                hourly.snow_depth[diffHours] = 0.05; // 5cm to trigger snow logic if continuous
+            }
+
+            // Map severe conditions to weathercodes
+            if (ts.conditionCode && ts.conditionCode.includes('freezing')) {
+                hourly.weathercode[diffHours] = 66; // freezing rain
+            }
+        }
+    });
+
+    return { hourly: hourly };
 }
 function isHeadwind(direction, type) {
     if (type === 'start') return direction >= 135 && direction <= 225;
