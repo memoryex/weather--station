@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Messenger Cleaner V17.0 (Sidebar Text Replacement)
+// @name         Messenger Cleaner V18.0 (Forwarded Links Fix)
 // @namespace    http://tampermonkey.net/
-// @version      17.0
-// @description  Blokuoja Shorts/Reels/TikTok ir paslepia VISĄ žinutės eilutę. Sidebar tekstas pakeičiamas į "unable receive message".
+// @version      18.0
+// @description  Blokuoja Shorts/Reels/TikTok/FB nuotraukas ir Forwarded nuorodas. Sidebar tekstas pakeičiamas į "unable receive message".
 // @author       Jūs
 // @match        https://www.messenger.com/*
 // @match        https://www.facebook.com/messages/*
@@ -13,24 +13,32 @@
 (function() {
     'use strict';
 
-    console.log("Messenger Cleaner V17.0: Startuoja (Text Replacement)...");
+    console.log("Messenger Cleaner V18.0: Startuoja (Forwarded Links Fix)...");
 
     // --- 1. CSS INJEKCIJA ---
     const style = document.createElement('style');
     style.innerHTML = `
         a[href*="tiktok.com"],
-        a[href*="/reel/"],
         a[href*="/shorts/"],
+        a[href*="instagram.com"],
         a[href*="fb.watch"],
-        a[href*="/videos/"] {
+        a[href*="/videos/"],
+        a[href*="/reel/"],
+        a[href*="/photo/"],
+        a[href*="fbid="],
+        a[href*="/share/"],
+        a[href*="/story.php"],
+        a[href*="/posts/"],
+        a[href*="/permalink.php"],
+        a[href*="/groups/"] {
             display: none !important;
         }
 
-        [data-v17-cleaned="true"] {
+        [data-v18-cleaned="true"] {
             display: none !important;
         }
 
-        .v17-replaced-text {
+        .v18-replaced-text {
             color: #888 !important;
             font-style: italic !important;
             font-size: 0.9em !important;
@@ -40,16 +48,25 @@
 
     // --- 2. JS LOGIKA ---
 
+    // Praplėstas frazių sąrašas (pridėta Forwarded/Persiuntė)
     const blockedPhrases = [
         "Tadas atsiuntė priedą", "Mindaugas atsiuntė priedą",
         "Ramūnas atsiuntė priedą", "sent an attachment",
         "shared a reel", "pasidalijo ritiniu",
-        "atsiuntė ritinį", "atsiuntė nuorodą", "sent a link"
+        "atsiuntė ritinį", "atsiuntė nuorodą", "sent a link",
+        "forwarded a link", "persiuntė nuorodą",
+        "forwarded a message", "persiuntė žinutę",
+        "shared a post", "pasidalijo įrašu",
+        "shared a video", "pasidalijo vaizdo įrašu",
+        "shared a photo", "pasidalijo nuotrauka"
     ];
 
+    // Praplėstas domenų/raktinių žodžių sąrašas
     const blockedDomains = [
-        "tiktok.com", "instagram.com/reel", "youtube.com/shorts", "youtu.be/shorts",
-        "facebook.com/reel", "fb.watch", "facebook.com/share", "facebook.com/videos"
+        "tiktok.com", "instagram.com", "youtube.com/shorts", "youtu.be/shorts",
+        "facebook.com/reel", "fb.watch", "facebook.com/share", "facebook.com/videos",
+        "facebook.com/photo", "fbid=", "facebook.com/story", "facebook.com/posts",
+        "facebook.com/permalink", "facebook.com/groups"
     ];
 
     function isSafeNavigation(href) {
@@ -63,18 +80,21 @@
 
     function cleanElement(element) {
         if (!element) return;
-        if (element.getAttribute('data-v17-cleaned') === 'true') return;
-        element.setAttribute('data-v17-cleaned', 'true');
+        if (element.getAttribute('data-v18-cleaned') === 'true') return;
+        element.setAttribute('data-v18-cleaned', 'true');
         element.style.display = 'none';
     }
 
     function isBadUrl(url) {
         if (!url) return false;
         if (url.includes('tiktok.com')) return true;
-        if (url.includes('instagram.com') && url.includes('/reel/')) return true;
+        if (url.includes('instagram.com')) return true; // Blokuojame visą Instagram
         if ((url.includes('youtube.com') || url.includes('youtu.be')) && url.includes('/shorts/')) return true;
         if ((url.includes('facebook.') || url.includes('fb.watch')) && !isSafeNavigation(url)) {
-            if (url.includes('/reel/') || url.includes('fb.watch') || url.includes('/share/') || url.includes('/videos/')) {
+            if (url.includes('/reel/') || url.includes('fb.watch') || url.includes('/share/') ||
+                url.includes('/videos/') || url.includes('/photo/') || url.includes('fbid=') ||
+                url.includes('/story.php') || url.includes('/posts/') || url.includes('/permalink.php') ||
+                url.includes('/groups/')) {
                 return true;
             }
         }
@@ -95,16 +115,14 @@
     }
 
     function checkSidebarItem(node) {
-        // Jei jau pakeitėme, nieko nedarome
-        if (node.classList.contains('v17-replaced-text')) return;
+        if (node.classList.contains('v18-replaced-text')) return;
 
         const text = node.innerText || "";
-        // Jei tekstas jau yra "unable receive message", praleidžiam
         if (text === "unable receive message") return;
 
         let isBad = false;
 
-        // Tikriname domenus
+        // Tikriname domenus/URL dalis tekste
         for (let domain of blockedDomains) {
              if (text.includes(domain)) {
                  isBad = true;
@@ -112,7 +130,7 @@
              }
         }
 
-        // Tikriname frazes
+        // Tikriname frazes (pvz. "forwarded a link")
         if (!isBad) {
             for (let phrase of blockedPhrases) {
                 if (text.toLowerCase().includes(phrase.toLowerCase())) {
@@ -123,29 +141,28 @@
         }
 
         if (isBad) {
-            // VIETOJE SLĖPIMO - PAKEIČIAME TEKSTĄ
+            // PAKEIČIAME TEKSTĄ SIDEBARE
             node.innerText = "unable receive message";
-            node.classList.add('v17-replaced-text');
+            node.classList.add('v18-replaced-text');
 
-            // Užtikriname, kad tėvinis elementas būtų matomas (jei anksčiau buvo paslėptas)
             let container = node.closest('div[role="gridcell"]') || node.closest('div[data-testid="mwthreadlist-item"]');
             if (container) {
                 container.style.display = '';
-                container.removeAttribute('data-v17-cleaned');
+                container.removeAttribute('data-v18-cleaned');
             }
         }
     }
 
     function cleanMess() {
         // 1. NUORODŲ VALYMAS (CHAT WINDOW - STRICT HIDE)
-        const links = document.querySelectorAll('a:not([data-v17-processed])');
+        const links = document.querySelectorAll('a:not([data-v18-processed])');
         links.forEach(link => {
             const href = link.getAttribute('href');
             if (isBadUrl(href)) {
                 let container = getContainer(link);
                 cleanElement(container);
             }
-            link.setAttribute('data-v17-processed', 'true');
+            link.setAttribute('data-v18-processed', 'true');
         });
 
         // 2. SIDEBARO VALYMAS (TEXT REPLACEMENT)
