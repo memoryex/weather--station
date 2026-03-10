@@ -252,6 +252,54 @@
             margin-top: 20px;
             margin-bottom: 30px;
         }
+
+        /* Live Data Card */
+        .live-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .live-card::before {
+            content: ""; position: absolute; top: -50px; right: -50px;
+            width: 150px; height: 150px; background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%); border-radius: 50%;
+        }
+        .live-header {
+            display: flex; align-items: center; gap: 10px; flex-direction: column; align-items: flex-start;
+        }
+        .live-title { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
+        .live-pulse {
+            width: 8px; height: 8px; background-color: var(--danger-text); border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.7); animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(248, 113, 113, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
+        }
+        .live-temp { font-size: 2.5rem; font-weight: 800; color: var(--text-main); line-height: 1; }
+        .live-metrics {
+            display: flex; gap: 24px; flex-wrap: wrap;
+        }
+        .live-metric {
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .live-metric-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+        .live-metric-val { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
+        .live-alert {
+            background: var(--danger-muted); color: var(--danger-text);
+            padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+            display: flex; align-items: center; gap: 6px; border: 1px solid rgba(239,68,68,0.3);
+            width: 100%; margin-top: 10px; display: none;
+        }
         .summary-card {
             flex: 1;
             background: var(--card-bg);
@@ -481,6 +529,32 @@
             </div>
         </div>
 
+        <!-- Live Observation -->
+        <div class="live-card" id="live-card" style="display: none;">
+            <div class="live-header">
+                <div class="live-title"><div class="live-pulse"></div> FAKTINIAI METEO.LT DUOMENYS (AMS) <span id="live-station-name" style="color: var(--accent-blue);">-</span></div>
+                <div class="live-temp" id="live-temp">--°</div>
+            </div>
+            <div class="live-metrics">
+                <div class="live-metric">
+                    <div class="live-metric-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg> Vėjas (Gūsiai)</div>
+                    <div class="live-metric-val" id="live-wind">-- km/h</div>
+                </div>
+                <div class="live-metric">
+                    <div class="live-metric-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path><path d="M16 14v6"></path><path d="M8 14v6"></path><path d="M12 16v6"></path></svg> Krituliai</div>
+                    <div class="live-metric-val" id="live-rain">-- mm</div>
+                </div>
+                <div class="live-metric">
+                    <div class="live-metric-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg> Drėgmė</div>
+                    <div class="live-metric-val" id="live-humidity">--%</div>
+                </div>
+            </div>
+            <div class="live-alert" id="live-alert">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span id="live-alert-text">Pavojus!</span>
+            </div>
+        </div>
+
         <!-- Next Days Summary -->
         <div class="summary-container">
             <div class="summary-card">
@@ -672,6 +746,70 @@ function changeCity() {
     fetchData();
 }
 
+async function fetchLiveData(slug) {
+    const stationMap = {
+        'vilnius': 'vilniaus-ams',
+        'kaunas': 'kauno-ams',
+        'klaipeda': 'klaipedos-ams',
+        'siauliai': 'siauliu-ams',
+        'panevezys': 'panevezio-ams'
+    };
+    const station = stationMap[slug];
+    if (!station) {
+        document.getElementById('live-card').style.display = 'none';
+        return;
+    }
+
+    try {
+        const url = `https://api.meteo.lt/v1/stations/${station}/observations/latest`;
+        const proxyUrl = `http://localhost:5050/proxy?url=${encodeURIComponent(url)}`;
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
+
+        if (data && data.observations && data.observations.length > 0) {
+            // observations are sorted chronologically, latest is last in the list
+            const latest = data.observations[data.observations.length - 1];
+            renderLiveData(latest, document.querySelector('#citySelect option:checked').text);
+        } else {
+            document.getElementById('live-card').style.display = 'none';
+        }
+    } catch (e) {
+        console.error("Live data fetch error:", e);
+        document.getElementById('live-card').style.display = 'none';
+    }
+}
+
+function renderLiveData(obs, cityName) {
+    document.getElementById('live-card').style.display = 'flex';
+    document.getElementById('live-station-name').innerText = `(${cityName})`;
+
+    document.getElementById('live-temp').innerText = `${obs.airTemperature}°`;
+
+    // Meteo.lt returns wind in m/s, convert to km/h
+    const wSpeed = (obs.windSpeed * 3.6).toFixed(1);
+    const wGust = (obs.windGust * 3.6).toFixed(1);
+    document.getElementById('live-wind').innerText = `${wSpeed} km/h (Gūsiai ${wGust} km/h)`;
+
+    document.getElementById('live-rain').innerText = `${obs.precipitation} mm`;
+    document.getElementById('live-humidity').innerText = `${obs.relativeHumidity}%`;
+
+    const maxR = parseFloat(document.getElementById('maxRainInput').value);
+    const maxW = parseFloat(document.getElementById('maxWindInput').value);
+
+    const alertEl = document.getElementById('live-alert');
+    const alertText = document.getElementById('live-alert-text');
+    alertEl.style.display = 'none';
+
+    let alerts = [];
+    if (obs.precipitation > maxR) alerts.push("Smarkiai lyja!");
+    if (wGust > maxW) alerts.push(`Stiprūs gūsiai viršija tavo ribą (${wGust} km/h)!`);
+
+    if (alerts.length > 0) {
+        alertText.innerText = alerts.join(" ");
+        alertEl.style.display = 'flex';
+    }
+}
+
 async function fetchData() {
     const apiSource = document.getElementById('apiSourceSelect').value;
     const cityVal = document.getElementById('citySelect').value;
@@ -694,6 +832,8 @@ async function fetchData() {
             weatherData = normalizeMeteoLtData(rawData);
         }
         updateView();
+        // Run live data fetch asynchronously without blocking the view update
+        fetchLiveData(slug);
     } catch (e) { console.error("Ryšio klaida!", e); }
 }
 
