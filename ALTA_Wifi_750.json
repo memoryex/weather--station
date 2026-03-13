@@ -143,21 +143,6 @@
             },
             {
                 "step_id": "1550",
-                "test_name": "Print Test",
-                "test_description": "Print Label",
-                "test_type": "PRINTER",
-                "test_subtype": "",
-                "test_delay": "0",
-                "test_visible": "1",
-                "test_underline": "1",
-                "test_params": {
-                    "template": "lblHeatstore.prn",
-                    "frequency": "50Hz",
-                    "id": "99"
-                }
-            },
-            {
-                "step_id": "1551",
                 "test_name": "Product Stop",
                 "test_description": "Appliance Off",
                 "test_type": "NEW_HAL",
