@@ -588,24 +588,9 @@ void sendDS18B20ToThingSpeak() {
       sendBus(myChannelNumber2, myWriteAPIKey2, sensorValues2, numberOfDevices2, "250T");
       sendBus(myChannelNumber3, myWriteAPIKey3, sensorValues3, numberOfDevices3, "100T");
 
-      // Džiovyklos temperatūra siunčiama į esamą kanalą (?)
-      // Vartotojas nurodė tik 7 ir 8 kanalus ir API raktą, bet nenurodė Channel Number.
-      // Paprastai, kai turime API raktą, bet neturime Channel Number (jei jis toks pat kaip pagrindinis),
-      // ThingSpeak C++ bibliotekai vis tiek reikia Channel Number.
-      // Dėl to mes pakeisime sendBus, kad jis dirbtų su Channel Number = 0 jeigu neturime,
-      // bet geriausia naudoti setField atskirai, nes sendBus perrašo fieldus 1..N.
-
-      // Papildomas ThingSpeak siuntimas 4-ajai magistralei:
-      if (numberOfDevices4 > 0) {
-         if (numberOfDevices4 >= 1) ThingSpeak.setField(7, String(sensorValues4[0], 2).c_str());
-         if (numberOfDevices4 >= 2) ThingSpeak.setField(8, String(sensorValues4[1], 2).c_str());
-
-         // Mes galime naudoti bet kokį esamą channel numerį siuntimui su šiuo API key.
-         // Tačiau kadangi useris nurodė TIK API KEY, siunčiame tik tada, jei bent vienas field nustatytas.
-         // ThingSpeak reikalauja Channel Number, tarkim, naudosime myChannelNumber1 (arba vartotojo padiktuotą raktą)
-         int codeDziovykla = ThingSpeak.writeFields(myChannelNumber1, "916VS5JMOWVCDU1S");
-         logMessage("Džiovyklos temperatūra 🌐 ThingSpeak write code=" + String(codeDziovykla));
-      }
+      // Džiovyklos duomenys (sensors4) dabar OPTIMIZUOTAI siunčiami per sendQuickSensorsToThingSpeak(),
+      // nes šis kanalas (293499) naudojamas ir kitiems sistemos jutikliams, taip išvengiant
+      // 15 sekundžių ThingSpeak limitų pažeidimo tam pačiam kanalui!
 
       xSemaphoreGive(networkMutex);
     } else {
@@ -651,12 +636,20 @@ void sendQuickSensorsToThingSpeak() {
       ThingSpeak.setField(5, String(currentCpuTemp, 1).c_str());
       ThingSpeak.setField(6, String(WiFi.RSSI()).c_str());
 
+      // OPTIMIZACIJA: Apjungiame Džiovyklos (Bus4) jutiklių duomenis į tą pačią užklausą
+      if (numberOfDevices4 >= 1) {
+          ThingSpeak.setField(7, String(sensorValues4[0], 2).c_str());
+      }
+      if (numberOfDevices4 >= 2) {
+          ThingSpeak.setField(8, String(sensorValues4[1], 2).c_str());
+      }
+
       int code4 = ThingSpeak.writeFields(myChannelNumber4, myWriteAPIKey4);
 
       xSemaphoreGive(networkMutex);
 
       rgbSendResult(code4 == 200);
-      logMessage(String("🌐 ThingSpeak (SHT/Batt/Sys) write code=") + String(code4));
+      logMessage(String("🌐 ThingSpeak (SHT/Batt/Sys/Džiovykla) write code=") + String(code4));
     } else {
       logMessage("KLAIDA: Nepavyko gauti networkMutex per 1s (sendQuickSensorsToThingSpeak).");
       rgbSendResult(false);
