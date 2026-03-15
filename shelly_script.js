@@ -16,6 +16,7 @@ function updateTemperatures() {
     var validFieldsCount = 0;
 
     // 1. Ieškome temperatūros jutiklių ("temperature:")
+    // Kadangi turite 5 jutiklius, jie užpildys field1, field2, field3, field4, field5
     for (var key in res) {
       if (key.indexOf("temperature:") === 0) {
         var tempObj = res[key];
@@ -28,7 +29,7 @@ function updateTemperatures() {
     }
 
     // 2. Ieškome įtampos jutiklių ("voltmeter:" - Shelly UNI Plus atveju)
-    // ThingSpeak užpildys sekantį laisvą lauką, pvz., "field5" po 4 temperatūrų
+    // ThingSpeak užpildys sekantį laisvą lauką po temperatūrų (t.y. field6)
     for (var vkey in res) {
       if (vkey.indexOf("voltmeter:") === 0) {
         var voltObj = res[vkey];

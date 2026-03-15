@@ -293,7 +293,27 @@
         <div id="chart-grindinis" class="chart-container"></div>
     </div>
 
-    <!-- 5. Saulės Baterija -->
+    <!-- 5. Grįžtamasis iš radiatorių -->
+    <div class="sensor-block" id="block-griztamasis">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Grįžtamasis iš radiatorių</div>
+                    <div class="sensor-value" id="val-griztamasis">-- °C</div>
+                </div>
+                <div id="gauge-griztamasis" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('griztamasis', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('griztamasis', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('griztamasis', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-griztamasis" class="loading">Kraunami duomenys...</div>
+        <div id="chart-griztamasis" class="chart-container"></div>
+    </div>
+
+    <!-- 6. Saulės Baterija -->
     <div class="sensor-block" id="block-baterija">
         <div class="sensor-header">
             <div class="sensor-info">
@@ -324,7 +344,8 @@
         radiatoriai: { field: 'field2', max: 50, unit: '°C', color: '#f7768e' },
         boileris:    { field: 'field3', max: 90, unit: '°C', color: '#7aa2f7' },
         grindinis:   { field: 'field4', max: 50, unit: '°C', color: '#9ece6a' },
-        baterija:    { field: 'field5', max: 15, unit: 'V',  color: '#bb9af7' } // Gauges limitas 0-15V kaip paprašyta
+        griztamasis: { field: 'field5', max: 50, unit: '°C', color: '#e0af68' },
+        baterija:    { field: 'field6', max: 15, unit: 'V',  color: '#bb9af7' } // Gauges limitas 0-15V kaip paprašyta
     };
 
     const charts = {};
