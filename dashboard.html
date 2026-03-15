@@ -693,17 +693,17 @@
                 }
             }
 
-            // Delta T Analizė
+            // Delta T Analizė atsižvelgiant į termoreguliatorius
             if (deltaT > 20) {
-                report += `⚠️ <b>Srauto problema:</b> Didelis skirtumas tarp išėjimo ir grįžtamojo (ΔT = ${deltaT}°C). Gali būti, kad cirkuliacinis siurblys dirba per lėtai, uždaryti radiatoriai, arba sistemoje yra oro kamščių.<br>`;
+                report += `ℹ️ <b>Dinaminis Srautas:</b> Didelis skirtumas tarp išėjimo ir grįžtamojo (ΔT = ${deltaT}°C). Tai normalu, jei šiuo metu dauguma kambarių termoreguliatorių yra užsidarę (pasiekta temperatūra), o atidaryti tik keli radiatoriai intensyviai nuiminėja šilumą.<br>`;
             } else if (deltaT < 5 && currentOut > 30) {
-                report += `ℹ️ <b>Per greita cirkuliacija:</b> Išėjimo ir grįžtamojo temperatūra beveik vienoda (ΔT = ${deltaT}°C). Radiatoriai nespėja atiduoti šilumos patalpai. Galima mažinti siurblio greitį.<br>`;
+                report += `ℹ️ <b>Sistemos prisisotinimas:</b> ΔT = ${deltaT}°C. Patalpos greičiausiai sušilusios ir termoreguliatoriai atviri, arba sistemos srautas labai greitas. Svarbu, kad grįžtamoji temperatūra išliktų saugiame lygyje.<br>`;
             } else {
-                report += `✅ <b>Šilumos atidavimas geras:</b> Sistemos ΔT (${deltaT}°C) yra normos ribose. Radiatoriai šilumą atiduoda efektyviai.<br>`;
+                report += `✅ <b>Tolygus šilumos atidavimas:</b> Sistemos ΔT (${deltaT}°C) yra normos ribose. Radiatorių termoreguliatoriai priima šilumą pagal kambarių poreikį.<br>`;
             }
 
             // Kondensato Rizika (AtmoTEC specifika)
-            report += `<br><strong>Kondensato įvertinimas:</strong> Vaillant atmoTEC (nekondensacinis) katilas reikalauja, kad grįžtamoji temperatūra būtų kuo greičiau pakeliama virš ~55°C, siekiant išvengti šilumokaičio korozijos. `;
+            report += `<br><strong>Kondensato ir termoreguliatorių įvertinimas:</strong> Vaillant atmoTEC (nekondensacinis) katilas reikalauja grįžtamosios virš ~55°C. Kadangi naudojate atskirus termoreguliatorius kiekvienam radiatoriui, grįžtamoji temperatūra gali stipriai svyruoti priklausomai nuo to, kiek kambarių vienu metu reikalauja šilumos. `;
             if (condRiskPerc > 80) {
                 report += `<span class="status-danger">Jūsų sistema ${condRiskPerc}% laiko dirbo žemiau 55°C (Grįžtamoji = ${currentRet}°C). Tai ilgalaikėje perspektyvoje gali sugadinti katilo šilumokaitį. Rekomenduojama pakelti sistemos temperatūrą arba naudoti pamaišymo (trieigį) vožtuvą.</span>`;
             } else if (condRiskPerc > 30) {
