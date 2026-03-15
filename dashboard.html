@@ -295,8 +295,9 @@
             const radiatoriaiData = []; // Field 2 (sumaisyta su Boileriu)
             const boilerisData = [];    // Field 3 (buvo Radiatoriai, dabar Boileris)
             const grindinisData = [];   // Field 4 (buvo Pecius, dabar Grindinis)
+            const baterijaData = [];
 
-            let lastPecius = null, lastRadiatoriai = null, lastBoileris = null, lastGrindinis = null;
+            let lastPecius = null, lastRadiatoriai = null, lastBoileris = null, lastGrindinis = null, lastBaterija = null;
 
             feeds.forEach(feed => {
                 const time = new Date(feed.created_at).getTime();
