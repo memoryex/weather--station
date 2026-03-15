@@ -445,6 +445,29 @@
         <div id="loading-baterija" class="loading">Kraunami duomenys...</div>
         <div id="chart-baterija" class="chart-container"></div>
     </div>
+
+    <!-- 7. Apytikslės Dujų Sąnaudos -->
+    <div class="sensor-block" id="block-dujos">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Apytikslės Dujų Sąnaudos (ΔT Metodas)</div>
+                    <div class="sensor-value" id="val-dujos">-- m³</div>
+                    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;">
+                        (50L vandens tūris sistemoje)
+                    </div>
+                </div>
+                <div id="gauge-dujos" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchGasData(1, this)">Para</button>
+                <button class="period-btn" onclick="fetchGasData(7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchGasData(30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-dujos" class="loading">Skaičiuojamos dujų sąnaudos...</div>
+        <div id="chart-dujos" class="chart-container"></div>
+    </div>
 </div>
 
 <script>
@@ -460,6 +483,9 @@
         griztamasis: { field: 'field5', max: 50, unit: '°C', color: '#e0af68' },
         baterija:    { field: 'field6', max: 15, unit: 'V',  color: '#bb9af7' } // Gauges limitas 0-15V kaip paprašyta
     };
+
+    // Papildomas config dujoms
+    sensorsConfig.dujos = { field: 'virtual', max: 24, unit: 'kW', color: '#ffb86c' }; // Gauge rodys einamąją galią kW
 
     const charts = {};
     const gauges = {};
@@ -524,11 +550,11 @@
                 chart: { type: 'spline', zoomType: 'x' },
                 title: { text: null },
                 xAxis: { type: 'datetime' },
-                yAxis: { title: { text: `Reikšmė (${config.unit})` } },
-                tooltip: { valueSuffix: ` ${config.unit}`, xDateFormat: '%Y-%m-%d %H:%M' },
+                yAxis: { title: { text: key === 'dujos' ? 'Galia (kW)' : `Reikšmė (${config.unit})` } },
+                tooltip: { valueSuffix: key === 'dujos' ? ' kW' : ` ${config.unit}`, xDateFormat: '%Y-%m-%d %H:%M' },
                 plotOptions: { spline: { marker: { enabled: false }, lineWidth: 2 } },
                 legend: { enabled: false },
-                series: [{ name: key.toUpperCase(), data: [], color: config.color }]
+                series: [{ name: key.toUpperCase(), data: [], color: config.color, step: key === 'dujos' ? 'left' : false }]
             });
         });
 
@@ -618,6 +644,79 @@
         } finally {
             document.getElementById(`loading-${sensorKey}`).style.display = 'none';
             document.getElementById(`chart-${sensorKey}`).style.opacity = '1';
+        }
+    }
+
+    // --- APYTIKSLĖS DUJŲ SĄNAUDOS (ΔT pagrindu) ---
+    async function fetchGasData(days, btn) {
+        document.getElementById('loading-dujos').style.display = 'block';
+        document.getElementById('chart-dujos').style.opacity = '0.3';
+
+        const buttons = document.getElementById('block-dujos').querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+
+        // Kad tilptume į ThingSpeak API limitus (max 8000 taškų)
+        // 1 para = minute interval = 1440 taškų. Jei daugiau dienų, vidurkiname per API.
+        const avgMinutes = days === 1 ? '' : (days === 7 ? '&average=10' : '&average=60');
+        const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&days=${days}${avgMinutes}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            const feeds = data.feeds;
+
+            let powerData = [];
+            let totalEnergy_kWh = 0;
+            let lastPower_kW = 0;
+
+            // Parametrai: 50 litrų sistemoje -> Šis tūris apibrėžia šiluminę inerciją,
+            // bet realios momentinės sąnaudos priklauso nuo siurblio debito.
+            // Paimsime tipinį 120m2 sistemos vidutinį debitą: ~800 l/h (apytikslis)
+            const massFlowRate_kg_h = 800;
+            const specificHeat_kWh_kgC = 0.001163; // Vandens savitoji šiluma kW
+            // Gamtinių dujų šilumingumas ~10.5 kWh/m3. Katilo (nekondensacinio) efektyvumas ~90% -> naudom ~9.5 kWh/m3
+
+            for (let i = 0; i < feeds.length; i++) {
+                const f = feeds[i];
+                if (f.field2 && f.field5) { // Išėjimas (field2) ir Grįžtamas (field5)
+                    const outV = parseFloat(f.field2);
+                    const retV = parseFloat(f.field5);
+                    const time = new Date(f.created_at).getTime();
+
+                    // Jei išėjimas karštesnis už grįžtamąjį, vadinasi katilas dega ir šildo vandenį
+                    // (Atmetam neigiamas reikšmes kai katilas išjungtas ir sistema vėsta)
+                    let deltaT = outV - retV;
+                    let power_kW = 0;
+
+                    if (deltaT > 0 && outV > 25) { // Prielaida: katilas dirba tik jei padavimas > 25C
+                        power_kW = massFlowRate_kg_h * specificHeat_kWh_kgC * deltaT;
+                    }
+
+                    powerData.push([time, power_kW]);
+                    lastPower_kW = power_kW;
+
+                    // Apskaičiuojam suvartotą energiją (kWh) šiame laiko intervale
+                    if (i > 0) {
+                        const prevTime = new Date(feeds[i-1].created_at).getTime();
+                        const timeDiffHours = (time - prevTime) / 3600000; // Valandos
+                        totalEnergy_kWh += power_kW * timeDiffHours;
+                    }
+                }
+            }
+
+            const totalGas_m3 = totalEnergy_kWh / 9.5; // Verčiame į kūbus
+
+            document.getElementById('val-dujos').innerText = totalGas_m3.toFixed(2) + ' m³';
+            gauges['dujos'].series[0].points[0].update(lastPower_kW);
+            charts['dujos'].series[0].setData(powerData, false);
+            charts['dujos'].redraw();
+
+        } catch (error) {
+            console.error('Klaida gaunant dujų duomenis:', error);
+        } finally {
+            document.getElementById('loading-dujos').style.display = 'none';
+            document.getElementById('chart-dujos').style.opacity = '1';
         }
     }
 
@@ -731,7 +830,11 @@
         Object.keys(sensorsConfig).forEach(key => {
             const block = document.getElementById(`block-${key}`);
             const btn = block.querySelector('.period-btn.active');
-            fetchDataForSensor(key, 1, btn);
+            if (key !== 'dujos') {
+                fetchDataForSensor(key, 1, btn);
+            } else {
+                fetchGasData(1, btn);
+            }
         });
 
         // Paleidžiame Intelektualią AI Analizę
