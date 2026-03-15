@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Šildymo Sistemos Dashboard</title>
+    <!-- Naudojame jsDelivr CDN pagal atmintį (Memory) siekiant išvengti 403 klaidų -->
+    <script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.0/highcharts.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button.active {
+            background-color: #004085;
+            font-weight: bold;
+        }
+        #chart-container {
+            width: 100%;
+            height: 500px;
+        }
+        .loading {
+            text-align: center;
+            font-size: 18px;
+            color: #666;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🔥 Šildymo Sistemos Būsena</h1>
+    <div class="controls">
+        <button id="btn-day" class="active" onclick="fetchData(1, this)">Para (24h)</button>
+        <button id="btn-week" onclick="fetchData(7, this)">Savaitė</button>
+        <button id="btn-month" onclick="fetchData(30, this)">Mėnuo</button>
+    </div>
+    <div id="loading" class="loading">Kraunami duomenys...</div>
+    <div id="chart-container" style="display: none;"></div>
+</div>
+
+<script>
+    const channelId = '351746';
+    const apiKey = 'ASBGVMMPC9JGLR8L';
+    let chart;
+
+    function initChart() {
+        chart = Highcharts.chart('chart-container', {
+            chart: {
+                type: 'spline',
+                zoomType: 'x'
+            },
+            title: { text: '' },
+            xAxis: {
+                type: 'datetime',
+                title: { text: 'Laikas' }
+            },
+            yAxis: {
+                title: { text: 'Temperatūra (°C)' },
+                labels: { format: '{value} °C' }
+            },
+            tooltip: {
+                shared: true,
+                valueSuffix: ' °C',
+                xDateFormat: '%Y-%m-%d %H:%M'
+            },
+            series: [
+                { name: 'Grindinis šildymas', data: [], color: '#ff9900' },
+                { name: 'Boileris', data: [], color: '#3366cc' },
+                { name: 'Radiatoriai', data: [], color: '#dc3912' },
+                { name: 'Pečius', data: [], color: '#109618' }
+            ],
+            time: {
+                useUTC: false
+            }
+        });
+    }
+
+    async function fetchData(days, btn) {
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('chart-container').style.display = 'none';
+
+        // Atnaujiname aktyvų mygtuką
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+
+        // Gauname duomenis iš ThingSpeak
+        const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&days=${days}`;
+
+        try {
+            const response = await fetch(url);
+            const json = await response.json();
+
+            const feeds = json.feeds;
+            const grindinis = [];
+            const boileris = [];
+            const radiatoriai = [];
+            const pecius = [];
+
+            feeds.forEach(feed => {
+                const time = new Date(feed.created_at).getTime();
+                if (feed.field1 !== null) grindinis.push([time, parseFloat(feed.field1)]);
+                if (feed.field2 !== null) boileris.push([time, parseFloat(feed.field2)]);
+                if (feed.field3 !== null) radiatoriai.push([time, parseFloat(feed.field3)]);
+                if (feed.field4 !== null) pecius.push([time, parseFloat(feed.field4)]);
+            });
+
+            // Atnaujiname grafiko duomenis
+            chart.series[0].setData(grindinis, false);
+            chart.series[1].setData(boileris, false);
+            chart.series[2].setData(radiatoriai, false);
+            chart.series[3].setData(pecius, false);
+
+            chart.redraw();
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('chart-container').style.display = 'block';
+
+        } catch (error) {
+            console.error('Klaida gaunant duomenis:', error);
+            document.getElementById('loading').innerText = 'Klaida gaunant duomenis. Patikrinkite ryšį.';
+        }
+    }
+
+    // Inicializacija
+    document.addEventListener('DOMContentLoaded', () => {
+        initChart();
+        fetchData(1, document.getElementById('btn-day')); // Pagal nutylėjimą užkrauname 1 paros duomenis
+    });
+</script>
+
+</body>
+</html>
