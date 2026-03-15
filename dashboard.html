@@ -9,365 +9,493 @@
     <script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.0/highcharts-more.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.0/modules/solid-gauge.js"></script>
     <style>
+        /* Tamsioji Tema (Nutylėta) */
+        :root {
+            --bg-main: #1a1b26;
+            --bg-card: #24283b;
+            --text-main: #c0caf5;
+            --text-secondary: #9aa5ce;
+            --border-color: #3b4261;
+            --accent-color: #0db9d7;
+        }
+
+        /* Šviesioji Tema */
+        [data-theme="light"] {
+            --bg-main: #f0f2f5;
+            --bg-card: #ffffff;
+            --text-main: #1c1e21;
+            --text-secondary: #606770;
+            --border-color: #dadce0;
+        }
+
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #1a1b26;
-            color: #c0caf5;
+            padding: 15px;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            transition: background-color 0.3s, color 0.3s;
         }
+
         .container {
             max-width: 1200px;
             margin: auto;
         }
-        .header {
+
+        .header-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
             flex-wrap: wrap;
+            margin-bottom: 20px;
+            gap: 15px;
         }
+
         h1 {
             margin: 0;
-            color: #ffffff;
             font-size: 24px;
         }
+
+        .settings-bar {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: var(--bg-card);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .settings-bar label {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        input[type="color"] {
+            border: none;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border-radius: 5px;
+            cursor: pointer;
+            background: none;
+        }
+
+        select {
+            padding: 5px;
+            border-radius: 5px;
+            background: var(--bg-card);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+        }
+
+        .sensor-block {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+
+        .sensor-block:hover {
+            border-color: var(--accent-color);
+        }
+
+        .sensor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .sensor-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .sensor-text {
+            text-align: left;
+        }
+
+        .sensor-title {
+            font-size: 18px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .sensor-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--accent-color);
+            transition: color 0.3s;
+        }
+
+        .gauge-container {
+            height: 120px;
+            width: 180px;
+        }
+
         .controls {
             display: flex;
             gap: 10px;
+            align-self: center;
         }
-        button {
+
+        button.period-btn {
             padding: 8px 16px;
             font-size: 14px;
-            border: 1px solid #3b4261;
-            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
             cursor: pointer;
-            background-color: #24283b;
-            color: #c0caf5;
+            background-color: var(--bg-main);
+            color: var(--text-main);
             transition: all 0.3s;
-        }
-        button:hover {
-            background-color: #3b4261;
-            color: #ffffff;
-        }
-        button.active {
-            background-color: #0db9d7;
-            color: #000;
-            border-color: #0db9d7;
             font-weight: bold;
         }
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
+
+        button.period-btn:hover {
+            border-color: var(--accent-color);
         }
-        .card {
-            background-color: #24283b;
-            border: 1px solid #3b4261;
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-            position: relative;
-            transition: border-color 0.3s;
+
+        button.period-btn.active {
+            background-color: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
-        .card.active-card {
-            border-color: #0db9d7;
-        }
-        .card-title {
-            font-size: 14px;
-            color: #9aa5ce;
-            margin-bottom: 10px;
-        }
-        .card-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #0db9d7;
-            margin-bottom: 10px;
-        }
-        .gauge-container {
-            height: 120px;
+
+        .chart-container {
             width: 100%;
+            height: 300px;
+            border-top: 1px dashed var(--border-color);
+            padding-top: 15px;
+            margin-top: 10px;
         }
-        .chart-box {
-            background-color: #24283b;
-            border: 1px solid #3b4261;
-            border-radius: 8px;
-            padding: 20px;
-        }
-        #chart-container {
-            width: 100%;
-            height: 400px;
-        }
+
         .loading {
             text-align: center;
-            font-size: 18px;
-            color: #9aa5ce;
-            padding: 50px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 50px;
+            display: none;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="header">
-        <h1>Šildymo sistemos</h1>
-        <div class="controls">
-            <button id="btn-day" class="active" onclick="fetchData(1, this)">Para</button>
-            <button id="btn-week" onclick="fetchData(7, this)">Savaitė</button>
-            <button id="btn-month" onclick="fetchData(30, this)">Mėnuo</button>
+    <div class="header-top">
+        <h1>Šildymo Sistemos ir Saulės Baterija</h1>
+        <div class="settings-bar">
+            <label>
+                Tema:
+                <select id="theme-selector" onchange="changeTheme(this.value)">
+                    <option value="dark">Tamsi</option>
+                    <option value="light">Šviesi</option>
+                </select>
+            </label>
+            <label>
+                Spalva:
+                <input type="color" id="color-picker" value="#0db9d7" onchange="changeAccentColor(this.value)">
+            </label>
         </div>
     </div>
 
-    <div id="loading" class="loading">Kraunami duomenys...</div>
-
-    <div id="dashboard-content" style="display: none;">
-        <div class="cards">
-            <!-- Pečius -->
-            <div class="card active-card">
-                <div class="card-title">Pečius</div>
-                <div class="card-value" id="val-pecius">-- °C</div>
+    <!-- 1. Pečius -->
+    <div class="sensor-block" id="block-pecius">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Pečius</div>
+                    <div class="sensor-value" id="val-pecius">-- °C</div>
+                </div>
                 <div id="gauge-pecius" class="gauge-container"></div>
             </div>
-            <!-- Radiatoriai -->
-            <div class="card">
-                <div class="card-title">Radiatoriai</div>
-                <div class="card-value" id="val-radiatoriai">-- °C</div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('pecius', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('pecius', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('pecius', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-pecius" class="loading">Kraunami duomenys...</div>
+        <div id="chart-pecius" class="chart-container"></div>
+    </div>
+
+    <!-- 2. Radiatoriai -->
+    <div class="sensor-block" id="block-radiatoriai">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Radiatoriai</div>
+                    <div class="sensor-value" id="val-radiatoriai">-- °C</div>
+                </div>
                 <div id="gauge-radiatoriai" class="gauge-container"></div>
             </div>
-            <!-- Boileris -->
-            <div class="card">
-                <div class="card-title">Boileris</div>
-                <div class="card-value" id="val-boileris">-- °C</div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('radiatoriai', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('radiatoriai', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('radiatoriai', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-radiatoriai" class="loading">Kraunami duomenys...</div>
+        <div id="chart-radiatoriai" class="chart-container"></div>
+    </div>
+
+    <!-- 3. Boileris -->
+    <div class="sensor-block" id="block-boileris">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Boileris</div>
+                    <div class="sensor-value" id="val-boileris">-- °C</div>
+                </div>
                 <div id="gauge-boileris" class="gauge-container"></div>
             </div>
-            <!-- Grindinis -->
-            <div class="card">
-                <div class="card-title">Grindinis šildymas</div>
-                <div class="card-value" id="val-grindinis">-- °C</div>
-                <div id="gauge-grindinis" class="gauge-container"></div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('boileris', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('boileris', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('boileris', 30, this)">Mėnuo</button>
             </div>
         </div>
+        <div id="loading-boileris" class="loading">Kraunami duomenys...</div>
+        <div id="chart-boileris" class="chart-container"></div>
+    </div>
 
-        <div class="chart-box">
-            <div id="chart-container"></div>
+    <!-- 4. Grindinis -->
+    <div class="sensor-block" id="block-grindinis">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Grindinis šildymas</div>
+                    <div class="sensor-value" id="val-grindinis">-- °C</div>
+                </div>
+                <div id="gauge-grindinis" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('grindinis', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('grindinis', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('grindinis', 30, this)">Mėnuo</button>
+            </div>
         </div>
+        <div id="loading-grindinis" class="loading">Kraunami duomenys...</div>
+        <div id="chart-grindinis" class="chart-container"></div>
+    </div>
+
+    <!-- 5. Saulės Baterija -->
+    <div class="sensor-block" id="block-baterija">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Saulės baterija</div>
+                    <div class="sensor-value" id="val-baterija">-- V</div>
+                </div>
+                <div id="gauge-baterija" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('baterija', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('baterija', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('baterija', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-baterija" class="loading">Kraunami duomenys...</div>
+        <div id="chart-baterija" class="chart-container"></div>
     </div>
 </div>
 
 <script>
     const channelId = '351746';
     const apiKey = 'ASBGVMMPC9JGLR8L';
-    let mainChart;
-    let gaugePecius, gaugeRadiatoriai, gaugeBoileris, gaugeGrindinis;
 
-    // Bendra Gauge konfigūracija
-    const gaugeOptions = {
-        chart: {
-            type: 'solidgauge',
-            backgroundColor: 'transparent'
-        },
-        title: null,
-        pane: {
-            center: ['50%', '85%'],
-            size: '140%',
-            startAngle: -90,
-            endAngle: 90,
-            background: {
-                backgroundColor: '#1a1b26',
-                innerRadius: '60%',
-                outerRadius: '100%',
-                shape: 'arc',
-                borderWidth: 0
-            }
-        },
-        exporting: { enabled: false },
-        tooltip: { enabled: false },
-        yAxis: {
-            stops: [
-                [0.1, '#3b4261'],
-                [0.5, '#0db9d7'],
-                [0.9, '#ff9e64']
-            ],
-            lineWidth: 0,
-            tickWidth: 0,
-            minorTickInterval: null,
-            tickAmount: 2,
-            labels: {
-                y: 16,
-                style: { color: '#9aa5ce' }
-            }
-        },
-        plotOptions: {
-            solidgauge: {
-                dataLabels: { enabled: false },
-                linecap: 'round',
-                stickyTracking: false,
-                rounded: true
-            }
-        },
-        credits: { enabled: false }
+    // Konfigūracija kiekvienam jutikliui (Field mappings, Y-axis limits, Unit)
+    const sensorsConfig = {
+        pecius:      { field: 'field1', max: 90, unit: '°C', color: '#ff9e64' },
+        radiatoriai: { field: 'field2', max: 50, unit: '°C', color: '#f7768e' },
+        boileris:    { field: 'field3', max: 90, unit: '°C', color: '#7aa2f7' },
+        grindinis:   { field: 'field4', max: 50, unit: '°C', color: '#9ece6a' },
+        baterija:    { field: 'field5', max: 15, unit: 'V',  color: '#bb9af7' } // Gauges limitas 0-15V kaip paprašyta
     };
 
-    function initCharts() {
-        // Highcharts global options for Dark Theme
+    const charts = {};
+    const gauges = {};
+
+    function changeTheme(themeName) {
+        document.documentElement.setAttribute('data-theme', themeName);
+        localStorage.setItem('dashboard_theme', themeName);
+        document.getElementById('theme-selector').value = themeName;
+        updateChartsColors();
+    }
+
+    function changeAccentColor(colorHex) {
+        document.documentElement.style.setProperty('--accent-color', colorHex);
+        localStorage.setItem('dashboard_accent', colorHex);
+        document.getElementById('color-picker').value = colorHex;
+        updateChartsColors();
+    }
+
+    function loadPreferences() {
+        const savedTheme = localStorage.getItem('dashboard_theme') || 'dark';
+        const savedAccent = localStorage.getItem('dashboard_accent') || '#0db9d7';
+        changeTheme(savedTheme);
+        changeAccentColor(savedAccent);
+    }
+
+    function getCssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    // --- CHART IR GAUGE KŪRIMAS ---
+    function initAllCharts() {
         Highcharts.setOptions({
             chart: { backgroundColor: 'transparent', style: { fontFamily: 'Arial, sans-serif' } },
-            title: { style: { color: '#ffffff' } },
-            xAxis: {
-                gridLineColor: '#3b4261',
-                labels: { style: { color: '#9aa5ce' } },
-                lineColor: '#3b4261',
-                tickColor: '#3b4261'
-            },
-            yAxis: {
-                gridLineColor: '#3b4261',
-                labels: { style: { color: '#9aa5ce' } },
-                title: { style: { color: '#9aa5ce' } }
-            },
-            legend: {
-                itemStyle: { color: '#9aa5ce' },
-                itemHoverStyle: { color: '#ffffff' }
-            },
-            tooltip: {
-                backgroundColor: 'rgba(26, 27, 38, 0.85)',
-                style: { color: '#ffffff' },
-                borderColor: '#3b4261'
-            }
+            credits: { enabled: false }
         });
 
-        // Gauges (Max 90)
-        gaugePecius = Highcharts.chart('gauge-pecius', Highcharts.merge(gaugeOptions, {
-            yAxis: { min: 0, max: 90 },
-            series: [{ name: 'Pečius', data: [0] }]
-        }));
-        gaugeBoileris = Highcharts.chart('gauge-boileris', Highcharts.merge(gaugeOptions, {
-            yAxis: { min: 0, max: 90 },
-            series: [{ name: 'Boileris', data: [0] }]
-        }));
+        Object.keys(sensorsConfig).forEach(key => {
+            const config = sensorsConfig[key];
 
-        // Gauges (Max 50)
-        gaugeRadiatoriai = Highcharts.chart('gauge-radiatoriai', Highcharts.merge(gaugeOptions, {
-            yAxis: { min: 0, max: 50 },
-            series: [{ name: 'Radiatoriai', data: [0] }]
-        }));
-        gaugeGrindinis = Highcharts.chart('gauge-grindinis', Highcharts.merge(gaugeOptions, {
-            yAxis: { min: 0, max: 50 },
-            series: [{ name: 'Grindinis', data: [0] }]
-        }));
+            // 1. Kuriam Gauge
+            gauges[key] = Highcharts.chart(`gauge-${key}`, {
+                chart: { type: 'solidgauge' },
+                title: null,
+                pane: {
+                    center: ['50%', '85%'], size: '140%', startAngle: -90, endAngle: 90,
+                    background: { innerRadius: '60%', outerRadius: '100%', shape: 'arc', borderWidth: 0 }
+                },
+                exporting: { enabled: false }, tooltip: { enabled: false },
+                yAxis: {
+                    min: 0, max: config.max,
+                    lineWidth: 0, tickWidth: 0, minorTickInterval: null, tickAmount: 2,
+                    labels: { y: 16 }
+                },
+                plotOptions: { solidgauge: { dataLabels: { enabled: false }, linecap: 'round', stickyTracking: false, rounded: true } },
+                series: [{ name: key, data: [0] }]
+            });
 
-        // Pagrindinis Spline grafikas
-        mainChart = Highcharts.chart('chart-container', {
-            chart: { type: 'spline', zoomType: 'x' },
-            title: { text: '' },
-            xAxis: { type: 'datetime' },
-            yAxis: { title: { text: 'Temperatūra (°C)' } },
-            tooltip: { shared: true, valueSuffix: ' °C', xDateFormat: '%Y-%m-%d %H:%M' },
-            plotOptions: {
-                spline: { marker: { enabled: false }, lineWidth: 2 }
-            },
-            series: [
-                { name: 'Pečius (F1)', data: [], color: '#ff9e64' },
-                { name: 'Radiatoriai (F2)', data: [], color: '#f7768e' },
-                { name: 'Boileris (F3)', data: [], color: '#7aa2f7' },
-                { name: 'Grindinis (F4)', data: [], color: '#9ece6a' }
-            ],
-            time: { useUTC: false },
-            credits: { enabled: false }
+            // 2. Kuriam Spline Chart
+            charts[key] = Highcharts.chart(`chart-${key}`, {
+                chart: { type: 'spline', zoomType: 'x' },
+                title: { text: null },
+                xAxis: { type: 'datetime' },
+                yAxis: { title: { text: `Reikšmė (${config.unit})` } },
+                tooltip: { valueSuffix: ` ${config.unit}`, xDateFormat: '%Y-%m-%d %H:%M' },
+                plotOptions: { spline: { marker: { enabled: false }, lineWidth: 2 } },
+                legend: { enabled: false },
+                series: [{ name: key.toUpperCase(), data: [], color: config.color }]
+            });
+        });
+
+        updateChartsColors();
+    }
+
+    function updateChartsColors() {
+        const textMain = getCssVar('--text-main');
+        const textSec = getCssVar('--text-secondary');
+        const borderColor = getCssVar('--border-color');
+        const accent = getCssVar('--accent-color');
+        const bgMain = getCssVar('--bg-main');
+
+        Object.keys(sensorsConfig).forEach(key => {
+            // Atnaujinti Spline grafikus
+            if(charts[key]) {
+                charts[key].update({
+                    xAxis: { gridLineColor: borderColor, lineColor: borderColor, tickColor: borderColor, labels: { style: { color: textSec } } },
+                    yAxis: { gridLineColor: borderColor, title: { style: { color: textSec } }, labels: { style: { color: textSec } } },
+                    tooltip: { backgroundColor: getCssVar('--bg-card'), style: { color: textMain }, borderColor: borderColor }
+                }, false);
+                charts[key].redraw();
+            }
+
+            // Atnaujinti Gauges
+            if(gauges[key]) {
+                gauges[key].update({
+                    pane: { background: { backgroundColor: bgMain } },
+                    yAxis: {
+                        stops: [ [0.1, borderColor], [0.5, accent], [0.9, '#ff0000'] ],
+                        labels: { style: { color: textSec } }
+                    }
+                }, false);
+                gauges[key].redraw();
+            }
         });
     }
 
-    async function fetchData(days, btn) {
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('dashboard-content').style.display = 'none';
+    // --- DUOMENŲ GAVIMAS KIEKVIENAM ATSKIRAI ---
+    async function fetchDataForSensor(sensorKey, days, btn) {
+        const config = sensorsConfig[sensorKey];
 
-        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        // UI Būsena
+        document.getElementById(`loading-${sensorKey}`).style.display = 'block';
+        document.getElementById(`chart-${sensorKey}`).style.opacity = '0.3';
+
+        // Mygtukų stilius
+        const buttons = document.getElementById(`block-${sensorKey}`).querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
         if(btn) btn.classList.add('active');
 
-        const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&days=${days}`;
+        // Kadangi kreipiames į konkretų kanalą, siunčiam užklausą ThingSpeak API
+        const url = `https://api.thingspeak.com/channels/${channelId}/fields/${config.field.replace('field', '')}.json?api_key=${apiKey}&days=${days}`;
 
         try {
             const response = await fetch(url);
             const json = await response.json();
             const feeds = json.feeds;
 
-            const peciusData = [];      // Field 1 (sumaisyta su Grindiniu)
-            const radiatoriaiData = []; // Field 2 (sumaisyta su Boileriu)
-            const boilerisData = [];    // Field 3 (buvo Radiatoriai, dabar Boileris)
-            const grindinisData = [];   // Field 4 (buvo Pecius, dabar Grindinis)
-            const baterijaData = [];
-
-            let lastPecius = null, lastRadiatoriai = null, lastBoileris = null, lastGrindinis = null, lastBaterija = null;
+            const chartData = [];
+            let lastVal = null;
 
             feeds.forEach(feed => {
                 const time = new Date(feed.created_at).getTime();
+                const rawVal = feed[config.field];
 
-                // Field 1 dabar yra Pečius (buvo Grindinis)
-                if (feed.field1 !== null) {
-                    const val = parseFloat(feed.field1);
-                    peciusData.push([time, val]);
-                    lastPecius = val;
-                }
-
-                // Field 2 dabar yra Radiatoriai (buvo Boileris)
-                if (feed.field2 !== null) {
-                    const val = parseFloat(feed.field2);
-                    radiatoriaiData.push([time, val]);
-                    lastRadiatoriai = val;
-                }
-
-                // Field 3 dabar yra Boileris (buvo Radiatoriai)
-                if (feed.field3 !== null) {
-                    const val = parseFloat(feed.field3);
-                    boilerisData.push([time, val]);
-                    lastBoileris = val;
-                }
-
-                // Field 4 dabar yra Grindinis šildymas (buvo Pečius)
-                if (feed.field4 !== null) {
-                    const val = parseFloat(feed.field4);
-                    grindinisData.push([time, val]);
-                    lastGrindinis = val;
+                if (rawVal !== null && rawVal !== undefined) {
+                    const val = parseFloat(rawVal);
+                    chartData.push([time, val]);
+                    lastVal = val;
                 }
             });
 
-            // Atnaujiname Gauge ir tekstus viršuje
-            if (lastPecius !== null) {
-                document.getElementById('val-pecius').innerText = lastPecius.toFixed(1) + ' °C';
-                gaugePecius.series[0].points[0].update(lastPecius);
-            }
-            if (lastRadiatoriai !== null) {
-                document.getElementById('val-radiatoriai').innerText = lastRadiatoriai.toFixed(1) + ' °C';
-                gaugeRadiatoriai.series[0].points[0].update(lastRadiatoriai);
-            }
-            if (lastBoileris !== null) {
-                document.getElementById('val-boileris').innerText = lastBoileris.toFixed(1) + ' °C';
-                gaugeBoileris.series[0].points[0].update(lastBoileris);
-            }
-            if (lastGrindinis !== null) {
-                document.getElementById('val-grindinis').innerText = lastGrindinis.toFixed(1) + ' °C';
-                gaugeGrindinis.series[0].points[0].update(lastGrindinis);
+            // Atnaujiname Gauge ir Tekstą
+            if (lastVal !== null) {
+                const decimalPlaces = config.unit === 'V' ? 2 : 1; // Įtampai rodom 2 skaičius po kablelio
+                document.getElementById(`val-${sensorKey}`).innerText = lastVal.toFixed(decimalPlaces) + ' ' + config.unit;
+                gauges[sensorKey].series[0].points[0].update(lastVal);
             }
 
-            // Atnaujiname pagrindinį grafiką
-            mainChart.series[0].setData(peciusData, false);
-            mainChart.series[1].setData(radiatoriaiData, false);
-            mainChart.series[2].setData(boilerisData, false);
-            mainChart.series[3].setData(grindinisData, false);
-            mainChart.redraw();
-
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('dashboard-content').style.display = 'block';
+            // Atnaujiname Grafiką
+            charts[sensorKey].series[0].setData(chartData, false);
+            charts[sensorKey].redraw();
 
         } catch (error) {
-            console.error('Klaida:', error);
-            document.getElementById('loading').innerText = 'Klaida gaunant duomenis. Patikrinkite ryšį.';
+            console.error(`Klaida gaunant duomenis [${sensorKey}]:`, error);
+        } finally {
+            document.getElementById(`loading-${sensorKey}`).style.display = 'none';
+            document.getElementById(`chart-${sensorKey}`).style.opacity = '1';
         }
     }
 
+    // Paleidimas
     document.addEventListener('DOMContentLoaded', () => {
-        initCharts();
-        fetchData(1, document.getElementById('btn-day'));
+        loadPreferences();
+        initAllCharts();
+
+        // Pagal nutylėjimą užkraunami visų jutiklių vienos paros duomenys
+        Object.keys(sensorsConfig).forEach(key => {
+            const block = document.getElementById(`block-${key}`);
+            const btn = block.querySelector('.period-btn.active');
+            fetchDataForSensor(key, 1, btn);
+        });
     });
 </script>
 
