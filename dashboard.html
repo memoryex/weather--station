@@ -491,7 +491,9 @@
 
     // --- CHART IR GAUGE KŪRIMAS ---
     function initAllCharts() {
+        // Highcharts globalūs nustatymai (Spalvos, Šriftai, Lietuvos laikas)
         Highcharts.setOptions({
+            time: { useUTC: false }, // Naudojamas naršyklės / Lietuvos laikas vietoj UTC
             chart: { backgroundColor: 'transparent', style: { fontFamily: 'Arial, sans-serif' } },
             credits: { enabled: false }
         });
