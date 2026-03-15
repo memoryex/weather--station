@@ -17,6 +17,9 @@
             --text-secondary: #9aa5ce;
             --border-color: #3b4261;
             --accent-color: #0db9d7;
+            --danger-color: #f7768e;
+            --success-color: #9ece6a;
+            --warning-color: #e0af68;
         }
 
         /* Šviesioji Tema */
@@ -92,6 +95,91 @@
             border: 1px solid var(--border-color);
             cursor: pointer;
         }
+
+        .ai-panel {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(13, 185, 215, 0.05) 100%);
+            border: 1px solid var(--accent-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .ai-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .ai-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-title span.badge {
+            background-color: var(--danger-color);
+            color: #fff;
+            font-size: 11px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .ai-weather {
+            font-size: 14px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .ai-stat {
+            background: var(--bg-main);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .ai-stat-title {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .ai-stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .ai-report {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-left: 4px solid var(--accent-color);
+            border-radius: 4px;
+            font-size: 15px;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+
+        .status-danger { color: var(--danger-color); }
+        .status-warning { color: var(--warning-color); }
+        .status-success { color: var(--success-color); }
 
         .sensor-block {
             background-color: var(--bg-card);
@@ -197,7 +285,7 @@
 
 <div class="container">
     <div class="header-top">
-        <h1>Šildymo Sistemos ir Saulės Baterija</h1>
+        <h1>Šildymo Sistemos </h1>
         <div class="settings-bar">
             <label>
                 Tema:
@@ -210,6 +298,31 @@
                 Spalva:
                 <input type="color" id="color-picker" value="#0db9d7" onchange="changeAccentColor(this.value)">
             </label>
+        </div>
+    </div>
+
+    <!-- AI Analizė (Paskutinės paros duomenys) -->
+    <div class="ai-panel">
+        <div class="ai-header">
+            <div class="ai-title">🧠 Intelektuali Katilo Analizė <span class="badge">BETA</span></div>
+            <div class="ai-weather" id="ai-weather">☁️ Kraunami Panevėžio orai...</div>
+        </div>
+        <div class="ai-grid">
+            <div class="ai-stat">
+                <div class="ai-stat-title">ΔT (Skirtumas Tarp Iš/Gr)</div>
+                <div class="ai-stat-value" id="ai-delta">-- °C</div>
+            </div>
+            <div class="ai-stat">
+                <div class="ai-stat-title">Vaillant atmoTEC Būsena</div>
+                <div class="ai-stat-value" id="ai-status">Analizuojama...</div>
+            </div>
+            <div class="ai-stat">
+                <div class="ai-stat-title">Kondensato Rizika (<55°C)</div>
+                <div class="ai-stat-value" id="ai-risk">-- % Laiko</div>
+            </div>
+        </div>
+        <div class="ai-report" id="ai-report">
+            Renkama istorija ir orų prognozė, generuojama sistemos ataskaita...
         </div>
     </div>
 
@@ -489,7 +602,7 @@
 
             // Atnaujiname Gauge ir Tekstą
             if (lastVal !== null) {
-                const decimalPlaces = config.unit === 'V' ? 2 : 1; // Įtampai rodom 2 skaičius po kablelio
+                const decimalPlaces = config.unit === 'V' ? 2 : 1;
                 document.getElementById(`val-${sensorKey}`).innerText = lastVal.toFixed(decimalPlaces) + ' ' + config.unit;
                 gauges[sensorKey].series[0].points[0].update(lastVal);
             }
@@ -506,6 +619,107 @@
         }
     }
 
+    // --- INTELEKTUALI ANALIZĖ (AI) ---
+    async function initAIAnalysis() {
+        try {
+            // 1. Orai (Panevėžys) - OpenMeteo
+            const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=55.7333&longitude=24.35&current_weather=true';
+            let outdoorTemp = null;
+            try {
+                const weatherRes = await fetch(weatherUrl);
+                const weatherData = await weatherRes.json();
+                outdoorTemp = weatherData.current_weather.temperature;
+                document.getElementById('ai-weather').innerHTML = `📍 Panevėžys, Lauke: <b>${outdoorTemp}°C</b>`;
+            } catch(e) { console.error("Orai neprieinami."); }
+
+            // 2. Traukiame 1 paros duomenis visam analizei (Field2 ir Field5)
+            const tsUrl = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&days=1`;
+            const tsRes = await fetch(tsUrl);
+            const tsData = await tsRes.json();
+            const feeds = tsData.feeds;
+
+            let outValues = []; // Išėjimas į radiatorius (field2)
+            let retValues = []; // Grįžtamasis (field5)
+            let condensationCount = 0; // Kiek kartų grįžtamasis < 55C
+            let totalValidCount = 0;
+
+            feeds.forEach(f => {
+                if (f.field2 && f.field5) {
+                    const outV = parseFloat(f.field2);
+                    const retV = parseFloat(f.field5);
+                    outValues.push(outV);
+                    retValues.push(retV);
+
+                    // Katilas atmoTEC - rizika jei grįžtamoji vandens temperatūra pastoviai mažesnė nei 55-60C
+                    if(retV < 55) condensationCount++;
+                    totalValidCount++;
+                }
+            });
+
+            if (totalValidCount === 0) {
+                document.getElementById('ai-report').innerHTML = "⚠️ Nepakanka duomenų Išėjimo ir Grįžtamojo analizei. Prašome palaukti bent vienos valandos.";
+                return;
+            }
+
+            // Dabartiniai/Paskutiniai parametrai
+            const currentOut = outValues[outValues.length - 1];
+            const currentRet = retValues[retValues.length - 1];
+            const deltaT = (currentOut - currentRet).toFixed(1);
+
+            // Atvaizduojame skaičius
+            document.getElementById('ai-delta').innerHTML = `<span class="${deltaT > 20 ? 'status-warning' : 'status-success'}">${deltaT} °C</span>`;
+
+            const condRiskPerc = Math.round((condensationCount / totalValidCount) * 100);
+            const riskEl = document.getElementById('ai-risk');
+            if(condRiskPerc > 80) {
+                riskEl.innerHTML = `<span class="status-danger">Kritinė (${condRiskPerc}%)</span>`;
+            } else if (condRiskPerc > 30) {
+                riskEl.innerHTML = `<span class="status-warning">Vidutinė (${condRiskPerc}%)</span>`;
+            } else {
+                riskEl.innerHTML = `<span class="status-success">Saugi (${condRiskPerc}%)</span>`;
+            }
+
+            document.getElementById('ai-status').innerText = currentOut > 30 ? "🔥 Šildo (Aktyvus)" : "💤 Laukimo būsena";
+
+            // 3. Išmanusis teksto generavimas
+            let report = `<strong>Vaillant atmoTEC plus VCW 194 Analizė (120 m² ploto sistema)</strong><br><br>`;
+
+            // Oro / Katilo efektyvumo santykis
+            if (outdoorTemp !== null) {
+                if (outdoorTemp < 0 && currentOut < 45) {
+                    report += `⚠️ Lauke šalta (${outdoorTemp}°C), tačiau paduodama temperatūra (${currentOut}°C) gana žema. Gali nepakakti galios 120m² plotui sušildyti, jei namas prastai apšiltintas.<br>`;
+                } else if (outdoorTemp > 10 && currentOut > 60) {
+                    report += `💡 Lauke gana šilta (${outdoorTemp}°C), tačiau paduodate itin karštą vandenį (${currentOut}°C). Rekomenduojama prisukti katilą arba sumažinti termostato kreivę, siekiant taupyti kurą/dujas.<br>`;
+                }
+            }
+
+            // Delta T Analizė
+            if (deltaT > 20) {
+                report += `⚠️ <b>Srauto problema:</b> Didelis skirtumas tarp išėjimo ir grįžtamojo (ΔT = ${deltaT}°C). Gali būti, kad cirkuliacinis siurblys dirba per lėtai, uždaryti radiatoriai, arba sistemoje yra oro kamščių.<br>`;
+            } else if (deltaT < 5 && currentOut > 30) {
+                report += `ℹ️ <b>Per greita cirkuliacija:</b> Išėjimo ir grįžtamojo temperatūra beveik vienoda (ΔT = ${deltaT}°C). Radiatoriai nespėja atiduoti šilumos patalpai. Galima mažinti siurblio greitį.<br>`;
+            } else {
+                report += `✅ <b>Šilumos atidavimas geras:</b> Sistemos ΔT (${deltaT}°C) yra normos ribose. Radiatoriai šilumą atiduoda efektyviai.<br>`;
+            }
+
+            // Kondensato Rizika (AtmoTEC specifika)
+            report += `<br><strong>Kondensato įvertinimas:</strong> Vaillant atmoTEC (nekondensacinis) katilas reikalauja, kad grįžtamoji temperatūra būtų kuo greičiau pakeliama virš ~55°C, siekiant išvengti šilumokaičio korozijos. `;
+            if (condRiskPerc > 80) {
+                report += `<span class="status-danger">Jūsų sistema ${condRiskPerc}% laiko dirbo žemiau 55°C (Grįžtamoji = ${currentRet}°C). Tai ilgalaikėje perspektyvoje gali sugadinti katilo šilumokaitį. Rekomenduojama pakelti sistemos temperatūrą arba naudoti pamaišymo (trieigį) vožtuvą.</span>`;
+            } else if (condRiskPerc > 30) {
+                report += `<span class="status-warning">Pastebėta vidutinė rizika. Pasistenkite neužlaikyti katilo žemose (<50°C) temperatūrose ilgais intervalais.</span>`;
+            } else {
+                report += `<span class="status-success">Rizikos nėra. Grįžtamoji temperatūra palaikoma pakankamai aukšta, šilumokaitis apsaugotas nuo drėgmės kondensacijos ir suodžių kaupimosi.</span>`;
+            }
+
+            document.getElementById('ai-report').innerHTML = report;
+
+        } catch (e) {
+            console.error("Klaida analizuojant:", e);
+            document.getElementById('ai-report').innerHTML = "Klaida generuojant ataskaitą. Pabandykite vėliau.";
+        }
+    }
+
     // Paleidimas
     document.addEventListener('DOMContentLoaded', () => {
         loadPreferences();
@@ -517,6 +731,11 @@
             const btn = block.querySelector('.period-btn.active');
             fetchDataForSensor(key, 1, btn);
         });
+
+        // Paleidžiame Intelektualią AI Analizę
+        initAIAnalysis();
+        // Atnaujinam analizę kas 10 minučių
+        setInterval(initAIAnalysis, 600000);
     });
 </script>
 
