@@ -676,7 +676,11 @@
         let totalEnergy_kWh = 0;
         let lastPower_kW = 0;
 
-        const massFlowRate_kg_h = 800;
+        // Kadangi sistema dirba su individualiais radiatorių termoreguliatoriais,
+        // realus siurblio srautas yra žymiai mažesnis nei standartinis maksimumas.
+        // Pritaikius modelį prie jūsų faktinių duomenų (285m3 esant -15°C šalčiams),
+        // pakoregavome vidutinį skaičiuojamąjį debitą į 350 l/h.
+        const massFlowRate_kg_h = 350;
         const specificHeat_kWh_kgC = 0.001163;
         // Gamtinių dujų šilumingumas ~10.5 kWh/m3. Katilo (nekondensacinio) efektyvumas ~90% -> naudom ~9.5 kWh/m3
 
@@ -690,7 +694,10 @@
                 let deltaT = outV - retV;
                 let power_kW = 0;
 
-                if (deltaT > 0 && outV > 25) {
+                // Modifikuotas filtras: katilas realiai dega ir vartoja dujas tik tada,
+                // kai padavimas yra pakankamai karštas (> 35°C) ir yra aiškus energijos nuėmimas (ΔT > 3°C).
+                // Jei ΔT < 3°C, greičiausiai vyksta tik residualinė (išliekamoji) vandens cirkuliacija.
+                if (deltaT > 3 && outV > 35) {
                     power_kW = massFlowRate_kg_h * specificHeat_kWh_kgC * deltaT;
                 }
 
