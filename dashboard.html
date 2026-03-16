@@ -459,7 +459,16 @@
                         <div class="sensor-title">Suvartotos Dujos (Per pasirinktą laiką)</div>
                         <div class="sensor-value" id="val-dujos">-- m³</div>
                         <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;" id="val-dujos-desc">
-                            Viso sudeginta per parą (Apytiksliai)
+                        Pagal ΔT skaičiavimą
+                    </div>
+
+                    <!-- Prognozė pagal orus -->
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border-color);">
+                        <div class="sensor-title" style="font-size: 13px;">Orų Modelio Prognozė:</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #ffb86c;" id="val-dujos-prognoze">-- m³</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 3px;" id="val-dujos-prognoze-desc">
+                            (Atitinkamam laikotarpiui)
+                        </div>
                         </div>
                     </div>
                     <div id="gauge-dujos" class="gauge-container"></div>
@@ -708,6 +717,57 @@
         charts['dujos'].redraw();
     }
 
+    // Orų pagrįstas dujų modelis (285m3 per mėnesį esant -15°C vidurkiui)
+    // 285 m3 / 31 diena = ~9.19 m3 / dieną
+    // Tariame vidaus temp = 21°C. Delta T tarp vidaus ir lauko = 21 - (-15) = 36°C
+    // Galingumo koeficientas K = 9.19 / 36 = 0.255 m3/(°C*diena)
+    // Formulė: Dujos_m3_Dienai = (21 - Lauko_Temp) * 0.255
+    async function getWeatherBasedGasForecast(days) {
+        try {
+            const indoorTemp = 21;
+            const K = 0.255;
+
+            // Jei prognozuojame menesiui atgal/pirmyn – geriausia imti pastarųjų orų vidurkius iš Meteo
+            // Bet supaprastintai paimkime dabartinės savaitės tendenciją (Open-Meteo 7 dienų prognozė)
+            const forecastUrl = 'https://api.open-meteo.com/v1/forecast?latitude=55.7333&longitude=24.35&daily=temperature_2m_mean&timezone=Europe%2FVilnius';
+            const res = await fetch(forecastUrl);
+            const data = await res.json();
+
+            let totalForecast_m3 = 0;
+            const temps = data.daily.temperature_2m_mean;
+
+            // Suskaičiuojame savaitės vidurkį, kad galėtume ekstrapoliuoti mėnesiui
+            let weekSum = 0;
+            temps.forEach(t => weekSum += t);
+            const avgWeekTemp = weekSum / temps.length;
+
+            if (days === 1) {
+                // Šios dienos prognozė
+                const tToday = temps[0];
+                let deltaDay = indoorTemp - tToday;
+                if (deltaDay < 0) deltaDay = 0;
+                totalForecast_m3 = deltaDay * K;
+            } else if (days === 7) {
+                // Savaitės suma
+                temps.forEach(t => {
+                    let deltaDay = indoorTemp - t;
+                    if (deltaDay > 0) totalForecast_m3 += (deltaDay * K);
+                });
+            } else {
+                // Mėnesiui imame savaitės vidurkį ir dauginame iš 30
+                let deltaAvg = indoorTemp - avgWeekTemp;
+                if (deltaAvg < 0) deltaAvg = 0;
+                totalForecast_m3 = (deltaAvg * K) * days;
+            }
+
+            document.getElementById('val-dujos-prognoze').innerText = totalForecast_m3.toFixed(1) + ' m³';
+            document.getElementById('val-dujos-prognoze-desc').innerText = `(Paskaičiuota pagal dabartinius orus)`;
+
+        } catch (e) {
+            console.error("Klaida orų dujų prognozėje:", e);
+        }
+    }
+
     // --- APYTIKSLĖS DUJŲ SĄNAUDOS (Mygtukais) ---
     async function fetchGasData(days, btn) {
         document.getElementById('loading-dujos').style.display = 'block';
@@ -725,6 +785,9 @@
         const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&days=${days}${avgMinutes}`;
 
         try {
+            // Paraleliai kviečiame ir ThingSpeak DeltaT metodą, ir Orų prognozės metodą
+            getWeatherBasedGasForecast(days);
+
             const response = await fetch(url);
             const data = await response.json();
             const periodName = days === 1 ? 'parą' : (days === 7 ? 'savaitę' : 'mėnesį');
@@ -760,6 +823,9 @@
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
         const avgMinutes = diffDays <= 1 ? '' : (diffDays <= 7 ? '&average=10' : '&average=60');
+
+        // Kviečiam orų modelį atitinkamam dienų skaičiui (ekstrapoliuojant nuo dabartinių orų)
+        getWeatherBasedGasForecast(diffDays || 1);
 
         // ThingSpeak reikalauja yyyy-mm-dd%2000:00:00 formato
         const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&start=${startVal}%2000:00:00&end=${endVal}%2023:59:59${avgMinutes}`;
