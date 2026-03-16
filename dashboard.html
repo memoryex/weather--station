@@ -879,8 +879,12 @@
 
             let outValues = []; // Išėjimas į radiatorius (field2)
             let retValues = []; // Grįžtamasis (field5)
-            let condensationCount = 0;
-            let totalValidCount = 0;
+
+            // Katilo aktyvaus darbo stebėjimas
+            let totalActiveCount = 0;
+            let riskDangerCount = 0;      // Pavojinga (Grįžtamoji < 50°C, ΔT tarp 5°C ir 15°C)
+            let riskCriticalCount = 0;    // Labai pavojinga (Grįžtamoji < 50°C, ΔT > 15°C)
+            let totalValidCount = 0;      // Bendras visų taškų skaičius (ar yra duomenų)
 
             // Saulės baterijos analizei
             let sunMinutesTotal = 0;
@@ -894,10 +898,24 @@
                 if (f.field2 && f.field5) {
                     const outV = parseFloat(f.field2);
                     const retV = parseFloat(f.field5);
+                    const deltaT = outV - retV;
                     outValues.push(outV);
                     retValues.push(retV);
-                    if(retV < 55) condensationCount++;
                     totalValidCount++;
+
+                    // Skaičiuojame TIK tada, kai katilas šildo (pvz., Išėjimas > 35°C)
+                    if(outV > 35) {
+                        totalActiveCount++;
+                        // Kondensato rizika pagal Vaillant instrukcijas:
+                        // Didžiausia rizika, kai į katilą grįžta šaltas vanduo ir yra didelis temperatūrų skirtumas (didelis šilumos nuėmimas).
+                        if (retV < 50) {
+                            if (deltaT > 15) {
+                                riskCriticalCount++; // Labai pavojinga
+                            } else if (deltaT > 5) {
+                                riskDangerCount++;   // Pavojinga
+                            }
+                        }
+                    }
                 }
 
                 // Saulės baterijos (field6) analizė
@@ -963,17 +981,28 @@
             // Atvaizduojame skaičius
             document.getElementById('ai-delta').innerHTML = `<span class="${deltaT > 20 ? 'status-warning' : 'status-success'}">${deltaT} °C</span>`;
 
-            const condRiskPerc = Math.round((condensationCount / totalValidCount) * 100);
-            const riskEl = document.getElementById('ai-risk');
-            if(condRiskPerc > 80) {
-                riskEl.innerHTML = `<span class="status-danger">Kritinė (${condRiskPerc}%)</span>`;
-            } else if (condRiskPerc > 30) {
-                riskEl.innerHTML = `<span class="status-warning">Vidutinė (${condRiskPerc}%)</span>`;
-            } else {
-                riskEl.innerHTML = `<span class="status-success">Saugi (${condRiskPerc}%)</span>`;
+            let riskCriticalPerc = 0;
+            let riskDangerPerc = 0;
+            let riskSafePerc = 100;
+
+            if (totalActiveCount > 0) {
+                riskCriticalPerc = Math.round((riskCriticalCount / totalActiveCount) * 100);
+                riskDangerPerc = Math.round((riskDangerCount / totalActiveCount) * 100);
+                riskSafePerc = 100 - riskCriticalPerc - riskDangerPerc;
             }
 
-            document.getElementById('ai-status').innerText = currentOut > 30 ? "🔥 Šildo (Aktyvus)" : "💤 Laukimo būsena";
+            const riskEl = document.getElementById('ai-risk');
+            if (totalActiveCount === 0) {
+                riskEl.innerHTML = `<span class="status-success">Neaktyvus (0%)</span>`;
+            } else if(riskCriticalPerc > 50) {
+                riskEl.innerHTML = `<span class="status-danger">Labai Pavojinga (${riskCriticalPerc}%)</span>`;
+            } else if (riskDangerPerc > 30 || riskCriticalPerc > 0) {
+                riskEl.innerHTML = `<span class="status-warning">Pavojinga (${riskDangerPerc + riskCriticalPerc}%)</span>`;
+            } else {
+                riskEl.innerHTML = `<span class="status-success">Nepavojinga (${riskSafePerc}%)</span>`;
+            }
+
+            document.getElementById('ai-status').innerText = currentOut > 35 ? "🔥 Šildo (Aktyvus)" : "💤 Laukimo būsena";
 
             // 3. Išmanusis teksto generavimas
             let report = `<strong>Vaillant atmoTEC plus VCW 194 Analizė (120 m² ploto sistema)</strong><br><br>`;
@@ -996,14 +1025,15 @@
                 report += `✅ <b>Tolygus šilumos atidavimas:</b> Sistemos ΔT (${deltaT}°C) yra normos ribose. Radiatorių termoreguliatoriai priima šilumą pagal kambarių poreikį.<br>`;
             }
 
-            // Kondensato Rizika (AtmoTEC specifika)
-            report += `<br><strong>Kondensato ir termoreguliatorių įvertinimas:</strong> Vaillant atmoTEC (nekondensacinis) katilas reikalauja grįžtamosios virš ~55°C. Kadangi naudojate atskirus termoreguliatorius kiekvienam radiatoriui, grįžtamoji temperatūra gali stipriai svyruoti priklausomai nuo to, kiek kambarių vienu metu reikalauja šilumos. `;
-            if (condRiskPerc > 80) {
-                report += `<span class="status-danger">Jūsų sistema ${condRiskPerc}% laiko dirbo žemiau 55°C (Grįžtamoji = ${currentRet}°C). Tai ilgalaikėje perspektyvoje gali sugadinti katilo šilumokaitį. Rekomenduojama pakelti sistemos temperatūrą arba naudoti pamaišymo (trieigį) vožtuvą.</span>`;
-            } else if (condRiskPerc > 30) {
-                report += `<span class="status-warning">Pastebėta vidutinė rizika. Pasistenkite neužlaikyti katilo žemose (<50°C) temperatūrose ilgais intervalais.</span>`;
+            // Kondensato Rizika (AtmoTEC specifika) pagal Aktyvų Laiką
+            report += `<br><strong>Kondensato įvertinimas (aktyvaus darbo metu):</strong> Vaillant atmoTEC katilui rekomenduojama grįžtamoji vandens temperatūra virš ~55°C. Šaltas grįžtamasis vanduo ir didelis ΔT skatina kenksmingą kondensato ir suodžių susidarymą. `;
+            if (totalActiveCount === 0) {
+                report += `<span class="status-success">Šiandien katilas didžiąją laiko dalį ilsėjosi, rizikos vertinimui nepakanka aktyvaus darbo ciklų.</span>`;
             } else {
-                report += `<span class="status-success">Rizikos nėra. Grįžtamoji temperatūra palaikoma pakankamai aukšta, šilumokaitis apsaugotas nuo drėgmės kondensacijos ir suodžių kaupimosi.</span>`;
+                report += `Atlikus analizę, kai katilas šildė (>35°C): `;
+                if (riskSafePerc > 0) report += `<span class="status-success"><b>${riskSafePerc}%</b> laiko dirbo nepavojingame (saugiame) režime.</span> `;
+                if (riskDangerPerc > 0) report += `<span class="status-warning"><b>${riskDangerPerc}%</b> laiko dirbo <b>Pavojingame</b> režime (Grįžtamoji <50°C, ΔT >5°C).</span> `;
+                if (riskCriticalPerc > 0) report += `<span class="status-danger"><b>${riskCriticalPerc}%</b> laiko dirbo <b>Labai Pavojingame</b> režime (Grįžtamoji <50°C ir milžiniškas šilumos nuėmimas ΔT >15°C). Jei ši reikšmė didelė, tai ilgalaikėje perspektyvoje sugadins šilumokaitį. Rekomenduojama naudoti pamaišymo (trieigį) vožtuvą arba pakelti sistemos temperatūrą.</span>`;
             }
 
             // Saulės Apšviestumo Išvada
