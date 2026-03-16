@@ -320,6 +320,10 @@
                 <div class="ai-stat-title">Kondensato Rizika (<55°C)</div>
                 <div class="ai-stat-value" id="ai-risk">-- % Laiko</div>
             </div>
+            <div class="ai-stat">
+                <div class="ai-stat-title">Saulės Apšviestumas (Šiandien)</div>
+                <div class="ai-stat-value" id="ai-sun">-- %</div>
+            </div>
         </div>
         <div class="ai-report" id="ai-report">
             Renkama istorija ir orų prognozė, generuojama sistemos ataskaita...
@@ -776,17 +780,25 @@
     // --- INTELEKTUALI ANALIZĖ (AI) ---
     async function initAIAnalysis() {
         try {
-            // 1. Orai (Panevėžys) - OpenMeteo
-            const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=55.7333&longitude=24.35&current_weather=true';
+            // 1. Orai ir Saulė (Panevėžys) - OpenMeteo
+            const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=55.7333&longitude=24.35&current_weather=true&daily=sunrise,sunset&timezone=Europe%2FVilnius';
             let outdoorTemp = null;
+            let sunriseTime = null;
+            let sunsetTime = null;
+
             try {
                 const weatherRes = await fetch(weatherUrl);
                 const weatherData = await weatherRes.json();
                 outdoorTemp = weatherData.current_weather.temperature;
+
+                // Paimame šiandienos saulėtekį ir saulėlydį
+                sunriseTime = new Date(weatherData.daily.sunrise[0]).getTime();
+                sunsetTime = new Date(weatherData.daily.sunset[0]).getTime();
+
                 document.getElementById('ai-weather').innerHTML = `📍 Panevėžys, Lauke: <b>${outdoorTemp}°C</b>`;
             } catch(e) { console.error("Orai neprieinami."); }
 
-            // 2. Traukiame 1 paros duomenis visam analizei (Field2 ir Field5)
+            // 2. Traukiame 1 paros duomenis visam analizei
             const tsUrl = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&days=1`;
             const tsRes = await fetch(tsUrl);
             const tsData = await tsRes.json();
@@ -794,25 +806,80 @@
 
             let outValues = []; // Išėjimas į radiatorius (field2)
             let retValues = []; // Grįžtamasis (field5)
-            let condensationCount = 0; // Kiek kartų grįžtamasis < 55C
+            let condensationCount = 0;
             let totalValidCount = 0;
 
-            feeds.forEach(f => {
+            // Saulės baterijos analizei
+            let sunMinutesTotal = 0;
+            let daylightMinutesElapsed = 0;
+
+            for (let i = 0; i < feeds.length; i++) {
+                const f = feeds[i];
+                const time = new Date(f.created_at).getTime();
+
+                // Katilo analizė
                 if (f.field2 && f.field5) {
                     const outV = parseFloat(f.field2);
                     const retV = parseFloat(f.field5);
                     outValues.push(outV);
                     retValues.push(retV);
-
-                    // Katilas atmoTEC - rizika jei grįžtamoji vandens temperatūra pastoviai mažesnė nei 55-60C
                     if(retV < 55) condensationCount++;
                     totalValidCount++;
                 }
-            });
+
+                // Saulės baterijos (field6) analizė
+                if (sunriseTime && sunsetTime && f.field6 !== null) {
+                    const batV = parseFloat(f.field6);
+                    const currentTime = new Date().getTime(); // Dabartinis laikas
+
+                    // Skaičiuojame tik tai kas vyko po saulėtekio ir iki dabar (arba iki saulėlydžio)
+                    const endOfCalcTime = Math.min(currentTime, sunsetTime);
+
+                    if (time >= sunriseTime && time <= endOfCalcTime) {
+                        if (i > 0) {
+                            const prevTime = new Date(feeds[i-1].created_at).getTime();
+                            const gapMinutes = (time - prevTime) / 60000;
+
+                            // Jei baterija generuoja (pvz. įtampa > 13.0 V yra indikacija, kad šviečia saulė ir krauna)
+                            // Šį slenkstį (13.0) galima bus pakoreguoti pagal realius jūsų duomenis
+                            if (batV > 13.0 && gapMinutes < 60) {
+                                sunMinutesTotal += gapMinutes;
+                            }
+                        }
+                    }
+                }
+            }
 
             if (totalValidCount === 0) {
                 document.getElementById('ai-report').innerHTML = "⚠️ Nepakanka duomenų Išėjimo ir Grįžtamojo analizei. Prašome palaukti bent vienos valandos.";
                 return;
+            }
+
+            // Apskaičiuojame, kiek dienos šviesos minučių jau praėjo nuo saulėtekio
+            if (sunriseTime && sunsetTime) {
+                const currentTime = new Date().getTime();
+                if (currentTime > sunriseTime) {
+                    const endOfCalcTime = Math.min(currentTime, sunsetTime);
+                    daylightMinutesElapsed = (endOfCalcTime - sunriseTime) / 60000;
+                }
+            }
+
+            let sunPerc = 0;
+            if (daylightMinutesElapsed > 0) {
+                sunPerc = Math.round((sunMinutesTotal / daylightMinutesElapsed) * 100);
+            }
+
+            if (sunPerc > 100) sunPerc = 100; // Apsauga
+
+            const sunHours = Math.floor(sunMinutesTotal / 60);
+            const sunMins = Math.round(sunMinutesTotal % 60);
+
+            // Saulės widget'o atnaujinimas
+            if (daylightMinutesElapsed > 0) {
+                const sunColor = sunPerc > 50 ? 'status-success' : (sunPerc > 20 ? 'status-warning' : 'status-danger');
+                document.getElementById('ai-sun').innerHTML = `<span class="${sunColor}">${sunPerc}%</span> <span style="font-size:12px;color:var(--text-secondary)">(${sunHours}h ${sunMins}m)</span>`;
+            } else {
+                document.getElementById('ai-sun').innerHTML = `<span style="font-size:14px;color:var(--text-secondary)">Laukiama saulėtekio</span>`;
             }
 
             // Dabartiniai/Paskutiniai parametrai
@@ -864,6 +931,21 @@
                 report += `<span class="status-warning">Pastebėta vidutinė rizika. Pasistenkite neužlaikyti katilo žemose (<50°C) temperatūrose ilgais intervalais.</span>`;
             } else {
                 report += `<span class="status-success">Rizikos nėra. Grįžtamoji temperatūra palaikoma pakankamai aukšta, šilumokaitis apsaugotas nuo drėgmės kondensacijos ir suodžių kaupimosi.</span>`;
+            }
+
+            // Saulės Apšviestumo Išvada
+            if (sunriseTime && sunsetTime) {
+                const srTimeStr = new Date(sunriseTime).toLocaleTimeString('lt-LT', {hour: '2-digit', minute:'2-digit'});
+                const ssTimeStr = new Date(sunsetTime).toLocaleTimeString('lt-LT', {hour: '2-digit', minute:'2-digit'});
+                report += `<br><br><strong>☀️ Saulės Baterijos ir Apšviestumo Analizė:</strong> Šiandien saulė teka <b>${srTimeStr}</b>, leidžiasi <b>${ssTimeStr}</b>. `;
+                if (daylightMinutesElapsed > 0) {
+                    report += `Nuo dienos pradžios saulė bateriją apšvietė ir krovė (įtampa >13V) apie <b>${sunPerc}%</b> viso praėjusio dienos laiko (${sunHours} val. ${sunMins} min.). `;
+                    if (sunPerc > 70) report += `<span class="status-success">Diena labai saulėta, baterija turėtų būti pilnai įkrauta.</span>`;
+                    else if (sunPerc > 30) report += `<span class="status-warning">Diena su pragiedruliais, krovimas vidutinis.</span>`;
+                    else report += `<span class="status-danger">Diena labai apniukusi, krovimo efektyvumas žemas.</span>`;
+                } else {
+                    report += `Laukiama saulėtekio.`;
+                }
             }
 
             document.getElementById('ai-report').innerHTML = report;
