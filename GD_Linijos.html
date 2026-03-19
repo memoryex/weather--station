@@ -189,7 +189,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts/highcharts.js"></script>
 </head>
 <body>
 
@@ -2262,7 +2262,7 @@ function renderVizPlaceholder(id, name, type) {
 
     function renderBreakChart() {
         const container = document.getElementById('aiBreakChart');
-        if (!container || !Highcharts) return;
+        if (!container || typeof Highcharts === 'undefined') return;
 
         const hours = Array.from({length: 24}, (_, i) => i);
 
