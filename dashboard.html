@@ -180,6 +180,7 @@
         .status-danger { color: var(--danger-color); }
         .status-warning { color: var(--warning-color); }
         .status-success { color: var(--success-color); }
+        .status-secondary { color: var(--text-secondary); font-size: 14px; }
 
         .sensor-block {
             background-color: var(--bg-card);
@@ -323,6 +324,10 @@
             <div class="ai-stat">
                 <div class="ai-stat-title">Saulės Apšviestumas (Šiandien)</div>
                 <div class="ai-stat-value" id="ai-sun">-- %</div>
+            </div>
+            <div class="ai-stat">
+                <div class="ai-stat-title">GREE AC Būsena (1A | 2A)</div>
+                <div class="ai-stat-value" id="ai-ac-status" style="font-size: 18px;">Tikrinama...</div>
             </div>
         </div>
         <div class="ai-report" id="ai-report">
@@ -1066,6 +1071,8 @@
             let ac1ActiveMinutes = 0;
             let ac2ActiveMinutes = 0;
             let isAcUsed = false;
+            let currentAc1W = 0;
+            let currentAc2W = 0;
 
             for (let i = 0; i < feeds.length; i++) {
                 const f = feeds[i];
@@ -1142,6 +1149,12 @@
                             }
                         }
                     }
+                }
+
+                // Išsaugome pačią paskutinę (einamąją) reikšmę
+                if (i === feeds.length - 1) {
+                    if (f.field7 !== null) currentAc1W = parseFloat(f.field7);
+                    if (f.field8 !== null) currentAc2W = parseFloat(f.field8);
                 }
             }
 
@@ -1254,6 +1267,19 @@
                     report += `Laukiama saulėtekio.`;
                 }
             }
+
+            // Nustatome AC režimą ikonėlėms
+            let acIcon = "🔥"; // Šildymas
+            if (outdoorTemp > 18) {
+                acIcon = "❄️"; // Vėsinimas
+            } else if (outdoorTemp >= 15 && outdoorTemp <= 18) {
+                acIcon = "🍃"; // Vėdinimas
+            }
+
+            // AC Būsenos Widgetas
+            let ac1StatusStr = currentAc1W > 50 ? `<span class="status-success">${acIcon} (${currentAc1W.toFixed(0)}W)</span>` : `<span class="status-secondary">💤 Off</span>`;
+            let ac2StatusStr = currentAc2W > 50 ? `<span class="status-success">${acIcon} (${currentAc2W.toFixed(0)}W)</span>` : `<span class="status-secondary">💤 Off</span>`;
+            document.getElementById('ai-ac-status').innerHTML = `1A: ${ac1StatusStr} <span style="color:var(--border-color)">|</span> 2A: ${ac2StatusStr}`;
 
             // AC Išvada pagal orus ir sąnaudas
             if (isAcUsed) {
