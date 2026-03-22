@@ -1195,6 +1195,7 @@ function handleSignoutClick() {
 let komootUserId = null;
 let komootTours = [];
 let komootPlannedTours = [];
+let komootAuthHeader = null; // Global to store auth for map fetching
 
 function b64EncodeUnicode(str) {
     return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
@@ -1219,6 +1220,7 @@ async function fetchKomootData() {
     document.getElementById('komoot-stats-container').style.display = 'none';
 
     const authStr = 'Basic ' + b64EncodeUnicode(email + ':' + password);
+    komootAuthHeader = authStr;
     const proxyBase = 'http://localhost:5050/proxy?url=';
 
     try {
@@ -1518,23 +1520,13 @@ async function renderKomootAInsights() {
                 </div>`;
             }
 
-            // Map data extraction: Komoot start_point if available
+            // Map data extraction: Komoot route initialization
             let mapHTML = "";
-            let mapScript = "";
             if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
                 const mapId = `map-${String(tourId).replace(/[^a-zA-Z0-9]/g, '')}`;
-                mapHTML = `<div id="${mapId}" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1;"></div>`;
-                mapScript = `
-                    setTimeout(() => {
-                        try {
-                            const map = L.map('${mapId}', {zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false}).setView([${tour.start_point.lat}, ${tour.start_point.lng}], 12);
-                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                            L.circleMarker([${tour.start_point.lat}, ${tour.start_point.lng}], {
-                                color: '#3B82F6', fillColor: '#3B82F6', fillOpacity: 0.8, radius: 6
-                            }).addTo(map);
-                        } catch(e) {}
-                    }, 100);
-                `;
+                mapHTML = `<div id="${mapId}" class="komoot-map-container" data-tour-id="${tour.id}" data-lat="${tour.start_point.lat}" data-lng="${tour.start_point.lng}" data-color="#3B82F6" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1; position: relative; overflow: hidden;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted); font-size: 11px; z-index: 10;">Kraunamas maršrutas...</div>
+                           </div>`;
             }
 
             recentRidesHTML += `
@@ -1560,14 +1552,6 @@ async function renderKomootAInsights() {
                     ${fitHTML}
                 </div>
             `;
-
-            // To run map scripts after innerHTML update, we need to defer their execution
-            if(mapScript) {
-                setTimeout(() => {
-                    try { eval(mapScript); } catch(e){}
-                }, 300);
-            }
-
         });
         recentRidesHTML += `</div>`;
     }
@@ -1687,24 +1671,14 @@ async function renderKomootAInsights() {
                 }
             }
 
-            // Map data extraction: Komoot start_point if available for PLANNED tours too
+            // Map data extraction: Komoot route initialization for PLANNED tours too
             let plannedMapHTML = "";
-            let plannedMapScript = "";
             const tourIdStr = String(tour.id || name).replace(/[^a-zA-Z0-9]/g, '');
             if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
                 const mapIdPlanned = `map-planned-${tourIdStr}`;
-                plannedMapHTML = `<div id="${mapIdPlanned}" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1;"></div>`;
-                plannedMapScript = `
-                    setTimeout(() => {
-                        try {
-                            const mapP = L.map('${mapIdPlanned}', {zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false}).setView([${tour.start_point.lat}, ${tour.start_point.lng}], 12);
-                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapP);
-                            L.circleMarker([${tour.start_point.lat}, ${tour.start_point.lng}], {
-                                color: '#10B981', fillColor: '#10B981', fillOpacity: 0.8, radius: 6
-                            }).addTo(mapP);
-                        } catch(e) {}
-                    }, 100);
-                `;
+                plannedMapHTML = `<div id="${mapIdPlanned}" class="komoot-map-container" data-tour-id="${tour.id}" data-lat="${tour.start_point.lat}" data-lng="${tour.start_point.lng}" data-color="#10B981" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1; position: relative; overflow: hidden;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted); font-size: 11px; z-index: 10;">Kraunamas maršrutas...</div>
+                           </div>`;
             }
 
             plannedRidesHTML += `
@@ -1757,12 +1731,6 @@ async function renderKomootAInsights() {
                     </div>
                 </div>
             `;
-
-            if(plannedMapScript) {
-                setTimeout(() => {
-                    try { eval(plannedMapScript); } catch(e){}
-                }, 300);
-            }
         });
         plannedRidesHTML += `</div>`;
     } else {
@@ -1770,6 +1738,64 @@ async function renderKomootAInsights() {
     }
 
     insightsContainer.innerHTML = plannedRidesHTML + recentRidesHTML;
+
+    // Asynchronously load and draw all actual routes on the maps
+    setTimeout(() => {
+        initKomootMaps();
+    }, 200);
+}
+
+async function initKomootMaps() {
+    const mapContainers = document.querySelectorAll('.komoot-map-container');
+    const proxyBase = 'http://localhost:5050/proxy?url=';
+
+    for (const container of mapContainers) {
+        const mapId = container.id;
+        const tourId = container.getAttribute('data-tour-id');
+        const lat = parseFloat(container.getAttribute('data-lat'));
+        const lng = parseFloat(container.getAttribute('data-lng'));
+        const color = container.getAttribute('data-color') || '#3B82F6';
+
+        try {
+            // Remove loading text
+            container.innerHTML = '';
+
+            // Init Leaflet map, disable all interaction to act as a background image
+            const map = L.map(mapId, {zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false}).setView([lat, lng], 12);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+            }).addTo(map);
+
+            if (tourId && tourId !== "undefined" && komootAuthHeader) {
+                // Fetch coordinates for this tour
+                const coordsUrl = proxyBase + encodeURIComponent(`https://api.komoot.de/v007/tours/${tourId}/coordinates`);
+                const res = await fetch(coordsUrl, { headers: { 'Authorization': komootAuthHeader } });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.items && data.items.length > 0) {
+                        const latlngs = data.items.map(item => [item.lat, item.lng]);
+                        // Draw the full polyline route
+                        const polyline = L.polyline(latlngs, {color: color, weight: 3, opacity: 0.9}).addTo(map);
+                        // Auto zoom to fit the whole route inside the tiny box
+                        map.fitBounds(polyline.getBounds(), {padding: [10, 10]});
+
+                        // Add start marker
+                        L.circleMarker(latlngs[0], {color: 'white', fillColor: color, fillOpacity: 1, radius: 4}).addTo(map);
+                        // Add end marker (red)
+                        L.circleMarker(latlngs[latlngs.length - 1], {color: 'white', fillColor: '#EF4444', fillOpacity: 1, radius: 4}).addTo(map);
+                        continue;
+                    }
+                }
+            }
+
+            // Fallback: If no coordinates or no Auth, just show a dot at start point
+            L.circleMarker([lat, lng], {color: 'white', fillColor: color, fillOpacity: 1, radius: 5}).addTo(map);
+
+        } catch (e) {
+            console.error(`Map init failed for ${mapId}:`, e);
+        }
+    }
 }
 </script>
 </body>
