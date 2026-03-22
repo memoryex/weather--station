@@ -1289,21 +1289,49 @@
                 const ac2H = Math.floor(ac2ActiveMinutes / 60); const ac2M = Math.round(ac2ActiveMinutes % 60);
 
                 let acModeStr = "Šildymas (Šilumos Siurblys)";
+                let isHeating = true;
                 if (outdoorTemp > 18) {
                     acModeStr = "Vėsinimas (Kondicionavimas)";
+                    isHeating = false;
                 } else if (outdoorTemp >= 15 && outdoorTemp <= 18) {
                     acModeStr = "Vėdinimas / Minimalus koregavimas";
+                    isHeating = false;
+                }
+
+                // GREE Šilumos Siurblio (Oras-Oras) apytikslis COP skaičiavimas šildymo režimu
+                let currentCop = 1.0;
+                let efficiencyPercent = 100; // Standartinė atskaita prie +7°C (COP ~4.0 = 100%)
+
+                if (isHeating) {
+                    if (outdoorTemp >= 7) { currentCop = 4.0; efficiencyPercent = 100; }
+                    else if (outdoorTemp >= 0) { currentCop = 3.0 + ((outdoorTemp - 0) / 7) * 1.0; } // nuo 3.0 iki 4.0
+                    else if (outdoorTemp >= -7) { currentCop = 2.2 + ((outdoorTemp - (-7)) / 7) * 0.8; } // nuo 2.2 iki 3.0
+                    else if (outdoorTemp >= -15) { currentCop = 1.5 + ((outdoorTemp - (-15)) / 8) * 0.7; } // nuo 1.5 iki 2.2
+                    else { currentCop = 1.2; } // Žemiau -15°C COP drastiškai krenta
+
+                    if (outdoorTemp < 7) {
+                        efficiencyPercent = Math.round((currentCop / 4.0) * 100);
+                    }
                 }
 
                 report += `<br><br><strong>❄️ AC (GREE) Analizė:</strong> Atrodo, kad šiandien buvo naudojami oro kondicionieriai. Atsižvelgiant į lauko temperatūrą (<b>${outdoorTemp}°C</b>), dabar sistemos greičiausiai veikia <b>${acModeStr}</b> režimu. `;
+
+                if (isHeating) {
+                    report += `Šilumos siurblio naudingo veikimo koeficientas (COP) šiuo oru siekia apie <b>${currentCop.toFixed(2)}</b> (<b>${efficiencyPercent}%</b> efektyvumas lyginant su +7°C norma). <i>Pastaba:</i> C klasės namui su prastesne šilumos izoliacija, šaltu oru (žemiau 0°C) siurbliai dirba didelėmis apkrovomis ir greitai praranda sugeneruotą šilumą, todėl rekomenduojama stebėti sąnaudų proporciją lyginant su kietu kuru/dujomis.<br>`;
+                }
+
                 report += `<br><ul>`;
                 if (ac1ActiveMinutes > 0) {
-                    report += `<li><b>1 aukštas (2x GREE ~1.5kW):</b> Dirbo ~${ac1H}h ${ac1M}m. Suvartota apytiksliai <b>${ac1_kWh} kWh</b>.</li>`;
+                    report += `<li><b>1 aukštas (2x GREE ~1.5kW):</b> Dirbo ~${ac1H}h ${ac1M}m. Elektros sąnaudos: <b>${ac1_kWh} kWh</b>`;
+                    if (isHeating) report += ` <span style="color:var(--success-color)">(~${(ac1_kWh * currentCop).toFixed(1)} kWh šilumos)</span>`;
+                    report += `.</li>`;
                 } else {
                     report += `<li><b>1 aukštas:</b> Nenaudotas.</li>`;
                 }
                 if (ac2ActiveMinutes > 0) {
-                    report += `<li><b>2 aukštas (1x GREE ~3.5kW):</b> Dirbo ~${ac2H}h ${ac2M}m. Suvartota apytiksliai <b>${ac2_kWh} kWh</b>.</li>`;
+                    report += `<li><b>2 aukštas (1x GREE ~3.5kW):</b> Dirbo ~${ac2H}h ${ac2M}m. Elektros sąnaudos: <b>${ac2_kWh} kWh</b>`;
+                    if (isHeating) report += ` <span style="color:var(--success-color)">(~${(ac2_kWh * currentCop).toFixed(1)} kWh šilumos)</span>`;
+                    report += `.</li>`;
                 } else {
                     report += `<li><b>2 aukštas:</b> Nenaudotas.</li>`;
                 }
