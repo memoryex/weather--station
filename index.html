@@ -1407,6 +1407,37 @@ function renderKomootAInsights() {
                 challengeDesc = "Banguotas reljefas, smagus, bet reikalaujantis energijos.";
             }
 
+            // Canyon Pathlite:ON 5 SUV (750Wh) Battery Logic
+            // Approximation parameters (Wh per km) based on rider weight ~85kg + bike ~28kg
+            // Baseline flat: Eco ~5 Wh/km, Tour ~8 Wh/km, Turbo ~14 Wh/km
+            // Elevation penalty: + ~1.5 Wh per 1 meter of climb in Turbo (less in Eco)
+
+            let ecoWh = (dist * 5) + (elevation * 0.4);
+            let tourWh = (dist * 8) + (elevation * 0.8);
+            let turboWh = (dist * 14) + (elevation * 1.5);
+
+            let ecoPct = Math.min(100, Math.round((ecoWh / 750) * 100));
+            let tourPct = Math.min(100, Math.round((tourWh / 750) * 100));
+            let turboPct = Math.min(100, Math.round((turboWh / 750) * 100));
+
+            let exceedsEco = ecoWh > 750;
+            let exceedsTour = tourWh > 750;
+            let exceedsTurbo = turboWh > 750;
+
+            // E-bike specific ride strategy
+            let ebikeStrategy = "";
+            if (exceedsEco) {
+                ebikeStrategy = "🚨 ĮSPĖJIMAS: Baterijos neužteks net Eco režimu! Būtina planuoti tarpinį įkrovimą arba didelę dalį minti išjungus variklį.";
+            } else if (exceedsTour) {
+                ebikeStrategy = "Baterijos gali neužtekti nuolat važiuojant Tour/Auto režimu. Lygumose junkite Eco, o Tour/Auto naudokite tik prieš vėją ar įkalnėse.";
+            } else if (exceedsTurbo) {
+                ebikeStrategy = "Nuolat važiuoti Turbo režimu neužteks energijos. Lygumose naudokite Tour (ar Auto), o Turbo pasilikite tik stačiausioms įkalnėms.";
+            } else if (climbRatio > 15) {
+                ebikeStrategy = "Maršrutas kalvotas: Lygumose rekomenduojamas Tour/Auto režimas taupymui, o Turbo – stačiuose pakilimuose (saugos jūsų kelius). Baterijos pakaks drąsiai.";
+            } else {
+                ebikeStrategy = "Trasa nesudėtinga: Baterijos talpos 750Wh pilnai užteks net ir važiuojant dideliu pagalbos lygiu. Mėgaukitės kelione!";
+            }
+
             // Find a good day in the 14-day forecast for this specific ride
             if (weatherData && weatherData.hourly) {
                 const today = new Date();
@@ -1465,6 +1496,27 @@ function renderKomootAInsights() {
                             ${challengeDesc}
                         </div>
                         ${warnings.length > 0 ? `<div style="margin-top: 8px; font-size: 12px; color: var(--danger-text); font-weight: 500;">⚠️ ${warnings.join('<br>⚠️ ')}</div>` : ''}
+                    </div>
+
+                    <div style="margin-bottom: 15px; padding: 10px; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px;">
+                        <div style="font-size: 12px; font-weight: bold; color: var(--accent-blue); display: flex; align-items: center; gap: 5px; margin-bottom: 8px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                            E-BIKE SĄNAUDOS (750Wh)
+                        </div>
+                        <div style="display: flex; gap: 10px; font-size: 11px; margin-bottom: 8px;">
+                            <div style="flex: 1; text-align: center; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.2); ${exceedsEco ? 'color: var(--danger-text); font-weight: bold;' : 'color: var(--safe-text);'}">
+                                <strong>ECO</strong><br>${ecoPct > 100 ? '>100' : ecoPct}%
+                            </div>
+                            <div style="flex: 1; text-align: center; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.2); ${exceedsTour ? 'color: var(--danger-text); font-weight: bold;' : 'color: var(--warning-text);'}">
+                                <strong>TOUR/AUTO</strong><br>${tourPct > 100 ? '>100' : tourPct}%
+                            </div>
+                            <div style="flex: 1; text-align: center; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.2); ${exceedsTurbo ? 'color: var(--danger-text); font-weight: bold;' : 'color: var(--danger-text);'}">
+                                <strong>TURBO</strong><br>${turboPct > 100 ? '>100' : turboPct}%
+                            </div>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                            ${ebikeStrategy}
+                        </div>
                     </div>
 
                     <div style="font-size: 13px; color: var(--text-main); margin-bottom: 5px;">
