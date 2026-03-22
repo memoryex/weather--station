@@ -16,27 +16,40 @@ function updateTemperatures() {
     var validFieldsCount = 0;
 
     // 1. Ieškome temperatūros jutiklių ("temperature:")
-    // Kadangi turite 5 jutiklius, jie užpildys field1, field2, field3, field4, field5
+    // Kiekvienas Shelly Add-on jutiklis turi unikalų ID: pvz. "temperature:100", "temperature:101"...
+    // Tam, kad neatsirastų klaidų ("spygliai"), jeigu kuris nors vienas jutiklis trumpam praranda ryšį
+    // (t.y. nepasistumtų kiti laukeliai į priekį ar atgal), PRIRIŠAME konkretų ID prie konkretaus field.
+    // 100 -> field1, 101 -> field2, 102 -> field3, 103 -> field4, 104 -> field5
     for (var key in res) {
       if (key.indexOf("temperature:") === 0) {
         var tempObj = res[key];
         if (tempObj && typeof tempObj.tC === "number") {
-          validFieldsCount++;
-          fieldsStr += "&field" + validFieldsCount + "=" + tempObj.tC;
-          print("🌡️ Rastas jutiklis [" + key + "] temperatūra: " + tempObj.tC + " °C");
+          var idStr = key.slice(12); // Paimame skaičių po "temperature:"
+          // mJS aplinkoje skaičiaus vertimas dažniausiai atliekamas JSON.parse
+          var idNum = JSON.parse(idStr);
+          var fieldNum = idNum - 99; // Formulė: id 100 tampa field 1, 101 -> 2, ir t.t.
+
+          // Apsauga, jei turite daugiau ar mažiau jutiklių
+          if (fieldNum >= 1 && fieldNum <= 5) {
+            validFieldsCount++;
+            fieldsStr += "&field" + fieldNum + "=" + tempObj.tC;
+            print("🌡️ Rastas jutiklis [" + key + "] temperatūra: " + tempObj.tC + " °C -> priskirta prie field" + fieldNum);
+          } else {
+            print("⚠️ Neatpažintas jutiklio ID [" + key + "]. Nesiunčiama.");
+          }
         }
       }
     }
 
     // 2. Ieškome įtampos jutiklių ("voltmeter:" - Shelly UNI Plus atveju)
-    // ThingSpeak užpildys sekantį laisvą lauką po temperatūrų (t.y. field6)
+    // Voltmetras bus visada griežtai pririštas prie field6
     for (var vkey in res) {
       if (vkey.indexOf("voltmeter:") === 0) {
         var voltObj = res[vkey];
         if (voltObj && typeof voltObj.voltage === "number") {
           validFieldsCount++;
-          fieldsStr += "&field" + validFieldsCount + "=" + voltObj.voltage;
-          print("⚡ Rasta Saulės baterija [" + vkey + "] įtampa: " + voltObj.voltage + " V");
+          fieldsStr += "&field6=" + voltObj.voltage;
+          print("⚡ Rasta Saulės baterija [" + vkey + "] įtampa: " + voltObj.voltage + " V -> priskirta prie field6");
         }
       }
     }
