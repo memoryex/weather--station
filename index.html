@@ -1472,7 +1472,7 @@ async function renderKomootAInsights() {
                 if (tour.date && tour.duration) {
                     const tStart = new Date(tour.date).getTime();
                     const tEnd = tStart + (tour.duration * 1000); // duration in seconds
-                    await fetchFitDataForTour(tour.id || name, tStart, tEnd);
+                    await fetchFitDataForTour(tour.id || tour.name, tStart, tEnd);
                 }
             }
         }
