@@ -1329,7 +1329,7 @@ function renderKomootAInsights() {
             const dateStr = tour.date ? new Date(tour.date).toLocaleDateString('lt-LT') : '';
             const durationHrs = (tour.duration || 0) / 3600;
             const avgSpeed = durationHrs > 0 ? (dist / durationHrs).toFixed(1) : 0;
-            const elevation = tour.elevation_up || 0;
+            const elevation = Math.round(tour.elevation_up || 0);
 
             // AI logic for calories & effort
             // Rough estimation: ~30-40 kcal per km depending on elevation and speed
@@ -1375,7 +1375,7 @@ function renderKomootAInsights() {
         plannedRides.forEach(tour => {
             const dist = ((tour.distance || 0) / 1000).toFixed(1);
             const name = tour.name || 'Belaidis maršrutas';
-            const elevation = tour.elevation_up || 0;
+            const elevation = Math.round(tour.elevation_up || 0);
 
             // AI Advice based on distance, elevation, and current active profile or general weather
             // Since we don't have exact coordinate weather matching for each tour point, we use the selected city's weather data
@@ -1384,8 +1384,28 @@ function renderKomootAInsights() {
             let advice = "";
             let warnings = [];
 
-            if (elevation > 1000) warnings.push("Didelis sukilimas, reikės geros formos.");
-            if (dist > 80) warnings.push("Ilgas atstumas, pasiimk pakankamai vandens ir maisto.");
+            // Route Challenge AI Logic
+            let challengeLevel = "Lengvas";
+            let challengeColor = "var(--safe-text)";
+            let climbRatio = dist > 0 ? (elevation / dist) : 0; // meters per km
+            let challengeDesc = "Paprastas reljefas, puikiai tinka atsipalaidavimui.";
+
+            if (dist > 100 || elevation > 1500 || climbRatio > 25) {
+                challengeLevel = "Ekspertinis iššūkis";
+                challengeColor = "var(--danger-text)";
+                challengeDesc = "Labai sunki trasa. Būtina puiki fizinė forma ir pasiruošimas.";
+                if (climbRatio > 25) warnings.push("Ekstremalus kalvuotumas! Stačios įkalnės.");
+                if (dist > 100) warnings.push("Itin ilga distancija – planuokite maisto ir vandens atsargas.");
+            } else if (dist > 60 || elevation > 800 || climbRatio > 15) {
+                challengeLevel = "Sunkus iššūkis";
+                challengeColor = "var(--warning-text)";
+                challengeDesc = "Reikalaus ištvermės ir pastangų.";
+                if (climbRatio > 15) warnings.push("Didelis kalvuotumas – teks paprakaituoti įkalnėse.");
+            } else if (dist > 30 || elevation > 400 || climbRatio > 8) {
+                challengeLevel = "Vidutinis iššūkis";
+                challengeColor = "#fbbf24"; // slight yellow/orange
+                challengeDesc = "Banguotas reljefas, smagus, bet reikalaujantis energijos.";
+            }
 
             // Find a good day in the 14-day forecast for this specific ride
             if (weatherData && weatherData.hourly) {
@@ -1437,13 +1457,22 @@ function renderKomootAInsights() {
                         <span>Sukilimas:</span> <strong>${elevation} m</strong>
                     </div>
 
+                    <div style="margin-bottom: 15px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <div style="font-size: 12px; font-weight: bold; color: ${challengeColor}; text-transform: uppercase;">
+                            ${challengeLevel}
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                            ${challengeDesc}
+                        </div>
+                        ${warnings.length > 0 ? `<div style="margin-top: 8px; font-size: 12px; color: var(--danger-text); font-weight: 500;">⚠️ ${warnings.join('<br>⚠️ ')}</div>` : ''}
+                    </div>
+
                     <div style="font-size: 13px; color: var(--text-main); margin-bottom: 5px;">
                         ${bestDayStr}
                     </div>
                     <div style="font-size: 12px; color: var(--text-muted); font-style: italic;">
                         ${advice}
                     </div>
-                    ${warnings.length > 0 ? `<div style="margin-top: 10px; font-size: 12px; color: var(--warning-text);">⚠️ ${warnings.join('<br>')}</div>` : ''}
                 </div>
             `;
         });
