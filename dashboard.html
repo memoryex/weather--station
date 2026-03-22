@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Šildymo Sistemos Dashboard</title>
+    <!-- Highcharts -->
+    <script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.0/highcharts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.0/highcharts-more.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.0/modules/solid-gauge.js"></script>
+    <style>
+        /* Tamsioji Tema (Nutylėta) */
+        :root {
+            --bg-main: #1a1b26;
+            --bg-card: #24283b;
+            --text-main: #c0caf5;
+            --text-secondary: #9aa5ce;
+            --border-color: #3b4261;
+            --accent-color: #0db9d7;
+            --danger-color: #f7768e;
+            --success-color: #9ece6a;
+            --warning-color: #e0af68;
+        }
+
+        /* Šviesioji Tema */
+        [data-theme="light"] {
+            --bg-main: #f0f2f5;
+            --bg-card: #ffffff;
+            --text-main: #1c1e21;
+            --text-secondary: #606770;
+            --border-color: #dadce0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            gap: 15px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .settings-bar {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: var(--bg-card);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .settings-bar label {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        input[type="color"] {
+            border: none;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border-radius: 5px;
+            cursor: pointer;
+            background: none;
+        }
+
+        select {
+            padding: 5px;
+            border-radius: 5px;
+            background: var(--bg-card);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+        }
+
+        .ai-panel {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(13, 185, 215, 0.05) 100%);
+            border: 1px solid var(--accent-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .ai-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .ai-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-title span.badge {
+            background-color: var(--danger-color);
+            color: #fff;
+            font-size: 11px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .ai-weather {
+            font-size: 14px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .ai-stat {
+            background: var(--bg-main);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .ai-stat-title {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .ai-stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .ai-report {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-left: 4px solid var(--accent-color);
+            border-radius: 4px;
+            font-size: 15px;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+
+        .status-danger { color: var(--danger-color); }
+        .status-warning { color: var(--warning-color); }
+        .status-success { color: var(--success-color); }
+        .status-secondary { color: var(--text-secondary); font-size: 14px; }
+
+        .sensor-block {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+
+        .sensor-block:hover {
+            border-color: var(--accent-color);
+        }
+
+        .sensor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .sensor-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .sensor-text {
+            text-align: left;
+        }
+
+        .sensor-title {
+            font-size: 18px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .sensor-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--accent-color);
+            transition: color 0.3s;
+        }
+
+        .gauge-container {
+            height: 120px;
+            width: 180px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-self: center;
+        }
+
+        button.period-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        button.period-btn:hover {
+            border-color: var(--accent-color);
+        }
+
+        button.period-btn.active {
+            background-color: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            border-top: 1px dashed var(--border-color);
+            padding-top: 15px;
+            margin-top: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 50px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-top">
+        <h1>Šildymo Sistemos </h1>
+        <div class="settings-bar">
+            <label>
+                Tema:
+                <select id="theme-selector" onchange="changeTheme(this.value)">
+                    <option value="dark">Tamsi</option>
+                    <option value="light">Šviesi</option>
+                </select>
+            </label>
+            <label>
+                Spalva:
+                <input type="color" id="color-picker" value="#0db9d7" onchange="changeAccentColor(this.value)">
+            </label>
+        </div>
+    </div>
+
+    <!-- AI Analizė (Paskutinės paros duomenys) -->
+    <div class="ai-panel">
+        <div class="ai-header">
+            <div class="ai-title">🧠 Intelektuali Katilo Analizė <span class="badge">BETA</span></div>
+            <div class="ai-weather" id="ai-weather">☁️ Kraunami Panevėžio orai...</div>
+        </div>
+        <div class="ai-grid">
+            <div class="ai-stat">
+                <div class="ai-stat-title">ΔT (Skirtumas Tarp Iš/Gr)</div>
+                <div class="ai-stat-value" id="ai-delta">-- °C</div>
+            </div>
+            <div class="ai-stat">
+                <div class="ai-stat-title">Vaillant atmoTEC Būsena</div>
+                <div class="ai-stat-value" id="ai-status">Analizuojama...</div>
+            </div>
+            <div class="ai-stat">
+                <div class="ai-stat-title">Kondensato Rizika (<55°C)</div>
+                <div class="ai-stat-value" id="ai-risk">-- % Laiko</div>
+            </div>
+            <div class="ai-stat">
+                <div class="ai-stat-title">Saulės Apšviestumas (Šiandien)</div>
+                <div class="ai-stat-value" id="ai-sun">-- %</div>
+            </div>
+            <div class="ai-stat">
+                <div class="ai-stat-title">GREE AC Būsena (1A | 2A)</div>
+                <div class="ai-stat-value" id="ai-ac-status" style="font-size: 18px;">Tikrinama...</div>
+            </div>
+        </div>
+        <div class="ai-report" id="ai-report">
+            Renkama istorija ir orų prognozė, generuojama sistemos ataskaita...
+        </div>
+    </div>
+
+    <!-- 1. Kieto kuro katilas -->
+    <div class="sensor-block" id="block-pecius">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Kieto kuro katilas</div>
+                    <div class="sensor-value" id="val-pecius">-- °C</div>
+                </div>
+                <div id="gauge-pecius" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('pecius', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('pecius', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('pecius', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-pecius" class="loading">Kraunami duomenys...</div>
+        <div id="chart-pecius" class="chart-container"></div>
+    </div>
+
+    <!-- 2. Išėjimas į radiatorius -->
+    <div class="sensor-block" id="block-radiatoriai">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Išėjimas į radiatorius</div>
+                    <div class="sensor-value" id="val-radiatoriai">-- °C</div>
+                </div>
+                <div id="gauge-radiatoriai" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('radiatoriai', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('radiatoriai', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('radiatoriai', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-radiatoriai" class="loading">Kraunami duomenys...</div>
+        <div id="chart-radiatoriai" class="chart-container"></div>
+    </div>
+
+    <!-- 3. Boileris -->
+    <div class="sensor-block" id="block-boileris">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Boileris</div>
+                    <div class="sensor-value" id="val-boileris">-- °C</div>
+                </div>
+                <div id="gauge-boileris" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('boileris', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('boileris', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('boileris', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-boileris" class="loading">Kraunami duomenys...</div>
+        <div id="chart-boileris" class="chart-container"></div>
+    </div>
+
+    <!-- 4. Grindinis -->
+    <div class="sensor-block" id="block-grindinis">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Grindinis šildymas</div>
+                    <div class="sensor-value" id="val-grindinis">-- °C</div>
+                </div>
+                <div id="gauge-grindinis" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('grindinis', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('grindinis', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('grindinis', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-grindinis" class="loading">Kraunami duomenys...</div>
+        <div id="chart-grindinis" class="chart-container"></div>
+    </div>
+
+    <!-- 5. Grįžtamasis iš radiatorių -->
+    <div class="sensor-block" id="block-griztamasis">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Grįžtamasis iš radiatorių</div>
+                    <div class="sensor-value" id="val-griztamasis">-- °C</div>
+                </div>
+                <div id="gauge-griztamasis" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('griztamasis', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('griztamasis', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('griztamasis', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-griztamasis" class="loading">Kraunami duomenys...</div>
+        <div id="chart-griztamasis" class="chart-container"></div>
+    </div>
+
+    <!-- 6. Saulės Baterija -->
+    <div class="sensor-block" id="block-baterija">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">Saulės baterija</div>
+                    <div class="sensor-value" id="val-baterija">-- V</div>
+                </div>
+                <div id="gauge-baterija" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('baterija', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('baterija', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('baterija', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-baterija" class="loading">Kraunami duomenys...</div>
+        <div id="chart-baterija" class="chart-container"></div>
+    </div>
+
+    <!-- 1 Aukštas AC -->
+    <div class="sensor-block" id="block-ac1">
+        <div class="sensor-header" style="flex-direction: column; align-items: stretch;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div class="sensor-info">
+                    <div class="sensor-text">
+                        <div class="sensor-title">1 aukštas AC (2x GREE)</div>
+                        <div class="sensor-value" id="val-ac1">-- W</div>
+                        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;" id="val-ac1-desc">
+                            Sunaudota: -- kWh
+                        </div>
+                    </div>
+                    <div id="gauge-ac1" class="gauge-container"></div>
+                </div>
+                <div class="controls" style="flex-direction: column; align-items: flex-end;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button class="period-btn active" onclick="fetchAcData('ac1', 1, this)">Para</button>
+                        <button class="period-btn" onclick="fetchAcData('ac1', 7, this)">Savaitė</button>
+                        <button class="period-btn" onclick="fetchAcData('ac1', 30, this)">Mėnuo</button>
+                    </div>
+                    <div style="display: flex; gap: 5px; align-items: center; background: var(--bg-main); padding: 5px; border-radius: 6px; border: 1px solid var(--border-color);">
+                        <input type="date" id="ac1-nuo" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <span style="color: var(--text-secondary);">-</span>
+                        <input type="date" id="ac1-iki" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <button onclick="fetchAcDataCustom('ac1', this)" style="background: var(--accent-color); color: #000; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Skaičiuoti</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="loading-ac1" class="loading">Kraunami duomenys...</div>
+        <div id="chart-ac1" class="chart-container"></div>
+    </div>
+
+    <!-- 2 Aukštas AC -->
+    <div class="sensor-block" id="block-ac2">
+        <div class="sensor-header" style="flex-direction: column; align-items: stretch;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div class="sensor-info">
+                    <div class="sensor-text">
+                        <div class="sensor-title">2 aukštas AC (1x GREE)</div>
+                        <div class="sensor-value" id="val-ac2">-- W</div>
+                        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;" id="val-ac2-desc">
+                            Sunaudota: -- kWh
+                        </div>
+                    </div>
+                    <div id="gauge-ac2" class="gauge-container"></div>
+                </div>
+                <div class="controls" style="flex-direction: column; align-items: flex-end;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button class="period-btn active" onclick="fetchAcData('ac2', 1, this)">Para</button>
+                        <button class="period-btn" onclick="fetchAcData('ac2', 7, this)">Savaitė</button>
+                        <button class="period-btn" onclick="fetchAcData('ac2', 30, this)">Mėnuo</button>
+                    </div>
+                    <div style="display: flex; gap: 5px; align-items: center; background: var(--bg-main); padding: 5px; border-radius: 6px; border: 1px solid var(--border-color);">
+                        <input type="date" id="ac2-nuo" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <span style="color: var(--text-secondary);">-</span>
+                        <input type="date" id="ac2-iki" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <button onclick="fetchAcDataCustom('ac2', this)" style="background: var(--accent-color); color: #000; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Skaičiuoti</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="loading-ac2" class="loading">Kraunami duomenys...</div>
+        <div id="chart-ac2" class="chart-container"></div>
+    </div>
+
+    <!-- 7. Apytikslės Dujų Sąnaudos -->
+    <div class="sensor-block" id="block-dujos">
+        <div class="sensor-header" style="flex-direction: column; align-items: stretch;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div class="sensor-info">
+                    <div class="sensor-text">
+                        <div class="sensor-title">Suvartotos Dujos (Per pasirinktą laiką)</div>
+                        <div class="sensor-value" id="val-dujos">-- m³</div>
+                        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;" id="val-dujos-desc">
+                        Pagal ΔT skaičiavimą
+                    </div>
+
+                    <!-- Prognozė pagal orus -->
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border-color);">
+                        <div class="sensor-title" style="font-size: 13px;">Orų Modelio Prognozė:</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #ffb86c;" id="val-dujos-prognoze">-- m³</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 3px;" id="val-dujos-prognoze-desc">
+                            (Atitinkamam laikotarpiui)
+                        </div>
+                        </div>
+                    </div>
+                    <div id="gauge-dujos" class="gauge-container"></div>
+                </div>
+                <div class="controls" style="flex-direction: column; align-items: flex-end;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button class="period-btn active" onclick="fetchGasData(1, this)">Para</button>
+                        <button class="period-btn" onclick="fetchGasData(7, this)">Savaitė</button>
+                        <button class="period-btn" onclick="fetchGasData(30, this)">Mėnuo</button>
+                    </div>
+                    <div style="display: flex; gap: 5px; align-items: center; background: var(--bg-main); padding: 5px; border-radius: 6px; border: 1px solid var(--border-color);">
+                        <input type="date" id="dujos-nuo" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <span style="color: var(--text-secondary);">-</span>
+                        <input type="date" id="dujos-iki" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <button onclick="fetchGasDataCustom(this)" style="background: var(--accent-color); color: #000; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Skaičiuoti</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="loading-dujos" class="loading">Skaičiuojamos dujų sąnaudos...</div>
+        <div id="chart-dujos" class="chart-container"></div>
+    </div>
+</div>
+
+<script>
+    const channelId = '351746';
+    const apiKey = 'ASBGVMMPC9JGLR8L';
+
+    // Konfigūracija kiekvienam jutikliui (Field mappings, Y-axis limits, Unit)
+    const sensorsConfig = {
+        pecius:      { field: 'field1', max: 90, unit: '°C', color: '#ff9e64' },
+        radiatoriai: { field: 'field2', max: 50, unit: '°C', color: '#f7768e' },
+        boileris:    { field: 'field3', max: 90, unit: '°C', color: '#7aa2f7' },
+        grindinis:   { field: 'field4', max: 50, unit: '°C', color: '#9ece6a' },
+        griztamasis: { field: 'field5', max: 50, unit: '°C', color: '#e0af68' },
+        baterija:    { field: 'field6', max: 15, unit: 'V',  color: '#bb9af7' }, // Gauges limitas 0-15V kaip paprašyta
+        ac1:         { field: 'field7', max: 3500, unit: 'W', color: '#33b1ff' }, // 1 aukštas AC (2x GREE 1.5kW)
+        ac2:         { field: 'field8', max: 4000, unit: 'W', color: '#82aaff' }  // 2 aukštas AC (1x GREE 3.5kW)
+    };
+
+    // Papildomas config dujoms
+    sensorsConfig.dujos = { field: 'virtual', max: 24, unit: 'kW', color: '#ffb86c' }; // Gauge rodys einamąją galią kW
+
+    const charts = {};
+    const gauges = {};
+
+    function changeTheme(themeName) {
+        document.documentElement.setAttribute('data-theme', themeName);
+        localStorage.setItem('dashboard_theme', themeName);
+        document.getElementById('theme-selector').value = themeName;
+        updateChartsColors();
+    }
+
+    function changeAccentColor(colorHex) {
+        document.documentElement.style.setProperty('--accent-color', colorHex);
+        localStorage.setItem('dashboard_accent', colorHex);
+        document.getElementById('color-picker').value = colorHex;
+        updateChartsColors();
+    }
+
+    function loadPreferences() {
+        const savedTheme = localStorage.getItem('dashboard_theme') || 'dark';
+        const savedAccent = localStorage.getItem('dashboard_accent') || '#0db9d7';
+        changeTheme(savedTheme);
+        changeAccentColor(savedAccent);
+    }
+
+    function getCssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    // --- CHART IR GAUGE KŪRIMAS ---
+    function initAllCharts() {
+        // Highcharts globalūs nustatymai (Spalvos, Šriftai, Lietuvos laikas)
+        Highcharts.setOptions({
+            time: { useUTC: false }, // Naudojamas naršyklės / Lietuvos laikas vietoj UTC
+            chart: { backgroundColor: 'transparent', style: { fontFamily: 'Arial, sans-serif' } },
+            credits: { enabled: false }
+        });
+
+        Object.keys(sensorsConfig).forEach(key => {
+            const config = sensorsConfig[key];
+
+            // 1. Kuriam Gauge
+            gauges[key] = Highcharts.chart(`gauge-${key}`, {
+                chart: { type: 'solidgauge' },
+                title: null,
+                pane: {
+                    center: ['50%', '85%'], size: '140%', startAngle: -90, endAngle: 90,
+                    background: { innerRadius: '60%', outerRadius: '100%', shape: 'arc', borderWidth: 0 }
+                },
+                exporting: { enabled: false }, tooltip: { enabled: false },
+                yAxis: {
+                    min: 0, max: config.max,
+                    lineWidth: 0, tickWidth: 0, minorTickInterval: null, tickAmount: 2,
+                    labels: { y: 16 }
+                },
+                plotOptions: { solidgauge: { dataLabels: { enabled: false }, linecap: 'round', stickyTracking: false, rounded: true } },
+                series: [{ name: key, data: [0] }]
+            });
+
+            // 2. Kuriam Spline Chart
+            charts[key] = Highcharts.chart(`chart-${key}`, {
+                chart: { type: 'spline', zoomType: 'x' },
+                title: { text: null },
+                xAxis: { type: 'datetime' },
+                yAxis: { title: { text: key === 'dujos' ? 'Galia (kW)' : `Reikšmė (${config.unit})` } },
+                tooltip: { valueSuffix: key === 'dujos' ? ' kW' : ` ${config.unit}`, xDateFormat: '%Y-%m-%d %H:%M' },
+                plotOptions: { spline: { marker: { enabled: false }, lineWidth: 2 } },
+                legend: { enabled: false },
+                series: [{ name: key.toUpperCase(), data: [], color: config.color, step: key === 'dujos' ? 'left' : false }]
+            });
+        });
+
+        updateChartsColors();
+    }
+
+    function updateChartsColors() {
+        const textMain = getCssVar('--text-main');
+        const textSec = getCssVar('--text-secondary');
+        const borderColor = getCssVar('--border-color');
+        const accent = getCssVar('--accent-color');
+        const bgMain = getCssVar('--bg-main');
+
+        Object.keys(sensorsConfig).forEach(key => {
+            // Atnaujinti Spline grafikus
+            if(charts[key]) {
+                charts[key].update({
+                    xAxis: { gridLineColor: borderColor, lineColor: borderColor, tickColor: borderColor, labels: { style: { color: textSec } } },
+                    yAxis: { gridLineColor: borderColor, title: { style: { color: textSec } }, labels: { style: { color: textSec } } },
+                    tooltip: { backgroundColor: getCssVar('--bg-card'), style: { color: textMain }, borderColor: borderColor }
+                }, false);
+                charts[key].redraw();
+            }
+
+            // Atnaujinti Gauges
+            if(gauges[key]) {
+                gauges[key].update({
+                    pane: { background: { backgroundColor: bgMain } },
+                    yAxis: {
+                        stops: [ [0.1, borderColor], [0.5, accent], [0.9, '#ff0000'] ],
+                        labels: { style: { color: textSec } }
+                    }
+                }, false);
+                gauges[key].redraw();
+            }
+        });
+    }
+
+    // --- DUOMENŲ GAVIMAS KIEKVIENAM ATSKIRAI ---
+    async function fetchDataForSensor(sensorKey, days, btn) {
+        const config = sensorsConfig[sensorKey];
+
+        // UI Būsena
+        document.getElementById(`loading-${sensorKey}`).style.display = 'block';
+        document.getElementById(`chart-${sensorKey}`).style.opacity = '0.3';
+
+        // Mygtukų stilius
+        const buttons = document.getElementById(`block-${sensorKey}`).querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+
+        // Kadangi kreipiames į konkretų kanalą, siunčiam užklausą ThingSpeak API
+        const url = `https://api.thingspeak.com/channels/${channelId}/fields/${config.field.replace('field', '')}.json?api_key=${apiKey}&days=${days}`;
+
+        try {
+            const response = await fetch(url);
+            const json = await response.json();
+            const feeds = json.feeds;
+
+            const chartData = [];
+            let lastVal = null;
+
+            feeds.forEach(feed => {
+                const time = new Date(feed.created_at).getTime();
+                const rawVal = feed[config.field];
+
+                if (rawVal !== null && rawVal !== undefined) {
+                    const val = parseFloat(rawVal);
+                    chartData.push([time, val]);
+                    lastVal = val;
+                }
+            });
+
+            // Atnaujiname Gauge ir Tekstą
+            if (lastVal !== null) {
+                const decimalPlaces = config.unit === 'W' ? 0 : (config.unit === 'V' ? 2 : 1);
+                document.getElementById(`val-${sensorKey}`).innerText = lastVal.toFixed(decimalPlaces) + ' ' + config.unit;
+                gauges[sensorKey].series[0].points[0].update(lastVal);
+            }
+
+            // Atnaujiname Grafiką
+            charts[sensorKey].series[0].setData(chartData, false);
+            charts[sensorKey].redraw();
+
+        } catch (error) {
+            console.error(`Klaida gaunant duomenis [${sensorKey}]:`, error);
+        } finally {
+            document.getElementById(`loading-${sensorKey}`).style.display = 'none';
+            document.getElementById(`chart-${sensorKey}`).style.opacity = '1';
+        }
+    }
+
+    // --- AC DUOMENŲ GAVIMAS IR APDOROJIMAS ---
+    function processAcFeeds(sensorKey, feeds) {
+        const config = sensorsConfig[sensorKey];
+        const chartData = [];
+        let lastVal = 0;
+        let totalEnergy_Wh = 0;
+
+        for (let i = 0; i < feeds.length; i++) {
+            const f = feeds[i];
+            const rawVal = f[config.field];
+            const time = new Date(f.created_at).getTime();
+
+            if (rawVal !== null && rawVal !== undefined) {
+                const val = parseFloat(rawVal);
+                chartData.push([time, val]);
+                lastVal = val;
+
+                if (i > 0) {
+                    const prevTime = new Date(feeds[i-1].created_at).getTime();
+                    const gapHours = (time - prevTime) / 3600000;
+
+                    if (gapHours < 1 && val > 50) { // Ignoruojam ryšio dingimą ir budėjimo režimą (<50W)
+                        totalEnergy_Wh += (val * gapHours);
+                    }
+                }
+            }
+        }
+
+        const totalKwh = (totalEnergy_Wh / 1000).toFixed(2);
+
+        // Atnaujinti DOM
+        document.getElementById(`val-${sensorKey}-desc`).innerText = `Sunaudota: ${totalKwh} kWh`;
+        document.getElementById(`val-${sensorKey}`).innerText = lastVal.toFixed(0) + ' W';
+        gauges[sensorKey].series[0].points[0].update(lastVal);
+        charts[sensorKey].series[0].setData(chartData, false);
+        charts[sensorKey].redraw();
+    }
+
+    async function fetchAcData(sensorKey, days, btn) {
+        document.getElementById(`loading-${sensorKey}`).style.display = 'block';
+        document.getElementById(`chart-${sensorKey}`).style.opacity = '0.3';
+
+        const buttons = document.getElementById(`block-${sensorKey}`).querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+
+        document.getElementById(`${sensorKey}-nuo`).value = '';
+        document.getElementById(`${sensorKey}-iki`).value = '';
+
+        const config = sensorsConfig[sensorKey];
+        // Kadangi galia svyruoja, vidurkiname per daug taškų dideliems tarpams
+        const avgMinutes = days === 1 ? '' : (days === 7 ? '&average=10' : '&average=60');
+        const url = `https://api.thingspeak.com/channels/${channelId}/fields/${config.field.replace('field', '')}.json?api_key=${apiKey}&days=${days}${avgMinutes}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            processAcFeeds(sensorKey, data.feeds);
+        } catch (error) {
+            console.error(`Klaida gaunant AC duomenis [${sensorKey}]:`, error);
+        } finally {
+            document.getElementById(`loading-${sensorKey}`).style.display = 'none';
+            document.getElementById(`chart-${sensorKey}`).style.opacity = '1';
+        }
+    }
+
+    async function fetchAcDataCustom(sensorKey, btnNode) {
+        const startVal = document.getElementById(`${sensorKey}-nuo`).value;
+        const endVal = document.getElementById(`${sensorKey}-iki`).value;
+
+        if(!startVal || !endVal) {
+            alert("Prašome pasirinkti Pradžios ir Pabaigos datas!");
+            return;
+        }
+
+        document.getElementById(`loading-${sensorKey}`).style.display = 'block';
+        document.getElementById(`chart-${sensorKey}`).style.opacity = '0.3';
+
+        const buttons = document.getElementById(`block-${sensorKey}`).querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+
+        const dStart = new Date(startVal);
+        const dEnd = new Date(endVal);
+        const diffTime = Math.abs(dEnd - dStart);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const avgMinutes = diffDays <= 1 ? '' : (diffDays <= 7 ? '&average=10' : '&average=60');
+
+        const config = sensorsConfig[sensorKey];
+        const url = `https://api.thingspeak.com/channels/${channelId}/fields/${config.field.replace('field', '')}.json?api_key=${apiKey}&start=${startVal}%2000:00:00&end=${endVal}%2023:59:59${avgMinutes}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            processAcFeeds(sensorKey, data.feeds);
+        } catch (error) {
+            console.error(`Klaida gaunant AC custom duomenis [${sensorKey}]:`, error);
+        } finally {
+            document.getElementById(`loading-${sensorKey}`).style.display = 'none';
+            document.getElementById(`chart-${sensorKey}`).style.opacity = '1';
+        }
+    }
+
+    // Bendra funkcija dujų duomenų apdorojimui ir vizualizavimui
+    function processGasFeeds(feeds, periodName) {
+        let powerData = [];
+        let totalEnergy_kWh = 0;
+        let lastPower_kW = 0;
+
+        // Kadangi sistema dirba su individualiais radiatorių termoreguliatoriais,
+        // realus siurblio srautas yra žymiai mažesnis nei standartinis maksimumas.
+        // Pritaikius modelį prie jūsų faktinių duomenų (285m3 esant -15°C šalčiams),
+        // pakoregavome vidutinį skaičiuojamąjį debitą į 350 l/h.
+        const massFlowRate_kg_h = 350;
+        const specificHeat_kWh_kgC = 0.001163;
+        // Gamtinių dujų šilumingumas ~10.5 kWh/m3. Katilo (nekondensacinio) efektyvumas ~90% -> naudom ~9.5 kWh/m3
+
+        for (let i = 0; i < feeds.length; i++) {
+            const f = feeds[i];
+            if (f.field2 && f.field5) {
+                const outV = parseFloat(f.field2);
+                const retV = parseFloat(f.field5);
+                const time = new Date(f.created_at).getTime();
+
+                let deltaT = outV - retV;
+                let power_kW = 0;
+
+                // Modifikuotas filtras: katilas realiai dega ir vartoja dujas tik tada,
+                // kai padavimas yra pakankamai karštas (> 35°C) ir yra aiškus energijos nuėmimas (ΔT > 3°C).
+                // Jei ΔT < 3°C, greičiausiai vyksta tik residualinė (išliekamoji) vandens cirkuliacija.
+                if (deltaT > 3 && outV > 35) {
+                    power_kW = massFlowRate_kg_h * specificHeat_kWh_kgC * deltaT;
+                }
+
+                powerData.push([time, power_kW]);
+                lastPower_kW = power_kW;
+
+                if (i > 0) {
+                    const prevTime = new Date(feeds[i-1].created_at).getTime();
+                    const timeDiffHours = (time - prevTime) / 3600000;
+                    // Venkime didelių laiko tarpų dėl prarastų ryšių (max 1h)
+                    if (timeDiffHours < 1) {
+                        totalEnergy_kWh += power_kW * timeDiffHours;
+                    }
+                }
+            }
+        }
+
+        const totalGas_m3 = totalEnergy_kWh / 9.5;
+
+        document.getElementById('val-dujos').innerText = totalGas_m3.toFixed(2) + ' m³';
+        document.getElementById('val-dujos-desc').innerText = `Viso sudeginta per ${periodName} (Apytiksliai)`;
+        gauges['dujos'].series[0].points[0].update(lastPower_kW);
+        charts['dujos'].series[0].setData(powerData, false);
+        charts['dujos'].redraw();
+    }
+
+    // Orų pagrįstas dujų modelis (285m3 per mėnesį esant -15°C vidurkiui)
+    // 285 m3 / 31 diena = ~9.19 m3 / dieną
+    // Tariame vidaus temp = 21°C. Delta T tarp vidaus ir lauko = 21 - (-15) = 36°C
+    // Galingumo koeficientas K = 9.19 / 36 = 0.255 m3/(°C*diena)
+    // Formulė: Dujos_m3_Dienai = (21 - Lauko_Temp) * 0.255
+    async function getWeatherBasedGasForecast(days) {
+        try {
+            const indoorTemp = 21;
+            const K = 0.255;
+
+            // Jei prognozuojame menesiui atgal/pirmyn – geriausia imti pastarųjų orų vidurkius iš Meteo
+            // Bet supaprastintai paimkime dabartinės savaitės tendenciją (Open-Meteo 7 dienų prognozė)
+            const forecastUrl = 'https://api.open-meteo.com/v1/forecast?latitude=55.7333&longitude=24.35&daily=temperature_2m_mean&timezone=Europe%2FVilnius';
+            const res = await fetch(forecastUrl);
+            const data = await res.json();
+
+            let totalForecast_m3 = 0;
+            const temps = data.daily.temperature_2m_mean;
+
+            // Suskaičiuojame savaitės vidurkį, kad galėtume ekstrapoliuoti mėnesiui
+            let weekSum = 0;
+            temps.forEach(t => weekSum += t);
+            const avgWeekTemp = weekSum / temps.length;
+
+            if (days === 1) {
+                // Šios dienos prognozė
+                const tToday = temps[0];
+                let deltaDay = indoorTemp - tToday;
+                if (deltaDay < 0) deltaDay = 0;
+                totalForecast_m3 = deltaDay * K;
+            } else if (days === 7) {
+                // Savaitės suma
+                temps.forEach(t => {
+                    let deltaDay = indoorTemp - t;
+                    if (deltaDay > 0) totalForecast_m3 += (deltaDay * K);
+                });
+            } else {
+                // Mėnesiui imame savaitės vidurkį ir dauginame iš 30
+                let deltaAvg = indoorTemp - avgWeekTemp;
+                if (deltaAvg < 0) deltaAvg = 0;
+                totalForecast_m3 = (deltaAvg * K) * days;
+            }
+
+            document.getElementById('val-dujos-prognoze').innerText = totalForecast_m3.toFixed(1) + ' m³';
+            document.getElementById('val-dujos-prognoze-desc').innerText = `(Paskaičiuota pagal dabartinius orus)`;
+
+        } catch (e) {
+            console.error("Klaida orų dujų prognozėje:", e);
+        }
+    }
+
+    // --- APYTIKSLĖS DUJŲ SĄNAUDOS (Mygtukais) ---
+    async function fetchGasData(days, btn) {
+        document.getElementById('loading-dujos').style.display = 'block';
+        document.getElementById('chart-dujos').style.opacity = '0.3';
+
+        const buttons = document.getElementById('block-dujos').querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+
+        // Išvalome custom inputus
+        document.getElementById('dujos-nuo').value = '';
+        document.getElementById('dujos-iki').value = '';
+
+        const avgMinutes = days === 1 ? '' : (days === 7 ? '&average=10' : '&average=60');
+        const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&days=${days}${avgMinutes}`;
+
+        try {
+            // Paraleliai kviečiame ir ThingSpeak DeltaT metodą, ir Orų prognozės metodą
+            getWeatherBasedGasForecast(days);
+
+            const response = await fetch(url);
+            const data = await response.json();
+            const periodName = days === 1 ? 'parą' : (days === 7 ? 'savaitę' : 'mėnesį');
+            processGasFeeds(data.feeds, periodName);
+        } catch (error) {
+            console.error('Klaida gaunant dujų duomenis:', error);
+        } finally {
+            document.getElementById('loading-dujos').style.display = 'none';
+            document.getElementById('chart-dujos').style.opacity = '1';
+        }
+    }
+
+    // --- APYTIKSLĖS DUJŲ SĄNAUDOS (Pasirinktu Laikotarpiu) ---
+    async function fetchGasDataCustom(btnNode) {
+        const startVal = document.getElementById('dujos-nuo').value;
+        const endVal = document.getElementById('dujos-iki').value;
+
+        if(!startVal || !endVal) {
+            alert("Prašome pasirinkti Pradžios ir Pabaigos datas!");
+            return;
+        }
+
+        document.getElementById('loading-dujos').style.display = 'block';
+        document.getElementById('chart-dujos').style.opacity = '0.3';
+
+        const buttons = document.getElementById('block-dujos').querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+
+        // Skaičiuojame kiek dienų skirtumas, kad parinkti vidurkį API
+        const dStart = new Date(startVal);
+        const dEnd = new Date(endVal);
+        const diffTime = Math.abs(dEnd - dStart);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        const avgMinutes = diffDays <= 1 ? '' : (diffDays <= 7 ? '&average=10' : '&average=60');
+
+        // Kviečiam orų modelį atitinkamam dienų skaičiui (ekstrapoliuojant nuo dabartinių orų)
+        getWeatherBasedGasForecast(diffDays || 1);
+
+        // ThingSpeak reikalauja yyyy-mm-dd%2000:00:00 formato
+        const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&start=${startVal}%2000:00:00&end=${endVal}%2023:59:59${avgMinutes}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            processGasFeeds(data.feeds, `pasirinktą laiką (${startVal} iki ${endVal})`);
+
+        } catch (error) {
+            console.error('Klaida gaunant dujų duomenis:', error);
+        } finally {
+            document.getElementById('loading-dujos').style.display = 'none';
+            document.getElementById('chart-dujos').style.opacity = '1';
+        }
+    }
+
+    // --- INTELEKTUALI ANALIZĖ (AI) ---
+    async function initAIAnalysis() {
+        try {
+            // 1. Orai ir Saulė (Panevėžys) - OpenMeteo
+            const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=55.7333&longitude=24.35&current_weather=true&daily=sunrise,sunset,temperature_2m_mean&timezone=Europe%2FVilnius';
+            let outdoorTemp = null;
+            let sunriseTime = null;
+            let sunsetTime = null;
+            let forecastTemps = [];
+
+            try {
+                const weatherRes = await fetch(weatherUrl);
+                const weatherData = await weatherRes.json();
+                outdoorTemp = weatherData.current_weather.temperature;
+
+                // Paimame šiandienos saulėtekį ir saulėlydį
+                sunriseTime = new Date(weatherData.daily.sunrise[0]).getTime();
+                sunsetTime = new Date(weatherData.daily.sunset[0]).getTime();
+
+                // Prognozuojamų dienų temperatūrų vidurkiai (Šiandien, Rytoj, ... iki 7 dienų)
+                forecastTemps = weatherData.daily.temperature_2m_mean;
+
+                document.getElementById('ai-weather').innerHTML = `📍 Panevėžys, Lauke: <b>${outdoorTemp}°C</b>`;
+            } catch(e) { console.error("Orai neprieinami."); }
+
+            // 2. Traukiame 1 paros duomenis visam analizei
+            const tsUrl = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&days=1`;
+            const tsRes = await fetch(tsUrl);
+            const tsData = await tsRes.json();
+            const feeds = tsData.feeds;
+
+            let outValues = []; // Išėjimas į radiatorius (field2)
+            let retValues = []; // Grįžtamasis (field5)
+
+            // Katilo aktyvaus darbo stebėjimas
+            let totalActiveCount = 0;
+            let riskDangerCount = 0;      // Pavojinga (Grįžtamoji < 50°C, ΔT tarp 5°C ir 15°C)
+            let riskCriticalCount = 0;    // Labai pavojinga (Grįžtamoji < 50°C, ΔT > 15°C)
+            let totalValidCount = 0;      // Bendras visų taškų skaičius (ar yra duomenų)
+
+            // Saulės baterijos analizei
+            let sunMinutesTotal = 0;
+            let daylightMinutesElapsed = 0;
+            let nightBaselineV = null;
+            // Nustatysime žemiausią (ar vidutinę) nakties įtampą, nuo kurios atsispirsime.
+
+            // AC analizei (Energija W * laikas = Wh -> kWh)
+            let ac1Energy_Wh = 0;
+            let ac2Energy_Wh = 0;
+            let ac1ActiveMinutes = 0;
+            let ac2ActiveMinutes = 0;
+            let isAcUsed = false;
+            let currentAc1W = 0;
+            let currentAc2W = 0;
+
+            for (let i = 0; i < feeds.length; i++) {
+                const f = feeds[i];
+                const time = new Date(f.created_at).getTime();
+
+                // Katilo analizė
+                if (f.field2 && f.field5) {
+                    const outV = parseFloat(f.field2);
+                    const retV = parseFloat(f.field5);
+                    const deltaT = outV - retV;
+                    outValues.push(outV);
+                    retValues.push(retV);
+                    totalValidCount++;
+
+                    // Skaičiuojame TIK tada, kai katilas šildo (pvz., Išėjimas > 35°C)
+                    if(outV > 35) {
+                        totalActiveCount++;
+                        // Kondensato rizika pagal Vaillant instrukcijas:
+                        // Didžiausia rizika, kai į katilą grįžta šaltas vanduo ir yra didelis temperatūrų skirtumas (didelis šilumos nuėmimas).
+                        if (retV < 50) {
+                            if (deltaT > 15) {
+                                riskCriticalCount++; // Labai pavojinga
+                            } else if (deltaT > 5) {
+                                riskDangerCount++;   // Pavojinga
+                            }
+                        }
+                    }
+                }
+
+                // Saulės baterijos (field6) analizė
+                if (sunriseTime && sunsetTime && f.field6 !== null) {
+                    const batV = parseFloat(f.field6);
+                    const currentTime = new Date().getTime();
+
+                    // Gauname nakties atskaitos tašką (Baseline įtampą prieš patekant saulei)
+                    if (time < sunriseTime) {
+                        if (nightBaselineV === null || batV < nightBaselineV) {
+                            nightBaselineV = batV;
+                        }
+                    }
+
+                    const endOfCalcTime = Math.min(currentTime, sunsetTime);
+
+                    if (time >= sunriseTime && time <= endOfCalcTime) {
+                        if (i > 0) {
+                            const prevTime = new Date(feeds[i-1].created_at).getTime();
+                            const gapMinutes = (time - prevTime) / 60000;
+
+                            // Jei dėl kokių nors priežasčių nakties duomenų nebuvo, laikome standartinį 12.2V švino rūgštinės baterijos ramybės būvį
+                            const baseline = nightBaselineV !== null ? nightBaselineV : 12.2;
+
+                            // Saulė šviečia, kai įtampa pramuša nakties ramybės įtampą (+0.1V reiškia krovimąsi / saulės aktyvumą)
+                            if (batV > (baseline + 0.1) && gapMinutes < 60) {
+                                sunMinutesTotal += gapMinutes;
+                            }
+                        }
+                    }
+                }
+
+                // AC (Kondicionierių) analizė
+                if (i > 0) {
+                    const prevTime = new Date(feeds[i-1].created_at).getTime();
+                    const gapHours = (time - prevTime) / 3600000;
+
+                    // Venkime gigantiškų atstumų jei dingo wifi (> 1 valandos)
+                    if (gapHours < 1) {
+                        if (f.field7 !== null) {
+                            const ac1W = parseFloat(f.field7);
+                            // Laikome, kad AC dirba jei galia > 50W (budėjimo režimas ignoruoja)
+                            if (ac1W > 50) {
+                                ac1Energy_Wh += (ac1W * gapHours);
+                                ac1ActiveMinutes += (gapHours * 60);
+                                isAcUsed = true;
+                            }
+                        }
+                        if (f.field8 !== null) {
+                            const ac2W = parseFloat(f.field8);
+                            if (ac2W > 50) {
+                                ac2Energy_Wh += (ac2W * gapHours);
+                                ac2ActiveMinutes += (gapHours * 60);
+                                isAcUsed = true;
+                            }
+                        }
+                    }
+                }
+
+                // Išsaugome pačią paskutinę (einamąją) reikšmę (Nepasitikime tik paskutiniu indeksu, atnaujiname kaskart radę reikšmę)
+                if (f.field7 !== null) currentAc1W = parseFloat(f.field7);
+                if (f.field8 !== null) currentAc2W = parseFloat(f.field8);
+            }
+
+            if (totalValidCount === 0) {
+                document.getElementById('ai-report').innerHTML = "⚠️ Nepakanka duomenų Išėjimo ir Grįžtamojo analizei. Prašome palaukti bent vienos valandos.";
+                return;
+            }
+
+            // Apskaičiuojame, kiek dienos šviesos minučių jau praėjo nuo saulėtekio
+            if (sunriseTime && sunsetTime) {
+                const currentTime = new Date().getTime();
+                if (currentTime > sunriseTime) {
+                    const endOfCalcTime = Math.min(currentTime, sunsetTime);
+                    daylightMinutesElapsed = (endOfCalcTime - sunriseTime) / 60000;
+                }
+            }
+
+            let sunPerc = 0;
+            if (daylightMinutesElapsed > 0) {
+                sunPerc = Math.round((sunMinutesTotal / daylightMinutesElapsed) * 100);
+            }
+
+            if (sunPerc > 100) sunPerc = 100; // Apsauga
+
+            const sunHours = Math.floor(sunMinutesTotal / 60);
+            const sunMins = Math.round(sunMinutesTotal % 60);
+
+            // Saulės widget'o atnaujinimas
+            if (daylightMinutesElapsed > 0) {
+                const sunColor = sunPerc > 50 ? 'status-success' : (sunPerc > 20 ? 'status-warning' : 'status-danger');
+                document.getElementById('ai-sun').innerHTML = `<span class="${sunColor}">${sunPerc}%</span> <span style="font-size:12px;color:var(--text-secondary)">(${sunHours}h ${sunMins}m)</span>`;
+            } else {
+                document.getElementById('ai-sun').innerHTML = `<span style="font-size:14px;color:var(--text-secondary)">Laukiama saulėtekio</span>`;
+            }
+
+            // Dabartiniai/Paskutiniai parametrai
+            const currentOut = outValues[outValues.length - 1];
+            const currentRet = retValues[retValues.length - 1];
+            const deltaT = (currentOut - currentRet).toFixed(1);
+
+            // Atvaizduojame skaičius
+            document.getElementById('ai-delta').innerHTML = `<span class="${deltaT > 20 ? 'status-warning' : 'status-success'}">${deltaT} °C</span>`;
+
+            let riskCriticalPerc = 0;
+            let riskDangerPerc = 0;
+            let riskSafePerc = 100;
+
+            if (totalActiveCount > 0) {
+                riskCriticalPerc = Math.round((riskCriticalCount / totalActiveCount) * 100);
+                riskDangerPerc = Math.round((riskDangerCount / totalActiveCount) * 100);
+                riskSafePerc = 100 - riskCriticalPerc - riskDangerPerc;
+            }
+
+            const riskEl = document.getElementById('ai-risk');
+            if (totalActiveCount === 0) {
+                riskEl.innerHTML = `<span class="status-success">Neaktyvus (0%)</span>`;
+            } else if(riskCriticalPerc > 50) {
+                riskEl.innerHTML = `<span class="status-danger">Labai Pavojinga (${riskCriticalPerc}%)</span>`;
+            } else if (riskDangerPerc > 30 || riskCriticalPerc > 0) {
+                riskEl.innerHTML = `<span class="status-warning">Pavojinga (${riskDangerPerc + riskCriticalPerc}%)</span>`;
+            } else {
+                riskEl.innerHTML = `<span class="status-success">Nepavojinga (${riskSafePerc}%)</span>`;
+            }
+
+            document.getElementById('ai-status').innerText = currentOut > 35 ? "🔥 Šildo (Aktyvus)" : "💤 Laukimo būsena";
+
+            // 3. Išmanusis teksto generavimas
+            let report = `<strong>Vaillant atmoTEC plus VCW 194 Analizė (120 m² ploto sistema)</strong><br><br>`;
+
+            // Oro / Katilo efektyvumo santykis
+            if (outdoorTemp !== null) {
+                if (outdoorTemp < 0 && currentOut < 45) {
+                    report += `⚠️ Lauke šalta (${outdoorTemp}°C), tačiau paduodama temperatūra (${currentOut}°C) gana žema. Gali nepakakti galios 120m² plotui sušildyti, jei namas prastai apšiltintas.<br>`;
+                } else if (outdoorTemp > 10 && currentOut > 60) {
+                    report += `💡 Lauke gana šilta (${outdoorTemp}°C), tačiau paduodate itin karštą vandenį (${currentOut}°C). Rekomenduojama prisukti katilą arba sumažinti termostato kreivę, siekiant taupyti kurą/dujas.<br>`;
+                }
+            }
+
+            // Delta T Analizė atsižvelgiant į termoreguliatorius
+            if (deltaT > 20) {
+                report += `ℹ️ <b>Dinaminis Srautas:</b> Didelis skirtumas tarp išėjimo ir grįžtamojo (ΔT = ${deltaT}°C). Tai normalu, jei šiuo metu dauguma kambarių termoreguliatorių yra užsidarę (pasiekta temperatūra), o atidaryti tik keli radiatoriai intensyviai nuiminėja šilumą.<br>`;
+            } else if (deltaT < 5 && currentOut > 30) {
+                report += `ℹ️ <b>Sistemos prisisotinimas:</b> ΔT = ${deltaT}°C. Patalpos greičiausiai sušilusios ir termoreguliatoriai atviri, arba sistemos srautas labai greitas. Svarbu, kad grįžtamoji temperatūra išliktų saugiame lygyje.<br>`;
+            } else {
+                report += `✅ <b>Tolygus šilumos atidavimas:</b> Sistemos ΔT (${deltaT}°C) yra normos ribose. Radiatorių termoreguliatoriai priima šilumą pagal kambarių poreikį.<br>`;
+            }
+
+            // Kondensato Rizika (AtmoTEC specifika) pagal Aktyvų Laiką
+            report += `<br><strong>Kondensato įvertinimas (aktyvaus darbo metu):</strong> Vaillant atmoTEC katilui rekomenduojama grįžtamoji vandens temperatūra virš ~55°C. Šaltas grįžtamasis vanduo ir didelis ΔT skatina kenksmingą kondensato ir suodžių susidarymą. `;
+            if (totalActiveCount === 0) {
+                report += `<span class="status-success">Šiandien katilas didžiąją laiko dalį ilsėjosi, rizikos vertinimui nepakanka aktyvaus darbo ciklų.</span>`;
+            } else {
+                report += `Atlikus analizę, kai katilas šildė (>35°C): `;
+                if (riskSafePerc > 0) report += `<span class="status-success"><b>${riskSafePerc}%</b> laiko dirbo nepavojingame (saugiame) režime.</span> `;
+                if (riskDangerPerc > 0) report += `<span class="status-warning"><b>${riskDangerPerc}%</b> laiko dirbo <b>Pavojingame</b> režime (Grįžtamoji <50°C, ΔT >5°C).</span> `;
+                if (riskCriticalPerc > 0) report += `<span class="status-danger"><b>${riskCriticalPerc}%</b> laiko dirbo <b>Labai Pavojingame</b> režime (Grįžtamoji <50°C ir milžiniškas šilumos nuėmimas ΔT >15°C). Jei ši reikšmė didelė, tai ilgalaikėje perspektyvoje sugadins šilumokaitį. Rekomenduojama naudoti pamaišymo (trieigį) vožtuvą arba pakelti sistemos temperatūrą.</span>`;
+            }
+
+            // Saulės Apšviestumo Išvada
+            if (sunriseTime && sunsetTime) {
+                const srTimeStr = new Date(sunriseTime).toLocaleTimeString('lt-LT', {hour: '2-digit', minute:'2-digit'});
+                const ssTimeStr = new Date(sunsetTime).toLocaleTimeString('lt-LT', {hour: '2-digit', minute:'2-digit'});
+                report += `<br><br><strong>☀️ Saulės Baterijos ir Apšviestumo Analizė:</strong> Šiandien saulė teka <b>${srTimeStr}</b>, leidžiasi <b>${ssTimeStr}</b>. `;
+                if (daylightMinutesElapsed > 0) {
+                    let baselineStr = nightBaselineV !== null ? nightBaselineV.toFixed(2) : "12.20";
+                    report += `Sistemos ramybės įtampa naktį buvo ~<b>${baselineStr} V</b>. Atsižvelgiant į tai, saulė pro debesis pradėjo matytis ir kelti įtampą (krovimas prasidėjo) apie <b>${sunPerc}%</b> viso praėjusio dienos laiko (${sunHours} val. ${sunMins} min.). `;
+                    if (sunPerc > 70) report += `<span class="status-success">Diena pakankamai giedra ir šviesi, baterija aktyviai kraunama.</span>`;
+                    else if (sunPerc > 30) report += `<span class="status-warning">Diena su pragiedruliais arba apsiniaukusi (šviesos lygis vidutinis).</span>`;
+                    else report += `<span class="status-danger">Diena labai tamsi, apniukusi, šviesos neužtenka net minimaliam įtampos pakėlimui.</span>`;
+                } else {
+                    report += `Laukiama saulėtekio.`;
+                }
+            }
+
+            // Nustatome AC režimą ikonėlėms
+            let acIcon = "🔥"; // Šildymas
+            if (outdoorTemp > 18) {
+                acIcon = "❄️"; // Vėsinimas
+            } else if (outdoorTemp >= 15 && outdoorTemp <= 18) {
+                acIcon = "🍃"; // Vėdinimas
+            }
+
+            // AC Būsenos Widgetas
+            let ac1StatusStr = currentAc1W > 50 ? `<span class="status-success">${acIcon} (${currentAc1W.toFixed(0)}W)</span>` : `<span class="status-secondary">💤 Off</span>`;
+            let ac2StatusStr = currentAc2W > 50 ? `<span class="status-success">${acIcon} (${currentAc2W.toFixed(0)}W)</span>` : `<span class="status-secondary">💤 Off</span>`;
+            document.getElementById('ai-ac-status').innerHTML = `1A: ${ac1StatusStr} <span style="color:var(--border-color)">|</span> 2A: ${ac2StatusStr}`;
+
+            // Išmanioji šildymo rekomendacija pagal orus (C klasės namui)
+            if (forecastTemps.length > 0) {
+                const tToday = forecastTemps[0];
+                const tTomorrow = forecastTemps[1];
+                let weekSum = 0;
+                for (let j = 0; j < 7; j++) weekSum += forecastTemps[j];
+                const tWeek = weekSum / 7;
+
+                // Funkcija nustatyti, ar geriau AC, ar Katilas
+                // Jei temp < 0, AC COP per mažas ir namas per greitai atšąla -> Katilas
+                // Jei temp >= 0, AC yra efektyvus ir pigesnis / greitesnis būdas -> AC (Šilumos siurblys)
+                const getRec = (temp) => {
+                    if (temp > 16) return "Šildymas nereikalingas / Vėsinimas ❄️";
+                    if (temp >= 0) return "Šilumos siurblys (AC) 🌬️🔥 (Efektyvu)";
+                    return "Kieto kuro/dujų katilas 🪵🔥 (Dėl minusinės temperatūros)";
+                };
+
+                report += `<br><br><strong>💡 AI Šildymo Rekomendacija (Pagal orų prognozę Panevėžyje):</strong><br>`;
+                report += `<ul>`;
+                report += `<li><b>Šiandien</b> (Vid. temp ${tToday.toFixed(1)}°C): Rekomenduojama naudoti -> <b>${getRec(tToday)}</b></li>`;
+                report += `<li><b>Rytoj</b> (Vid. temp ${tTomorrow.toFixed(1)}°C): Rekomenduojama naudoti -> <b>${getRec(tTomorrow)}</b></li>`;
+                report += `<li><b>Artimiausią savaitę</b> (Vid. temp ${tWeek.toFixed(1)}°C): Dominuojantis šildymo būdas -> <b>${getRec(tWeek)}</b></li>`;
+                report += `</ul>`;
+                report += `<i>Paaiškinimas:</i> Šilumos siurblys (AC) yra efektyvesnis už kietą kurą tol, kol lauko temperatūra nenukrenta žemiau 0°C. Nukritus žemiau nulio, C klasės namo šilumos nuostoliai tampa per dideli siurblio pajėgumams, jo naudingumo koeficientas (COP) krenta, todėl geriau ir pigiau kurti katilą.`;
+            }
+
+            // AC Išvada pagal orus ir sąnaudas
+            if (isAcUsed) {
+                const ac1_kWh = (ac1Energy_Wh / 1000).toFixed(2);
+                const ac2_kWh = (ac2Energy_Wh / 1000).toFixed(2);
+                const ac1H = Math.floor(ac1ActiveMinutes / 60); const ac1M = Math.round(ac1ActiveMinutes % 60);
+                const ac2H = Math.floor(ac2ActiveMinutes / 60); const ac2M = Math.round(ac2ActiveMinutes % 60);
+
+                let acModeStr = "Šildymas (Šilumos Siurblys)";
+                let isHeating = true;
+                if (outdoorTemp > 18) {
+                    acModeStr = "Vėsinimas (Kondicionavimas)";
+                    isHeating = false;
+                } else if (outdoorTemp >= 15 && outdoorTemp <= 18) {
+                    acModeStr = "Vėdinimas / Minimalus koregavimas";
+                    isHeating = false;
+                }
+
+                // GREE Šilumos Siurblio (Oras-Oras) apytikslis COP skaičiavimas šildymo režimu
+                let currentCop = 1.0;
+                let efficiencyPercent = 100; // Standartinė atskaita prie +7°C (COP ~4.0 = 100%)
+
+                if (isHeating) {
+                    if (outdoorTemp >= 7) { currentCop = 4.0; efficiencyPercent = 100; }
+                    else if (outdoorTemp >= 0) { currentCop = 3.0 + ((outdoorTemp - 0) / 7) * 1.0; } // nuo 3.0 iki 4.0
+                    else if (outdoorTemp >= -7) { currentCop = 2.2 + ((outdoorTemp - (-7)) / 7) * 0.8; } // nuo 2.2 iki 3.0
+                    else if (outdoorTemp >= -15) { currentCop = 1.5 + ((outdoorTemp - (-15)) / 8) * 0.7; } // nuo 1.5 iki 2.2
+                    else { currentCop = 1.2; } // Žemiau -15°C COP drastiškai krenta
+
+                    if (outdoorTemp < 7) {
+                        efficiencyPercent = Math.round((currentCop / 4.0) * 100);
+                    }
+                }
+
+                report += `<br><br><strong>❄️ AC (GREE) Analizė:</strong> Atrodo, kad šiandien buvo naudojami oro kondicionieriai. Atsižvelgiant į lauko temperatūrą (<b>${outdoorTemp}°C</b>), dabar sistemos greičiausiai veikia <b>${acModeStr}</b> režimu. `;
+
+                if (isHeating) {
+                    report += `Šilumos siurblio naudingo veikimo koeficientas (COP) šiuo oru siekia apie <b>${currentCop.toFixed(2)}</b> (<b>${efficiencyPercent}%</b> efektyvumas lyginant su +7°C norma). <i>Pastaba:</i> C klasės namui su prastesne šilumos izoliacija, šaltu oru (žemiau 0°C) siurbliai dirba didelėmis apkrovomis ir greitai praranda sugeneruotą šilumą, todėl rekomenduojama stebėti sąnaudų proporciją lyginant su kietu kuru/dujomis.<br>`;
+                }
+
+                report += `<br><ul>`;
+                if (ac1ActiveMinutes > 0) {
+                    report += `<li><b>1 aukštas (2x GREE ~1.5kW):</b> Dirbo ~${ac1H}h ${ac1M}m. Elektros sąnaudos: <b>${ac1_kWh} kWh</b>`;
+                    if (isHeating) report += ` <span style="color:var(--success-color)">(~${(ac1_kWh * currentCop).toFixed(1)} kWh šilumos)</span>`;
+                    report += `.</li>`;
+                } else {
+                    report += `<li><b>1 aukštas:</b> Nenaudotas.</li>`;
+                }
+                if (ac2ActiveMinutes > 0) {
+                    report += `<li><b>2 aukštas (1x GREE ~3.5kW):</b> Dirbo ~${ac2H}h ${ac2M}m. Elektros sąnaudos: <b>${ac2_kWh} kWh</b>`;
+                    if (isHeating) report += ` <span style="color:var(--success-color)">(~${(ac2_kWh * currentCop).toFixed(1)} kWh šilumos)</span>`;
+                    report += `.</li>`;
+                } else {
+                    report += `<li><b>2 aukštas:</b> Nenaudotas.</li>`;
+                }
+                report += `</ul>`;
+            } else {
+                report += `<br><br><strong>❄️ AC Sistemos:</strong> Šiandien GREE oro kondicionieriai nebuvo aktyviai naudoti (arba veikė tik budėjimo režimu).`;
+            }
+
+            document.getElementById('ai-report').innerHTML = report;
+
+        } catch (e) {
+            console.error("Klaida analizuojant:", e);
+            document.getElementById('ai-report').innerHTML = "Klaida generuojant ataskaitą. Pabandykite vėliau.";
+        }
+    }
+
+    // Paleidimas
+    document.addEventListener('DOMContentLoaded', () => {
+        loadPreferences();
+        initAllCharts();
+
+        // Pagal nutylėjimą užkraunami visų jutiklių vienos paros duomenys
+        Object.keys(sensorsConfig).forEach(key => {
+            const block = document.getElementById(`block-${key}`);
+            const btn = block.querySelector('.period-btn.active');
+            if (key === 'dujos') {
+                fetchGasData(1, btn);
+            } else if (key === 'ac1' || key === 'ac2') {
+                fetchAcData(key, 1, btn);
+            } else {
+                fetchDataForSensor(key, 1, btn);
+            }
+        });
+
+        // Paleidžiame Intelektualią AI Analizę
+        initAIAnalysis();
+        // Atnaujinam analizę kas 10 minučių
+        setInterval(initAIAnalysis, 600000);
+    });
+</script>
+
+</body>
+</html>
