@@ -440,6 +440,7 @@
         <div class="tabs-container">
             <button class="tab-btn active" onclick="switchTab('forecast')">☁️ Orų Prognozė</button>
             <button class="tab-btn" onclick="switchTab('komoot')">🚴 Komoot Statistika</button>
+            <button class="tab-btn" onclick="switchTab('health')">❤️ Sveikata (Google Fit)</button>
         </div>
 
         <!-- Forecast Tab Content -->
@@ -742,6 +743,62 @@
         </div>
         <!-- End Komoot Tab -->
 
+        <!-- Health Tab Content -->
+        <div id="tab-health" class="tab-content">
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div class="card-title" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #EF4444; flex-shrink: 0;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                        Asmeninė Sveikatos Suvestinė (Google Fit)
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="healthGoogleFitBtn" class="btn" style="background: white; color: #333; border: 1px solid #ccc; font-weight: 600;" onclick="handleAuthClick()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                            Susieti Google Fit
+                        </button>
+                        <button id="healthGoogleFitSignOutBtn" class="btn" style="display: none; background: var(--danger-muted); color: var(--danger-text);" onclick="handleSignoutClick()">Atsijungti</button>
+                    </div>
+                </div>
+
+                <div id="health-auth-warning" style="margin-top: 15px; font-size: 14px; font-weight: 500; color: var(--warning-text); display: block;">
+                    * Norėdami matyti sveikatos duomenis, turite prisijungti su savo Google paskyra aukščiau esančiu mygtuku.
+                </div>
+
+                <div id="health-data-section" style="display: none; margin-top: 30px;">
+                    <div class="params-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 25px;">
+                        <div class="param-card" style="padding: 16px;">
+                            <label class="param-label">Laikotarpis: Nuo</label>
+                            <input type="date" id="healthDateFrom" class="param-input" style="font-size: 16px; padding-top: 8px;">
+                        </div>
+                        <div class="param-card" style="padding: 16px;">
+                            <label class="param-label">Laikotarpis: Iki</label>
+                            <input type="date" id="healthDateTo" class="param-input" style="font-size: 16px; padding-top: 8px;">
+                        </div>
+                        <div class="param-card" style="padding: 16px; display: flex; justify-content: flex-end; background: transparent; border: none;">
+                            <button onclick="fetchGeneralHealthData()" class="btn" style="width: 100%; height: 100%; justify-content: center; background: var(--accent-green); color: white; border: none; font-size: 16px; font-weight: 600;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h6l2-9 4 18 2-9h6"></path></svg>
+                                Analizuoti sveikatą
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="health-results-container" style="display: none;">
+                        <h2 class="forecast-title" style="margin-bottom: 20px;" id="health-results-title">Sumuoti Laikotarpio Duomenys</h2>
+
+                        <div class="params-grid" id="health-stats-content" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+                            <!-- Health stats cards will be injected here -->
+                        </div>
+                    </div>
+
+                    <div id="health-status-message" style="margin-top: 20px; font-size: 14px; text-align: center; color: var(--text-muted);">
+                        Pasirinkite datas ir paspauskite "Analizuoti sveikatą".
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- End Health Tab -->
+
     </div>
 
     <script>
@@ -753,7 +810,15 @@
         const btns = document.querySelectorAll('.tab-btn');
         if(tabId === 'forecast') btns[0].classList.add('active');
         if(tabId === 'komoot') btns[1].classList.add('active');
+        if(tabId === 'health') btns[2].classList.add('active');
     }
+
+    // Set default dates for health tab (Last 7 days)
+    const hTo = new Date();
+    const hFrom = new Date();
+    hFrom.setDate(hFrom.getDate() - 7);
+    document.getElementById('healthDateFrom').valueAsDate = hFrom;
+    document.getElementById('healthDateTo').valueAsDate = hTo;
     </script>
 
 <script>
@@ -1216,8 +1281,16 @@ function initGoogleFit() {
         callback: (tokenResponse) => {
             if (tokenResponse && tokenResponse.access_token) {
                 googleAccessToken = tokenResponse.access_token;
+                // Update Komoot tab
                 document.getElementById('googleFitBtn').style.display = 'none';
                 document.getElementById('googleFitSignOutBtn').style.display = 'flex';
+
+                // Update Health tab
+                document.getElementById('healthGoogleFitBtn').style.display = 'none';
+                document.getElementById('healthGoogleFitSignOutBtn').style.display = 'flex';
+                document.getElementById('health-auth-warning').style.display = 'none';
+                document.getElementById('health-data-section').style.display = 'block';
+
                 // If we already have tours, try fetching Fit data
                 if (komootTours.length > 0) {
                     renderKomootAInsights();
@@ -1237,12 +1310,182 @@ function handleAuthClick() {
     }
     googleTokenClient.requestAccessToken();
 }
+
+async function fetchGeneralHealthData() {
+    if (!googleAccessToken) {
+        document.getElementById('health-status-message').innerText = "Klaida: Neprisijungta prie Google Fit.";
+        return;
+    }
+
+    document.getElementById('health-results-container').style.display = 'none';
+    const statusMsg = document.getElementById('health-status-message');
+    statusMsg.innerHTML = "Kraunami duomenys iš Google Fit...<br><small>Tai gali užtrukti kelias sekundes</small>";
+    statusMsg.style.display = 'block';
+
+    const dFrom = document.getElementById('healthDateFrom').value;
+    const dTo = document.getElementById('healthDateTo').value;
+    if (!dFrom || !dTo) {
+        statusMsg.innerText = "Prašome pasirinkti datų rėžį.";
+        return;
+    }
+
+    const tStart = new Date(dFrom).getTime();
+    const tEnd = new Date(dTo).setHours(23, 59, 59, 999);
+
+    if (tStart > tEnd) {
+        statusMsg.innerText = "Nuo data turi būti ankstesnė nei Iki data.";
+        return;
+    }
+
+    const durationMillis = tEnd - tStart;
+
+    // We will aggregate by time (1 big bucket for the whole period)
+    const body = {
+        aggregateBy: [
+            { "dataTypeName": "com.google.step_count.delta" },
+            { "dataTypeName": "com.google.distance.delta" },
+            { "dataTypeName": "com.google.calories.expended" },
+            { "dataTypeName": "com.google.heart_minutes" },
+            { "dataTypeName": "com.google.active_minutes" }
+        ],
+        bucketByTime: { "durationMillis": durationMillis },
+        startTimeMillis: tStart,
+        endTimeMillis: tEnd
+    };
+
+    try {
+        const res = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${googleAccessToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!res.ok) throw new Error("Fit API error or permissions missing");
+        const data = await res.json();
+
+        let stats = { steps: 0, distance: 0, calories: 0, heartPoints: 0, activeMinutes: 0 };
+
+        if (data.bucket && data.bucket.length > 0) {
+            const bucket = data.bucket[0];
+            if (bucket.dataset) {
+                // Steps
+                const stepsDs = bucket.dataset.find(d => d.dataSourceId.includes("step_count"));
+                if (stepsDs && stepsDs.point.length > 0) {
+                    stepsDs.point.forEach(p => { if (p.value.length > 0) stats.steps += p.value[0].intVal; });
+                }
+
+                // Distance (m to km)
+                const distDs = bucket.dataset.find(d => d.dataSourceId.includes("distance"));
+                if (distDs && distDs.point.length > 0) {
+                    let totalMeters = 0;
+                    distDs.point.forEach(p => { if (p.value.length > 0) totalMeters += p.value[0].fpVal; });
+                    stats.distance = totalMeters / 1000;
+                }
+
+                // Calories
+                const calDs = bucket.dataset.find(d => d.dataSourceId.includes("calories"));
+                if (calDs && calDs.point.length > 0) {
+                    calDs.point.forEach(p => { if (p.value.length > 0) stats.calories += p.value[0].fpVal; });
+                }
+
+                // Heart points
+                const hpDs = bucket.dataset.find(d => d.dataSourceId.includes("heart_minutes"));
+                if (hpDs && hpDs.point.length > 0) {
+                    hpDs.point.forEach(p => { if (p.value.length > 0) stats.heartPoints += p.value[0].fpVal; });
+                }
+
+                // Active minutes
+                const actDs = bucket.dataset.find(d => d.dataSourceId.includes("active_minutes"));
+                if (actDs && actDs.point.length > 0) {
+                    actDs.point.forEach(p => { if (p.value.length > 0) stats.activeMinutes += p.value[0].intVal; });
+                }
+            }
+        }
+
+        statusMsg.style.display = 'none';
+        renderHealthStats(stats, dFrom, dTo);
+
+    } catch (e) {
+        console.error("Failed to fetch Fit data:", e);
+        statusMsg.innerText = "Klaida gaunant duomenis. Patikrinkite, ar davėte visus leidimus OAuth lange.";
+    }
+}
+
+function renderHealthStats(stats, dFrom, dTo) {
+    document.getElementById('health-results-container').style.display = 'block';
+    document.getElementById('health-results-title').innerText = `Suvestinė: ${dFrom} — ${dTo}`;
+
+    const container = document.getElementById('health-stats-content');
+
+    // Formatting numbers
+    const steps = stats.steps.toLocaleString('lt-LT');
+    const dist = stats.distance.toFixed(1);
+    const kcal = Math.round(stats.calories).toLocaleString('lt-LT');
+    const heartPts = Math.round(stats.heartPoints);
+    const activeHrs = Math.floor(stats.activeMinutes / 60);
+    const activeMins = stats.activeMinutes % 60;
+    const activeStr = activeHrs > 0 ? `${activeHrs}h ${activeMins}m` : `${activeMins} min`;
+
+    container.innerHTML = `
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Aktyvus laikas</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${activeStr}</div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); color: var(--safe-text); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Žingsniai</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${steps}</div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(245, 158, 11, 0.1); color: var(--warning-text); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Kalorijos</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${kcal} <span style="font-size: 14px; font-weight: 500;">kcal</span></div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); color: var(--danger-text); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Kardio Taškai</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${heartPts} <span style="font-size: 14px; font-weight: 500;">pts</span></div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(139, 92, 246, 0.1); color: #8b5cf6; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h6l2-9 4 18 2-9h6"></path></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Įveiktas Atstumas</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${dist} <span style="font-size: 14px; font-weight: 500;">km</span></div>
+        </div>
+    `;
+}
+
 function handleSignoutClick() {
     if (googleAccessToken) {
         google.accounts.oauth2.revoke(googleAccessToken, () => {
             googleAccessToken = null;
+            // Update Komoot tab
             document.getElementById('googleFitBtn').style.display = 'flex';
             document.getElementById('googleFitSignOutBtn').style.display = 'none';
+            // Update Health tab
+            document.getElementById('healthGoogleFitBtn').style.display = 'flex';
+            document.getElementById('healthGoogleFitSignOutBtn').style.display = 'none';
+            document.getElementById('health-auth-warning').style.display = 'block';
+            document.getElementById('health-data-section').style.display = 'none';
+            document.getElementById('health-results-container').style.display = 'none';
+
             googleFitDataCache = {};
             if (komootTours.length > 0) renderKomootAInsights();
         });
