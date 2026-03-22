@@ -452,18 +452,31 @@
 
     <!-- 1 Aukštas AC -->
     <div class="sensor-block" id="block-ac1">
-        <div class="sensor-header">
-            <div class="sensor-info">
-                <div class="sensor-text">
-                    <div class="sensor-title">1 aukštas AC (2x GREE)</div>
-                    <div class="sensor-value" id="val-ac1">-- W</div>
+        <div class="sensor-header" style="flex-direction: column; align-items: stretch;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div class="sensor-info">
+                    <div class="sensor-text">
+                        <div class="sensor-title">1 aukštas AC (2x GREE)</div>
+                        <div class="sensor-value" id="val-ac1">-- W</div>
+                        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;" id="val-ac1-desc">
+                            Sunaudota: -- kWh
+                        </div>
+                    </div>
+                    <div id="gauge-ac1" class="gauge-container"></div>
                 </div>
-                <div id="gauge-ac1" class="gauge-container"></div>
-            </div>
-            <div class="controls">
-                <button class="period-btn active" onclick="fetchDataForSensor('ac1', 1, this)">Para</button>
-                <button class="period-btn" onclick="fetchDataForSensor('ac1', 7, this)">Savaitė</button>
-                <button class="period-btn" onclick="fetchDataForSensor('ac1', 30, this)">Mėnuo</button>
+                <div class="controls" style="flex-direction: column; align-items: flex-end;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button class="period-btn active" onclick="fetchAcData('ac1', 1, this)">Para</button>
+                        <button class="period-btn" onclick="fetchAcData('ac1', 7, this)">Savaitė</button>
+                        <button class="period-btn" onclick="fetchAcData('ac1', 30, this)">Mėnuo</button>
+                    </div>
+                    <div style="display: flex; gap: 5px; align-items: center; background: var(--bg-main); padding: 5px; border-radius: 6px; border: 1px solid var(--border-color);">
+                        <input type="date" id="ac1-nuo" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <span style="color: var(--text-secondary);">-</span>
+                        <input type="date" id="ac1-iki" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <button onclick="fetchAcDataCustom('ac1', this)" style="background: var(--accent-color); color: #000; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Skaičiuoti</button>
+                    </div>
+                </div>
             </div>
         </div>
         <div id="loading-ac1" class="loading">Kraunami duomenys...</div>
@@ -472,18 +485,31 @@
 
     <!-- 2 Aukštas AC -->
     <div class="sensor-block" id="block-ac2">
-        <div class="sensor-header">
-            <div class="sensor-info">
-                <div class="sensor-text">
-                    <div class="sensor-title">2 aukštas AC (1x GREE)</div>
-                    <div class="sensor-value" id="val-ac2">-- W</div>
+        <div class="sensor-header" style="flex-direction: column; align-items: stretch;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div class="sensor-info">
+                    <div class="sensor-text">
+                        <div class="sensor-title">2 aukštas AC (1x GREE)</div>
+                        <div class="sensor-value" id="val-ac2">-- W</div>
+                        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;" id="val-ac2-desc">
+                            Sunaudota: -- kWh
+                        </div>
+                    </div>
+                    <div id="gauge-ac2" class="gauge-container"></div>
                 </div>
-                <div id="gauge-ac2" class="gauge-container"></div>
-            </div>
-            <div class="controls">
-                <button class="period-btn active" onclick="fetchDataForSensor('ac2', 1, this)">Para</button>
-                <button class="period-btn" onclick="fetchDataForSensor('ac2', 7, this)">Savaitė</button>
-                <button class="period-btn" onclick="fetchDataForSensor('ac2', 30, this)">Mėnuo</button>
+                <div class="controls" style="flex-direction: column; align-items: flex-end;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button class="period-btn active" onclick="fetchAcData('ac2', 1, this)">Para</button>
+                        <button class="period-btn" onclick="fetchAcData('ac2', 7, this)">Savaitė</button>
+                        <button class="period-btn" onclick="fetchAcData('ac2', 30, this)">Mėnuo</button>
+                    </div>
+                    <div style="display: flex; gap: 5px; align-items: center; background: var(--bg-main); padding: 5px; border-radius: 6px; border: 1px solid var(--border-color);">
+                        <input type="date" id="ac2-nuo" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <span style="color: var(--text-secondary);">-</span>
+                        <input type="date" id="ac2-iki" style="background: transparent; color: var(--text-main); border: none; font-size: 12px;">
+                        <button onclick="fetchAcDataCustom('ac2', this)" style="background: var(--accent-color); color: #000; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Skaičiuoti</button>
+                    </div>
+                </div>
             </div>
         </div>
         <div id="loading-ac2" class="loading">Kraunami duomenys...</div>
@@ -706,6 +732,108 @@
 
         } catch (error) {
             console.error(`Klaida gaunant duomenis [${sensorKey}]:`, error);
+        } finally {
+            document.getElementById(`loading-${sensorKey}`).style.display = 'none';
+            document.getElementById(`chart-${sensorKey}`).style.opacity = '1';
+        }
+    }
+
+    // --- AC DUOMENŲ GAVIMAS IR APDOROJIMAS ---
+    function processAcFeeds(sensorKey, feeds) {
+        const config = sensorsConfig[sensorKey];
+        const chartData = [];
+        let lastVal = 0;
+        let totalEnergy_Wh = 0;
+
+        for (let i = 0; i < feeds.length; i++) {
+            const f = feeds[i];
+            const rawVal = f[config.field];
+            const time = new Date(f.created_at).getTime();
+
+            if (rawVal !== null && rawVal !== undefined) {
+                const val = parseFloat(rawVal);
+                chartData.push([time, val]);
+                lastVal = val;
+
+                if (i > 0) {
+                    const prevTime = new Date(feeds[i-1].created_at).getTime();
+                    const gapHours = (time - prevTime) / 3600000;
+
+                    if (gapHours < 1 && val > 50) { // Ignoruojam ryšio dingimą ir budėjimo režimą (<50W)
+                        totalEnergy_Wh += (val * gapHours);
+                    }
+                }
+            }
+        }
+
+        const totalKwh = (totalEnergy_Wh / 1000).toFixed(2);
+
+        // Atnaujinti DOM
+        document.getElementById(`val-${sensorKey}-desc`).innerText = `Sunaudota: ${totalKwh} kWh`;
+        document.getElementById(`val-${sensorKey}`).innerText = lastVal.toFixed(0) + ' W';
+        gauges[sensorKey].series[0].points[0].update(lastVal);
+        charts[sensorKey].series[0].setData(chartData, false);
+        charts[sensorKey].redraw();
+    }
+
+    async function fetchAcData(sensorKey, days, btn) {
+        document.getElementById(`loading-${sensorKey}`).style.display = 'block';
+        document.getElementById(`chart-${sensorKey}`).style.opacity = '0.3';
+
+        const buttons = document.getElementById(`block-${sensorKey}`).querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+
+        document.getElementById(`${sensorKey}-nuo`).value = '';
+        document.getElementById(`${sensorKey}-iki`).value = '';
+
+        const config = sensorsConfig[sensorKey];
+        // Kadangi galia svyruoja, vidurkiname per daug taškų dideliems tarpams
+        const avgMinutes = days === 1 ? '' : (days === 7 ? '&average=10' : '&average=60');
+        const url = `https://api.thingspeak.com/channels/${channelId}/fields/${config.field.replace('field', '')}.json?api_key=${apiKey}&days=${days}${avgMinutes}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            processAcFeeds(sensorKey, data.feeds);
+        } catch (error) {
+            console.error(`Klaida gaunant AC duomenis [${sensorKey}]:`, error);
+        } finally {
+            document.getElementById(`loading-${sensorKey}`).style.display = 'none';
+            document.getElementById(`chart-${sensorKey}`).style.opacity = '1';
+        }
+    }
+
+    async function fetchAcDataCustom(sensorKey, btnNode) {
+        const startVal = document.getElementById(`${sensorKey}-nuo`).value;
+        const endVal = document.getElementById(`${sensorKey}-iki`).value;
+
+        if(!startVal || !endVal) {
+            alert("Prašome pasirinkti Pradžios ir Pabaigos datas!");
+            return;
+        }
+
+        document.getElementById(`loading-${sensorKey}`).style.display = 'block';
+        document.getElementById(`chart-${sensorKey}`).style.opacity = '0.3';
+
+        const buttons = document.getElementById(`block-${sensorKey}`).querySelectorAll('.period-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+
+        const dStart = new Date(startVal);
+        const dEnd = new Date(endVal);
+        const diffTime = Math.abs(dEnd - dStart);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const avgMinutes = diffDays <= 1 ? '' : (diffDays <= 7 ? '&average=10' : '&average=60');
+
+        const config = sensorsConfig[sensorKey];
+        const url = `https://api.thingspeak.com/channels/${channelId}/fields/${config.field.replace('field', '')}.json?api_key=${apiKey}&start=${startVal}%2000:00:00&end=${endVal}%2023:59:59${avgMinutes}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            processAcFeeds(sensorKey, data.feeds);
+        } catch (error) {
+            console.error(`Klaida gaunant AC custom duomenis [${sensorKey}]:`, error);
         } finally {
             document.getElementById(`loading-${sensorKey}`).style.display = 'none';
             document.getElementById(`chart-${sensorKey}`).style.opacity = '1';
@@ -1175,10 +1303,12 @@
         Object.keys(sensorsConfig).forEach(key => {
             const block = document.getElementById(`block-${key}`);
             const btn = block.querySelector('.period-btn.active');
-            if (key !== 'dujos') {
-                fetchDataForSensor(key, 1, btn);
-            } else {
+            if (key === 'dujos') {
                 fetchGasData(1, btn);
+            } else if (key === 'ac1' || key === 'ac2') {
+                fetchAcData(key, 1, btn);
+            } else {
+                fetchDataForSensor(key, 1, btn);
             }
         });
 
