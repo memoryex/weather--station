@@ -1029,10 +1029,11 @@
     async function initAIAnalysis() {
         try {
             // 1. Orai ir Saulė (Panevėžys) - OpenMeteo
-            const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=55.7333&longitude=24.35&current_weather=true&daily=sunrise,sunset&timezone=Europe%2FVilnius';
+            const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=55.7333&longitude=24.35&current_weather=true&daily=sunrise,sunset,temperature_2m_mean&timezone=Europe%2FVilnius';
             let outdoorTemp = null;
             let sunriseTime = null;
             let sunsetTime = null;
+            let forecastTemps = [];
 
             try {
                 const weatherRes = await fetch(weatherUrl);
@@ -1042,6 +1043,9 @@
                 // Paimame šiandienos saulėtekį ir saulėlydį
                 sunriseTime = new Date(weatherData.daily.sunrise[0]).getTime();
                 sunsetTime = new Date(weatherData.daily.sunset[0]).getTime();
+
+                // Prognozuojamų dienų temperatūrų vidurkiai (Šiandien, Rytoj, ... iki 7 dienų)
+                forecastTemps = weatherData.daily.temperature_2m_mean;
 
                 document.getElementById('ai-weather').innerHTML = `📍 Panevėžys, Lauke: <b>${outdoorTemp}°C</b>`;
             } catch(e) { console.error("Orai neprieinami."); }
@@ -1151,11 +1155,9 @@
                     }
                 }
 
-                // Išsaugome pačią paskutinę (einamąją) reikšmę
-                if (i === feeds.length - 1) {
-                    if (f.field7 !== null) currentAc1W = parseFloat(f.field7);
-                    if (f.field8 !== null) currentAc2W = parseFloat(f.field8);
-                }
+                // Išsaugome pačią paskutinę (einamąją) reikšmę (Nepasitikime tik paskutiniu indeksu, atnaujiname kaskart radę reikšmę)
+                if (f.field7 !== null) currentAc1W = parseFloat(f.field7);
+                if (f.field8 !== null) currentAc2W = parseFloat(f.field8);
             }
 
             if (totalValidCount === 0) {
@@ -1280,6 +1282,32 @@
             let ac1StatusStr = currentAc1W > 50 ? `<span class="status-success">${acIcon} (${currentAc1W.toFixed(0)}W)</span>` : `<span class="status-secondary">💤 Off</span>`;
             let ac2StatusStr = currentAc2W > 50 ? `<span class="status-success">${acIcon} (${currentAc2W.toFixed(0)}W)</span>` : `<span class="status-secondary">💤 Off</span>`;
             document.getElementById('ai-ac-status').innerHTML = `1A: ${ac1StatusStr} <span style="color:var(--border-color)">|</span> 2A: ${ac2StatusStr}`;
+
+            // Išmanioji šildymo rekomendacija pagal orus (C klasės namui)
+            if (forecastTemps.length > 0) {
+                const tToday = forecastTemps[0];
+                const tTomorrow = forecastTemps[1];
+                let weekSum = 0;
+                for (let j = 0; j < 7; j++) weekSum += forecastTemps[j];
+                const tWeek = weekSum / 7;
+
+                // Funkcija nustatyti, ar geriau AC, ar Katilas
+                // Jei temp < 0, AC COP per mažas ir namas per greitai atšąla -> Katilas
+                // Jei temp >= 0, AC yra efektyvus ir pigesnis / greitesnis būdas -> AC (Šilumos siurblys)
+                const getRec = (temp) => {
+                    if (temp > 16) return "Šildymas nereikalingas / Vėsinimas ❄️";
+                    if (temp >= 0) return "Šilumos siurblys (AC) 🌬️🔥 (Efektyvu)";
+                    return "Kieto kuro/dujų katilas 🪵🔥 (Dėl minusinės temperatūros)";
+                };
+
+                report += `<br><br><strong>💡 AI Šildymo Rekomendacija (Pagal orų prognozę Panevėžyje):</strong><br>`;
+                report += `<ul>`;
+                report += `<li><b>Šiandien</b> (Vid. temp ${tToday.toFixed(1)}°C): Rekomenduojama naudoti -> <b>${getRec(tToday)}</b></li>`;
+                report += `<li><b>Rytoj</b> (Vid. temp ${tTomorrow.toFixed(1)}°C): Rekomenduojama naudoti -> <b>${getRec(tTomorrow)}</b></li>`;
+                report += `<li><b>Artimiausią savaitę</b> (Vid. temp ${tWeek.toFixed(1)}°C): Dominuojantis šildymo būdas -> <b>${getRec(tWeek)}</b></li>`;
+                report += `</ul>`;
+                report += `<i>Paaiškinimas:</i> Šilumos siurblys (AC) yra efektyvesnis už kietą kurą tol, kol lauko temperatūra nenukrenta žemiau 0°C. Nukritus žemiau nulio, C klasės namo šilumos nuostoliai tampa per dideli siurblio pajėgumams, jo naudingumo koeficientas (COP) krenta, todėl geriau ir pigiau kurti katilą.`;
+            }
 
             // AC Išvada pagal orus ir sąnaudas
             if (isAcUsed) {
