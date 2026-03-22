@@ -8,6 +8,9 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Add Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <!-- Leaflet CSS & JS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -1152,7 +1155,7 @@ function initGoogleFit() {
     }
     googleTokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.heart_rate.read',
+        scope: 'https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.heart_rate.read https://www.googleapis.com/auth/fitness.location.read',
         callback: (tokenResponse) => {
             if (tokenResponse && tokenResponse.access_token) {
                 googleAccessToken = tokenResponse.access_token;
@@ -1374,11 +1377,12 @@ async function fetchFitDataForTour(tourId, startTimeMs, endTimeMs) {
     if (!googleAccessToken) return;
     if (googleFitDataCache[tourId]) return; // Already fetched
 
-    // Create a data source to read estimated calories and heart rate
+    // Create a data source to read estimated calories, heart rate, and heart points
     const body = {
         aggregateBy: [
             { "dataTypeName": "com.google.calories.expended" },
-            { "dataTypeName": "com.google.heart_rate.bpm" }
+            { "dataTypeName": "com.google.heart_rate.bpm" },
+            { "dataTypeName": "com.google.heart_minutes" }
         ],
         bucketByTime: { "durationMillis": endTimeMs - startTimeMs },
         startTimeMillis: startTimeMs,
@@ -1398,7 +1402,7 @@ async function fetchFitDataForTour(tourId, startTimeMs, endTimeMs) {
         if (!res.ok) throw new Error("Fit API error");
         const data = await res.json();
 
-        let tourFitData = { calories: null, avgHr: null, maxHr: null };
+        let tourFitData = { calories: null, avgHr: null, maxHr: null, heartPoints: null };
 
         if (data.bucket && data.bucket.length > 0) {
             const bucket = data.bucket[0];
@@ -1429,6 +1433,16 @@ async function fetchFitDataForTour(tourId, startTimeMs, endTimeMs) {
                         tourFitData.avgHr = Math.round(sumHr / countHr);
                         tourFitData.maxHr = Math.round(maxHr);
                     }
+                }
+
+                // Find heart points
+                const hpDataset = bucket.dataset.find(d => d.dataSourceId.includes("heart_minutes"));
+                if (hpDataset && hpDataset.point && hpDataset.point.length > 0) {
+                    let totalPoints = 0;
+                    hpDataset.point.forEach(p => {
+                        if (p.value && p.value.length > 0) totalPoints += p.value[0].fpVal;
+                    });
+                    if (totalPoints > 0) tourFitData.heartPoints = Math.round(totalPoints);
                 }
             }
         }
@@ -1492,7 +1506,7 @@ async function renderKomootAInsights() {
             else if (dist > 25 || elevation > 200 || avgSpeed > 20) { effortLabel = "Vidutinis krūvis"; effortColor = "var(--warning-text)"; }
 
             let fitHTML = "";
-            if (fitData && !fitData.error && (fitData.calories || fitData.avgHr)) {
+            if (fitData && !fitData.error && (fitData.calories || fitData.avgHr || fitData.heartPoints)) {
                 fitHTML = `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.1);">
                     <div style="font-size: 11px; font-weight: bold; color: #4285F4; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
                         <svg width="12" height="12" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#4285F4"/></svg>
@@ -1500,11 +1514,32 @@ async function renderKomootAInsights() {
                     </div>
                     ${fitData.calories ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Sudegintos kalorijos:</span> <strong>${fitData.calories} kcal</strong></div>` : ''}
                     ${fitData.avgHr ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Pulsas (Vid/Max):</span> <strong>${fitData.avgHr} / ${fitData.maxHr} bpm</strong></div>` : ''}
+                    ${fitData.heartPoints ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Kardio taškai:</span> <strong style="color: #10B981;">${fitData.heartPoints} pts</strong></div>` : ''}
                 </div>`;
             }
 
+            // Map data extraction: Komoot start_point if available
+            let mapHTML = "";
+            let mapScript = "";
+            if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
+                const mapId = `map-${tourId.replace(/[^a-zA-Z0-9]/g, '')}`;
+                mapHTML = `<div id="${mapId}" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1;"></div>`;
+                mapScript = `
+                    setTimeout(() => {
+                        try {
+                            const map = L.map('${mapId}', {zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false}).setView([${tour.start_point.lat}, ${tour.start_point.lng}], 12);
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                            L.circleMarker([${tour.start_point.lat}, ${tour.start_point.lng}], {
+                                color: '#3B82F6', fillColor: '#3B82F6', fillOpacity: 0.8, radius: 6
+                            }).addTo(map);
+                        } catch(e) {}
+                    }, 100);
+                `;
+            }
+
             recentRidesHTML += `
-                <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 15px;">
+                <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 15px; position: relative; overflow: hidden;">
+                    ${mapHTML}
                     <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">${name}</div>
                     <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">${dateStr}</div>
                     <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
@@ -1525,6 +1560,14 @@ async function renderKomootAInsights() {
                     ${fitHTML}
                 </div>
             `;
+
+            // To run map scripts after innerHTML update, we need to defer their execution
+            if(mapScript) {
+                setTimeout(() => {
+                    try { eval(mapScript); } catch(e){}
+                }, 300);
+            }
+
         });
         recentRidesHTML += `</div>`;
     }
