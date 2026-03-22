@@ -450,6 +450,46 @@
         <div id="chart-baterija" class="chart-container"></div>
     </div>
 
+    <!-- 1 Aukštas AC -->
+    <div class="sensor-block" id="block-ac1">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">1 aukštas AC (2x GREE)</div>
+                    <div class="sensor-value" id="val-ac1">-- W</div>
+                </div>
+                <div id="gauge-ac1" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('ac1', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('ac1', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('ac1', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-ac1" class="loading">Kraunami duomenys...</div>
+        <div id="chart-ac1" class="chart-container"></div>
+    </div>
+
+    <!-- 2 Aukštas AC -->
+    <div class="sensor-block" id="block-ac2">
+        <div class="sensor-header">
+            <div class="sensor-info">
+                <div class="sensor-text">
+                    <div class="sensor-title">2 aukštas AC (1x GREE)</div>
+                    <div class="sensor-value" id="val-ac2">-- W</div>
+                </div>
+                <div id="gauge-ac2" class="gauge-container"></div>
+            </div>
+            <div class="controls">
+                <button class="period-btn active" onclick="fetchDataForSensor('ac2', 1, this)">Para</button>
+                <button class="period-btn" onclick="fetchDataForSensor('ac2', 7, this)">Savaitė</button>
+                <button class="period-btn" onclick="fetchDataForSensor('ac2', 30, this)">Mėnuo</button>
+            </div>
+        </div>
+        <div id="loading-ac2" class="loading">Kraunami duomenys...</div>
+        <div id="chart-ac2" class="chart-container"></div>
+    </div>
+
     <!-- 7. Apytikslės Dujų Sąnaudos -->
     <div class="sensor-block" id="block-dujos">
         <div class="sensor-header" style="flex-direction: column; align-items: stretch;">
@@ -504,7 +544,9 @@
         boileris:    { field: 'field3', max: 90, unit: '°C', color: '#7aa2f7' },
         grindinis:   { field: 'field4', max: 50, unit: '°C', color: '#9ece6a' },
         griztamasis: { field: 'field5', max: 50, unit: '°C', color: '#e0af68' },
-        baterija:    { field: 'field6', max: 15, unit: 'V',  color: '#bb9af7' } // Gauges limitas 0-15V kaip paprašyta
+        baterija:    { field: 'field6', max: 15, unit: 'V',  color: '#bb9af7' }, // Gauges limitas 0-15V kaip paprašyta
+        ac1:         { field: 'field7', max: 3500, unit: 'W', color: '#33b1ff' }, // 1 aukštas AC (2x GREE 1.5kW)
+        ac2:         { field: 'field8', max: 4000, unit: 'W', color: '#82aaff' }  // 2 aukštas AC (1x GREE 3.5kW)
     };
 
     // Papildomas config dujoms
@@ -653,7 +695,7 @@
 
             // Atnaujiname Gauge ir Tekstą
             if (lastVal !== null) {
-                const decimalPlaces = config.unit === 'V' ? 2 : 1;
+                const decimalPlaces = config.unit === 'W' ? 0 : (config.unit === 'V' ? 2 : 1);
                 document.getElementById(`val-${sensorKey}`).innerText = lastVal.toFixed(decimalPlaces) + ' ' + config.unit;
                 gauges[sensorKey].series[0].points[0].update(lastVal);
             }
@@ -890,6 +932,13 @@
             let sunMinutesTotal = 0;
             let daylightMinutesElapsed = 0;
 
+            // AC analizei (Energija W * laikas = Wh -> kWh)
+            let ac1Energy_Wh = 0;
+            let ac2Energy_Wh = 0;
+            let ac1ActiveMinutes = 0;
+            let ac2ActiveMinutes = 0;
+            let isAcUsed = false;
+
             for (let i = 0; i < feeds.length; i++) {
                 const f = feeds[i];
                 const time = new Date(f.created_at).getTime();
@@ -935,6 +984,33 @@
                             // Šį slenkstį (13.0) galima bus pakoreguoti pagal realius jūsų duomenis
                             if (batV > 13.0 && gapMinutes < 60) {
                                 sunMinutesTotal += gapMinutes;
+                            }
+                        }
+                    }
+                }
+
+                // AC (Kondicionierių) analizė
+                if (i > 0) {
+                    const prevTime = new Date(feeds[i-1].created_at).getTime();
+                    const gapHours = (time - prevTime) / 3600000;
+
+                    // Venkime gigantiškų atstumų jei dingo wifi (> 1 valandos)
+                    if (gapHours < 1) {
+                        if (f.field7 !== null) {
+                            const ac1W = parseFloat(f.field7);
+                            // Laikome, kad AC dirba jei galia > 50W (budėjimo režimas ignoruoja)
+                            if (ac1W > 50) {
+                                ac1Energy_Wh += (ac1W * gapHours);
+                                ac1ActiveMinutes += (gapHours * 60);
+                                isAcUsed = true;
+                            }
+                        }
+                        if (f.field8 !== null) {
+                            const ac2W = parseFloat(f.field8);
+                            if (ac2W > 50) {
+                                ac2Energy_Wh += (ac2W * gapHours);
+                                ac2ActiveMinutes += (gapHours * 60);
+                                isAcUsed = true;
                             }
                         }
                     }
@@ -1049,6 +1125,37 @@
                 } else {
                     report += `Laukiama saulėtekio.`;
                 }
+            }
+
+            // AC Išvada pagal orus ir sąnaudas
+            if (isAcUsed) {
+                const ac1_kWh = (ac1Energy_Wh / 1000).toFixed(2);
+                const ac2_kWh = (ac2Energy_Wh / 1000).toFixed(2);
+                const ac1H = Math.floor(ac1ActiveMinutes / 60); const ac1M = Math.round(ac1ActiveMinutes % 60);
+                const ac2H = Math.floor(ac2ActiveMinutes / 60); const ac2M = Math.round(ac2ActiveMinutes % 60);
+
+                let acModeStr = "Šildymas (Šilumos Siurblys)";
+                if (outdoorTemp > 18) {
+                    acModeStr = "Vėsinimas (Kondicionavimas)";
+                } else if (outdoorTemp >= 15 && outdoorTemp <= 18) {
+                    acModeStr = "Vėdinimas / Minimalus koregavimas";
+                }
+
+                report += `<br><br><strong>❄️ AC (GREE) Analizė:</strong> Atrodo, kad šiandien buvo naudojami oro kondicionieriai. Atsižvelgiant į lauko temperatūrą (<b>${outdoorTemp}°C</b>), dabar sistemos greičiausiai veikia <b>${acModeStr}</b> režimu. `;
+                report += `<br><ul>`;
+                if (ac1ActiveMinutes > 0) {
+                    report += `<li><b>1 aukštas (2x GREE ~1.5kW):</b> Dirbo ~${ac1H}h ${ac1M}m. Suvartota apytiksliai <b>${ac1_kWh} kWh</b>.</li>`;
+                } else {
+                    report += `<li><b>1 aukštas:</b> Nenaudotas.</li>`;
+                }
+                if (ac2ActiveMinutes > 0) {
+                    report += `<li><b>2 aukštas (1x GREE ~3.5kW):</b> Dirbo ~${ac2H}h ${ac2M}m. Suvartota apytiksliai <b>${ac2_kWh} kWh</b>.</li>`;
+                } else {
+                    report += `<li><b>2 aukštas:</b> Nenaudotas.</li>`;
+                }
+                report += `</ul>`;
+            } else {
+                report += `<br><br><strong>❄️ AC Sistemos:</strong> Šiandien GREE oro kondicionieriai nebuvo aktyviai naudoti (arba veikė tik budėjimo režimu).`;
             }
 
             document.getElementById('ai-report').innerHTML = report;
