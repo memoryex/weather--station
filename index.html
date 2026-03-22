@@ -681,6 +681,63 @@
                 <div id="komoot-ai-insights">
                     <!-- AI Insights will be injected here -->
                 </div>
+
+                <!-- Filters for Recent Rides -->
+                <div id="komoot-filters-section" style="display: none; margin-top: 40px;">
+                    <div class="card" style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2);">
+                        <div style="font-size: 16px; font-weight: bold; margin-bottom: 15px; color: var(--accent-blue); display: flex; align-items: center; gap: 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                            Detali Važiavimų Istorija ir Analizė
+                        </div>
+
+                        <div class="params-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 15px;">
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Nuo datos</label>
+                                <input type="date" id="filterDateFrom" class="param-input" style="font-size: 14px; padding-top: 5px;">
+                            </div>
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Iki datos</label>
+                                <input type="date" id="filterDateTo" class="param-input" style="font-size: 14px; padding-top: 5px;">
+                            </div>
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Min. Atstumas (km)</label>
+                                <input type="number" id="filterMinDist" class="param-input" value="0" style="font-size: 18px;">
+                            </div>
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Tipas</label>
+                                <select id="filterSport" class="param-input" style="font-size: 14px; background: transparent; border: none; color: var(--text-main); margin-top: 5px; cursor: pointer; outline: none;">
+                                    <option value="all">Visi dviračiai</option>
+                                    <option value="touringbicycle">Kelionių (Touring)</option>
+                                    <option value="mtb">Kalnų (MTB)</option>
+                                    <option value="racebike">Plentinis (Race)</option>
+                                    <option value="gravelbike">Žvyro (Gravel)</option>
+                                    <option value="e_touringbicycle">E-Bike Touring</option>
+                                    <option value="e_mtb">E-Bike MTB</option>
+                                </select>
+                            </div>
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Rodyti Kiekį</label>
+                                <select id="filterLimit" class="param-input" style="font-size: 14px; background: transparent; border: none; color: var(--text-main); margin-top: 5px; cursor: pointer; outline: none;">
+                                    <option value="10">10 Naujausių</option>
+                                    <option value="20">20 Naujausių</option>
+                                    <option value="50">50 Naujausių</option>
+                                    <option value="100">100 Naujausių</option>
+                                    <option value="all">Visi</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button onclick="applyKomootFilters()" class="btn" style="width: 100%; justify-content: center; background: var(--accent-blue); color: white; border: none; font-size: 15px; padding: 12px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            Filtruoti ir Atlikti DI Analizę
+                        </button>
+                    </div>
+
+                    <div id="komoot-filtered-results" style="margin-top: 20px;">
+                        <!-- Filtered results will appear here -->
+                    </div>
+                </div>
+
             </div>
         </div>
         <!-- End Komoot Tab -->
@@ -1739,10 +1796,148 @@ async function renderKomootAInsights() {
 
     insightsContainer.innerHTML = plannedRidesHTML + recentRidesHTML;
 
+    document.getElementById('komoot-filters-section').style.display = 'block';
+
     // Asynchronously load and draw all actual routes on the maps
     setTimeout(() => {
         initKomootMaps();
     }, 200);
+}
+
+async function applyKomootFilters() {
+    const btn = document.querySelector('button[onclick="applyKomootFilters()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg> Analizuojama...`;
+
+    const dFrom = document.getElementById('filterDateFrom').value;
+    const dTo = document.getElementById('filterDateTo').value;
+    const minDist = parseFloat(document.getElementById('filterMinDist').value) || 0;
+    const sport = document.getElementById('filterSport').value;
+    const limitVal = document.getElementById('filterLimit').value;
+
+    let filtered = komootTours.filter(t => t.sport && (t.sport.includes('bike') || t.sport.includes('mtb') || t.sport.includes('bicycle')));
+
+    if (sport !== 'all') {
+        filtered = filtered.filter(t => t.sport === sport);
+    }
+
+    if (minDist > 0) {
+        filtered = filtered.filter(t => (t.distance || 0) / 1000 >= minDist);
+    }
+
+    if (dFrom) {
+        const fromDate = new Date(dFrom);
+        filtered = filtered.filter(t => new Date(t.date) >= fromDate);
+    }
+    if (dTo) {
+        const toDate = new Date(dTo);
+        toDate.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(t => new Date(t.date) <= toDate);
+    }
+
+    filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if (limitVal !== 'all') {
+        filtered = filtered.slice(0, parseInt(limitVal));
+    }
+
+    const resultsContainer = document.getElementById('komoot-filtered-results');
+    resultsContainer.innerHTML = '';
+
+    if (filtered.length === 0) {
+        resultsContainer.innerHTML = '<div style="text-align:center; color: var(--text-muted); padding: 20px;">Nerasta maršrutų pagal šiuos filtrus.</div>';
+        btn.innerHTML = originalText;
+        return;
+    }
+
+    // Fetch fit data if needed
+    if (googleAccessToken) {
+        for (const tour of filtered) {
+            if (tour.date && tour.duration) {
+                const tStart = new Date(tour.date).getTime();
+                const tEnd = tStart + (tour.duration * 1000);
+                await fetchFitDataForTour(tour.id || tour.name, tStart, tEnd);
+            }
+        }
+    }
+
+    let html = `<div class="params-grid">`;
+    filtered.forEach(tour => {
+        const tourId = tour.id || tour.name;
+        const dist = ((tour.distance || 0) / 1000).toFixed(1);
+        const name = tour.name || 'Belaidis maršrutas';
+        const dateStr = tour.date ? new Date(tour.date).toLocaleDateString('lt-LT') : '';
+        const durationHrs = (tour.duration || 0) / 3600;
+        const avgSpeed = durationHrs > 0 ? (dist / durationHrs).toFixed(1) : 0;
+        const elevation = Math.round(tour.elevation_up || 0);
+
+        const fitData = googleFitDataCache[tourId];
+
+        const kcalMultiplier = 35 + (elevation / 100) * 5 + (avgSpeed > 20 ? 5 : 0);
+        const estimatedKcal = Math.round(dist * kcalMultiplier);
+
+        const ebikeWh = Math.round((dist * 7.5) + (elevation * 0.6));
+        const ebikePct = Math.min(100, Math.round((ebikeWh / 750) * 100));
+        const ebikeString = ebikeWh > 750 ? ">100%" : `${ebikePct}%`;
+
+        let effortLabel = "Lengvas pasivažinėjimas";
+        let effortColor = "var(--safe-text)";
+        if (dist > 50 || elevation > 500 || avgSpeed > 25) { effortLabel = "Intensyvi treniruotė"; effortColor = "var(--danger-text)"; }
+        else if (dist > 25 || elevation > 200 || avgSpeed > 20) { effortLabel = "Vidutinis krūvis"; effortColor = "var(--warning-text)"; }
+
+        let fitHTML = "";
+        if (fitData && !fitData.error && (fitData.calories || fitData.avgHr || fitData.heartPoints)) {
+            fitHTML = `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                <div style="font-size: 11px; font-weight: bold; color: #4285F4; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#4285F4"/></svg>
+                    GOOGLE FIT
+                </div>
+                ${fitData.calories ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Realios kal.:</span> <strong>${fitData.calories} kcal</strong></div>` : ''}
+                ${fitData.avgHr ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Pulsas:</span> <strong>${fitData.avgHr} / ${fitData.maxHr} bpm</strong></div>` : ''}
+                ${fitData.heartPoints ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Kardio taškai:</span> <strong style="color: #10B981;">${fitData.heartPoints} pts</strong></div>` : ''}
+            </div>`;
+        }
+
+        let mapHTML = "";
+        if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
+            const mapId = `map-filter-${String(tourId).replace(/[^a-zA-Z0-9]/g, '')}-${Math.floor(Math.random() * 1000)}`;
+            mapHTML = `<div id="${mapId}" class="komoot-map-container" data-tour-id="${tour.id}" data-lat="${tour.start_point.lat}" data-lng="${tour.start_point.lng}" data-color="#F59E0B" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1; position: relative; overflow: hidden;">
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted); font-size: 11px; z-index: 10;">Kraunamas maršrutas...</div>
+                       </div>`;
+        }
+
+        html += `
+            <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 15px;">
+                ${mapHTML}
+                <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">${name}</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">${dateStr}</div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                    <span>Atstumas:</span> <strong>${dist} km</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                    <span>Vid. greitis:</span> <strong>${avgSpeed} km/h</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; ${fitData && fitData.calories ? 'text-decoration: line-through; opacity: 0.5;' : ''}">
+                    <span>Kalorijos (apyt.):</span> <strong>${estimatedKcal} kcal</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; color: var(--accent-blue);">
+                    <span>🔋 E-Bike sąnaudos:</span> <strong>~${ebikeString} (${ebikeWh} Wh)</strong>
+                </div>
+                <div style="text-align: right; font-size: 12px; font-weight: bold; color: ${effortColor};">
+                    ${effortLabel}
+                </div>
+                ${fitHTML}
+            </div>
+        `;
+    });
+    html += `</div>`;
+
+    resultsContainer.innerHTML = html;
+    btn.innerHTML = originalText;
+
+    setTimeout(() => {
+        initKomootMaps();
+    }, 100);
 }
 
 async function initKomootMaps() {
