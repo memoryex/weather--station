@@ -651,19 +651,23 @@
                     <!-- Stats will be injected here -->
                 </div>
 
-                <h2 class="forecast-title" style="margin-top: 30px;">Populiariausios Vietovės</h2>
+                <h2 class="forecast-title" style="margin-top: 30px;">Ilgiausi Maršrutai</h2>
                 <div class="card">
                     <table style="width: 100%; text-align: left; border-collapse: collapse;">
                         <thead>
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                <th style="padding: 12px; font-size: 13px; color: var(--text-muted);">ŠALIS / MIESTAS</th>
-                                <th style="padding: 12px; font-size: 13px; color: var(--text-muted); text-align: right;">KIEKIS</th>
+                                <th style="padding: 12px; font-size: 13px; color: var(--text-muted);">MARŠRUTAS</th>
+                                <th style="padding: 12px; font-size: 13px; color: var(--text-muted); text-align: right;">ATSTUMAS</th>
                             </tr>
                         </thead>
                         <tbody id="komoot-locations-body">
                             <!-- Locations will be injected here -->
                         </tbody>
                     </table>
+                </div>
+
+                <div id="komoot-ai-insights">
+                    <!-- AI Insights will be injected here -->
                 </div>
             </div>
         </div>
@@ -1127,6 +1131,7 @@ fetchData();
 
 let komootUserId = null;
 let komootTours = [];
+let komootPlannedTours = [];
 
 function b64EncodeUnicode(str) {
     return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
@@ -1172,7 +1177,7 @@ async function fetchKomootData() {
 
         while (toursUrl) {
             const res = await fetch(proxyBase + encodeURIComponent(toursUrl), { headers: { 'Authorization': authStr } });
-            if (!res.ok) throw new Error('Klaida gaunant maršrutus.');
+            if (!res.ok) throw new Error('Klaida gaunant atliktus maršrutus.');
             const data = await res.json();
 
             if (data._embedded && data._embedded.tours) {
@@ -1186,10 +1191,31 @@ async function fetchKomootData() {
             }
         }
 
-        statusEl.innerText = `Sėkmingai gauta ${komootTours.length} maršrutų!`;
-        statusEl.style.color = 'var(--status-yes)';
+        // 3. Fetch planned tours
+        let plannedToursUrl = `https://api.komoot.de/v007/users/${komootUserId}/tours/?type=tour_planned&sort=date&limit=20`;
+        komootPlannedTours = [];
+
+        while (plannedToursUrl) {
+            const res = await fetch(proxyBase + encodeURIComponent(plannedToursUrl), { headers: { 'Authorization': authStr } });
+            if (!res.ok) throw new Error('Klaida gaunant planuojamus maršrutus.');
+            const data = await res.json();
+
+            if (data._embedded && data._embedded.tours) {
+                komootPlannedTours = komootPlannedTours.concat(data._embedded.tours);
+            }
+
+            if (data._links && data._links.next && data._links.next.href) {
+                plannedToursUrl = data._links.next.href;
+            } else {
+                plannedToursUrl = null;
+            }
+        }
+
+        statusEl.innerText = `Gauta ${komootTours.length} įveiktų ir ${komootPlannedTours.length} planuojamų maršrutų!`;
+        statusEl.style.color = 'var(--safe-text)';
 
         renderKomootStats();
+        renderKomootAInsights();
 
     } catch (e) {
         statusEl.innerText = 'Klaida: ' + e.message;
@@ -1282,6 +1308,151 @@ function renderKomootStats() {
             </tr>
         `;
     });
+}
+
+function renderKomootAInsights() {
+    const insightsContainer = document.getElementById('komoot-ai-insights');
+    insightsContainer.innerHTML = '';
+
+    // 1. Analyze Recent Rides (Last 5)
+    const recentRides = komootTours
+        .filter(t => t.sport && (t.sport.includes('bike') || t.sport.includes('mtb') || t.sport.includes('bicycle')))
+        .sort((a,b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 5);
+
+    let recentRidesHTML = '';
+    if (recentRides.length > 0) {
+        recentRidesHTML = `<h2 class="forecast-title" style="margin-top: 30px;">DI Analizė: Paskutiniai Važiavimai</h2><div class="params-grid">`;
+        recentRides.forEach(tour => {
+            const dist = ((tour.distance || 0) / 1000).toFixed(1);
+            const name = tour.name || 'Belaidis maršrutas';
+            const dateStr = tour.date ? new Date(tour.date).toLocaleDateString('lt-LT') : '';
+            const durationHrs = (tour.duration || 0) / 3600;
+            const avgSpeed = durationHrs > 0 ? (dist / durationHrs).toFixed(1) : 0;
+            const elevation = tour.elevation_up || 0;
+
+            // AI logic for calories & effort
+            // Rough estimation: ~30-40 kcal per km depending on elevation and speed
+            const kcalMultiplier = 35 + (elevation / 100) * 5 + (avgSpeed > 20 ? 5 : 0);
+            const estimatedKcal = Math.round(dist * kcalMultiplier);
+
+            let effortLabel = "Lengvas pasivažinėjimas";
+            let effortColor = "var(--safe-text)";
+            if (dist > 50 || elevation > 500 || avgSpeed > 25) { effortLabel = "Intensyvi treniruotė"; effortColor = "var(--danger-text)"; }
+            else if (dist > 25 || elevation > 200 || avgSpeed > 20) { effortLabel = "Vidutinis krūvis"; effortColor = "var(--warning-text)"; }
+
+            recentRidesHTML += `
+                <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 15px;">
+                    <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">${name}</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">${dateStr}</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                        <span>Atstumas:</span> <strong>${dist} km</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                        <span>Vid. greitis:</span> <strong>${avgSpeed} km/h</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px;">
+                        <span>Kalorijos (apyt.):</span> <strong>${estimatedKcal} kcal</strong>
+                    </div>
+                    <div style="text-align: right; font-size: 12px; font-weight: bold; color: ${effortColor};">
+                        ${effortLabel}
+                    </div>
+                </div>
+            `;
+        });
+        recentRidesHTML += `</div>`;
+    }
+
+    // 2. Analyze Planned Tours
+    const plannedRides = komootPlannedTours
+        .filter(t => t.sport && (t.sport.includes('bike') || t.sport.includes('mtb') || t.sport.includes('bicycle')))
+        .sort((a,b) => new Date(b.date) - new Date(a.date)) // Just sort by date created or any
+        .slice(0, 5);
+
+    let plannedRidesHTML = '';
+    if (plannedRides.length > 0) {
+        plannedRidesHTML = `<h2 class="forecast-title" style="margin-top: 30px;">DI Patarimai: Planuojami Maršrutai</h2><div class="params-grid">`;
+        plannedRides.forEach(tour => {
+            const dist = ((tour.distance || 0) / 1000).toFixed(1);
+            const name = tour.name || 'Belaidis maršrutas';
+            const elevation = tour.elevation_up || 0;
+
+            // AI Advice based on distance, elevation, and current active profile or general weather
+            // Since we don't have exact coordinate weather matching for each tour point, we use the selected city's weather data
+
+            let bestDayStr = "Ieškoma geriausios dienos...";
+            let advice = "";
+            let warnings = [];
+
+            if (elevation > 1000) warnings.push("Didelis sukilimas, reikės geros formos.");
+            if (dist > 80) warnings.push("Ilgas atstumas, pasiimk pakankamai vandens ir maisto.");
+
+            // Find a good day in the 14-day forecast for this specific ride
+            if (weatherData && weatherData.hourly) {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const fromH = parseInt(document.getElementById('timeFrom').value);
+                const toH = parseInt(document.getElementById('timeTo').value);
+                const minT = parseFloat(document.getElementById('minTempInput').value);
+
+                let foundDay = null;
+                for (let i = 1; i < 14; i++) { // look in next 14 days
+                    let isReal = weatherData.hourly.temperature_2m[i * 24 + fromH] !== undefined;
+                    if (!isReal) continue;
+
+                    let tS = weatherData.hourly.temperature_2m[i * 24 + fromH];
+                    let tE = weatherData.hourly.temperature_2m[i * 24 + toH];
+                    const rainSlice = weatherData.hourly.precipitation.slice(i * 24 + fromH, i * 24 + toH + 1);
+                    let rain = rainSlice.reduce((a, b) => a + b, 0);
+                    let wSpeed = weatherData.hourly.wind_speed_10m[i * 24 + fromH];
+
+                    // Specific logic: if it's a long/hard ride, we want better weather
+                    let reqTemp = dist > 50 ? Math.max(minT, 10) : minT; // Need at least 10C for long rides
+                    let reqWind = elevation > 500 ? 15 : 20; // Less wind for climbing
+
+                    if (tS >= reqTemp && tE >= reqTemp && rain <= 0.5 && wSpeed <= reqWind) {
+                        let d = new Date(today);
+                        d.setDate(d.getDate() + i);
+                        foundDay = `${getLTMonth(d.getMonth())} ${d.getDate()}, ${getLTWeekday(d.getDay())}`;
+
+                        advice = `Ideali temperatūra (${tS.toFixed(1)}°C - ${tE.toFixed(1)}°C) ir silpnas vėjas šiam maršrutui.`;
+                        break;
+                    }
+                }
+                if (foundDay) {
+                    bestDayStr = `Siūloma diena: <strong>${foundDay}</strong>`;
+                } else {
+                    bestDayStr = "Artimiausias 14 dienų nėra idealių sąlygų šiam maršrutui.";
+                    advice = "Rekomenduojama palaukti geresnių orų arba peržiūrėti minimalius reikalavimus.";
+                }
+            }
+
+            plannedRidesHTML += `
+                <div class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(59, 130, 246, 0.05)); border: 1px solid var(--accent-blue); padding: 15px;">
+                    <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">${name}</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                        <span>Atstumas:</span> <strong>${dist} km</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px;">
+                        <span>Sukilimas:</span> <strong>${elevation} m</strong>
+                    </div>
+
+                    <div style="font-size: 13px; color: var(--text-main); margin-bottom: 5px;">
+                        ${bestDayStr}
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); font-style: italic;">
+                        ${advice}
+                    </div>
+                    ${warnings.length > 0 ? `<div style="margin-top: 10px; font-size: 12px; color: var(--warning-text);">⚠️ ${warnings.join('<br>')}</div>` : ''}
+                </div>
+            `;
+        });
+        plannedRidesHTML += `</div>`;
+    } else {
+        plannedRidesHTML = `<div style="margin-top: 20px; color: var(--text-muted); font-size: 14px;">Planuojamų maršrutų nerasta.</div>`;
+    }
+
+    insightsContainer.innerHTML = plannedRidesHTML + recentRidesHTML;
 }
 </script>
 </body>
