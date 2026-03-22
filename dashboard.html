@@ -1068,6 +1068,8 @@
             // Saulės baterijos analizei
             let sunMinutesTotal = 0;
             let daylightMinutesElapsed = 0;
+            let nightBaselineV = null;
+            // Nustatysime žemiausią (ar vidutinę) nakties įtampą, nuo kurios atsispirsime.
 
             // AC analizei (Energija W * laikas = Wh -> kWh)
             let ac1Energy_Wh = 0;
@@ -1109,9 +1111,15 @@
                 // Saulės baterijos (field6) analizė
                 if (sunriseTime && sunsetTime && f.field6 !== null) {
                     const batV = parseFloat(f.field6);
-                    const currentTime = new Date().getTime(); // Dabartinis laikas
+                    const currentTime = new Date().getTime();
 
-                    // Skaičiuojame tik tai kas vyko po saulėtekio ir iki dabar (arba iki saulėlydžio)
+                    // Gauname nakties atskaitos tašką (Baseline įtampą prieš patekant saulei)
+                    if (time < sunriseTime) {
+                        if (nightBaselineV === null || batV < nightBaselineV) {
+                            nightBaselineV = batV;
+                        }
+                    }
+
                     const endOfCalcTime = Math.min(currentTime, sunsetTime);
 
                     if (time >= sunriseTime && time <= endOfCalcTime) {
@@ -1119,9 +1127,11 @@
                             const prevTime = new Date(feeds[i-1].created_at).getTime();
                             const gapMinutes = (time - prevTime) / 60000;
 
-                            // Jei baterija generuoja (pvz. įtampa > 13.0 V yra indikacija, kad šviečia saulė ir krauna)
-                            // Šį slenkstį (13.0) galima bus pakoreguoti pagal realius jūsų duomenis
-                            if (batV > 13.0 && gapMinutes < 60) {
+                            // Jei dėl kokių nors priežasčių nakties duomenų nebuvo, laikome standartinį 12.2V švino rūgštinės baterijos ramybės būvį
+                            const baseline = nightBaselineV !== null ? nightBaselineV : 12.2;
+
+                            // Saulė šviečia, kai įtampa pramuša nakties ramybės įtampą (+0.1V reiškia krovimąsi / saulės aktyvumą)
+                            if (batV > (baseline + 0.1) && gapMinutes < 60) {
                                 sunMinutesTotal += gapMinutes;
                             }
                         }
@@ -1261,10 +1271,11 @@
                 const ssTimeStr = new Date(sunsetTime).toLocaleTimeString('lt-LT', {hour: '2-digit', minute:'2-digit'});
                 report += `<br><br><strong>☀️ Saulės Baterijos ir Apšviestumo Analizė:</strong> Šiandien saulė teka <b>${srTimeStr}</b>, leidžiasi <b>${ssTimeStr}</b>. `;
                 if (daylightMinutesElapsed > 0) {
-                    report += `Nuo dienos pradžios saulė bateriją apšvietė ir krovė (įtampa >13V) apie <b>${sunPerc}%</b> viso praėjusio dienos laiko (${sunHours} val. ${sunMins} min.). `;
-                    if (sunPerc > 70) report += `<span class="status-success">Diena labai saulėta, baterija turėtų būti pilnai įkrauta.</span>`;
-                    else if (sunPerc > 30) report += `<span class="status-warning">Diena su pragiedruliais, krovimas vidutinis.</span>`;
-                    else report += `<span class="status-danger">Diena labai apniukusi, krovimo efektyvumas žemas.</span>`;
+                    let baselineStr = nightBaselineV !== null ? nightBaselineV.toFixed(2) : "12.20";
+                    report += `Sistemos ramybės įtampa naktį buvo ~<b>${baselineStr} V</b>. Atsižvelgiant į tai, saulė pro debesis pradėjo matytis ir kelti įtampą (krovimas prasidėjo) apie <b>${sunPerc}%</b> viso praėjusio dienos laiko (${sunHours} val. ${sunMins} min.). `;
+                    if (sunPerc > 70) report += `<span class="status-success">Diena pakankamai giedra ir šviesi, baterija aktyviai kraunama.</span>`;
+                    else if (sunPerc > 30) report += `<span class="status-warning">Diena su pragiedruliais arba apsiniaukusi (šviesos lygis vidutinis).</span>`;
+                    else report += `<span class="status-danger">Diena labai tamsi, apniukusi, šviesos neužtenka net minimaliam įtampos pakėlimui.</span>`;
                 } else {
                     report += `Laukiama saulėtekio.`;
                 }
