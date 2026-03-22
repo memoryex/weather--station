@@ -1336,6 +1336,12 @@ function renderKomootAInsights() {
             const kcalMultiplier = 35 + (elevation / 100) * 5 + (avgSpeed > 20 ? 5 : 0);
             const estimatedKcal = Math.round(dist * kcalMultiplier);
 
+            // E-bike energy logic (assuming a mix mode, mostly Tour/Auto with some Eco)
+            // Average ~7.5 Wh/km + 0.6 Wh per meter of climb
+            const ebikeWh = Math.round((dist * 7.5) + (elevation * 0.6));
+            const ebikePct = Math.min(100, Math.round((ebikeWh / 750) * 100));
+            const ebikeString = ebikeWh > 750 ? ">100%" : `${ebikePct}%`;
+
             let effortLabel = "Lengvas pasivažinėjimas";
             let effortColor = "var(--safe-text)";
             if (dist > 50 || elevation > 500 || avgSpeed > 25) { effortLabel = "Intensyvi treniruotė"; effortColor = "var(--danger-text)"; }
@@ -1351,8 +1357,11 @@ function renderKomootAInsights() {
                     <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
                         <span>Vid. greitis:</span> <strong>${avgSpeed} km/h</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
                         <span>Kalorijos (apyt.):</span> <strong>${estimatedKcal} kcal</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; color: var(--accent-blue);">
+                        <span>🔋 E-Bike sąnaudos:</span> <strong>~${ebikeString} (${ebikeWh} Wh)</strong>
                     </div>
                     <div style="text-align: right; font-size: 12px; font-weight: bold; color: ${effortColor};">
                         ${effortLabel}
