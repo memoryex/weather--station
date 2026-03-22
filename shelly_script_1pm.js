@@ -21,27 +21,48 @@ function updatePower() {
 
       // Suformuojame užklausą į field7
       var full_url = tsurl + "?api_key=" + tsapikey + "&field7=" + powerWatts;
-      print("📤 Siunčiama GET užklausa į ThingSpeak (field7)...");
-
-      Shelly.call("HTTP.GET", {
-        url: full_url,
-        timeout: 15
-      }, function(result, error_code, error_msg) {
-        if (error_code !== 0) {
-          print("❌ Klaida siunčiant į ThingSpeak: " + error_msg);
-        } else {
-          if (result.code === 200 && result.body !== "0") {
-            print("✅ Pavyko! ThingSpeak išsaugojo galią. Įrašo eilės numeris: " + result.body);
-          } else if (result.code === 200 && result.body === "0") {
-            print("⚠️ ThingSpeak grąžino 0. Tai reiškia, kad siunčiate per dažnai (nemokama versija - 15 sek. limitas).");
-          } else {
-            print("⚠️ ThingSpeak klaida HTTP " + result.code + ": " + result.body);
-          }
-        }
-      });
+      sendToThingSpeak(full_url, 0); // Pradedame siuntimą nuo bandymo nr. 0
 
     } else {
       print("⚠️ Nerasta momentinės galios (apower) informacijos. Ar tikrai tai 1PM / PM serijos įrenginys?");
+    }
+  });
+}
+
+// Atskirta siuntimo funkcija su "Retry" logika
+function sendToThingSpeak(url, attempt) {
+  print("📤 Siunčiama GET užklausa į ThingSpeak (field7) (Bandymas " + (attempt + 1) + ")...");
+
+  Shelly.call("HTTP.GET", {
+    url: url,
+    timeout: 15
+  }, function(result, error_code, error_msg) {
+    var retry_needed = false;
+
+    if (error_code !== 0) {
+      print("❌ Klaida siunčiant į ThingSpeak: " + error_msg);
+      retry_needed = true;
+    } else {
+      if (result.code === 200 && result.body !== "0") {
+        print("✅ Pavyko! ThingSpeak išsaugojo galią. Įrašo eilės numeris: " + result.body);
+      } else if (result.code === 200 && result.body === "0") {
+        print("⚠️ ThingSpeak grąžino 0 (Limitų blokavimas / per dažnas siuntimas).");
+        retry_needed = true;
+      } else {
+        print("⚠️ ThingSpeak klaida HTTP " + result.code + ": " + result.body);
+        retry_needed = true;
+      }
+    }
+
+    if (retry_needed) {
+      if (attempt < 3) {
+        print("⏳ Laukiami 16 sekundžių iki sekančio bandymo...");
+        Timer.set(16000, false, function() {
+          sendToThingSpeak(url, attempt + 1);
+        });
+      } else {
+        print("❌ Atšaukiama. Pasiektas maksimalus (3) bandymų skaičius.");
+      }
     }
   });
 }
