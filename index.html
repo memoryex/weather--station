@@ -1522,7 +1522,7 @@ async function renderKomootAInsights() {
             let mapHTML = "";
             let mapScript = "";
             if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
-                const mapId = `map-${tourId.replace(/[^a-zA-Z0-9]/g, '')}`;
+                const mapId = `map-${String(tourId).replace(/[^a-zA-Z0-9]/g, '')}`;
                 mapHTML = `<div id="${mapId}" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1;"></div>`;
                 mapScript = `
                     setTimeout(() => {
@@ -1687,8 +1687,29 @@ async function renderKomootAInsights() {
                 }
             }
 
+            // Map data extraction: Komoot start_point if available for PLANNED tours too
+            let plannedMapHTML = "";
+            let plannedMapScript = "";
+            const tourIdStr = String(tour.id || name).replace(/[^a-zA-Z0-9]/g, '');
+            if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
+                const mapIdPlanned = `map-planned-${tourIdStr}`;
+                plannedMapHTML = `<div id="${mapIdPlanned}" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1;"></div>`;
+                plannedMapScript = `
+                    setTimeout(() => {
+                        try {
+                            const mapP = L.map('${mapIdPlanned}', {zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false}).setView([${tour.start_point.lat}, ${tour.start_point.lng}], 12);
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapP);
+                            L.circleMarker([${tour.start_point.lat}, ${tour.start_point.lng}], {
+                                color: '#10B981', fillColor: '#10B981', fillOpacity: 0.8, radius: 6
+                            }).addTo(mapP);
+                        } catch(e) {}
+                    }, 100);
+                `;
+            }
+
             plannedRidesHTML += `
-                <div class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(59, 130, 246, 0.05)); border: 1px solid var(--accent-blue); padding: 15px;">
+                <div class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(59, 130, 246, 0.05)); border: 1px solid var(--accent-blue); padding: 15px; position: relative; overflow: hidden;">
+                    ${plannedMapHTML}
                     <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">${name}</div>
                     <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
                         <span>Atstumas:</span> <strong>${dist} km</strong>
@@ -1736,6 +1757,12 @@ async function renderKomootAInsights() {
                     </div>
                 </div>
             `;
+
+            if(plannedMapScript) {
+                setTimeout(() => {
+                    try { eval(plannedMapScript); } catch(e){}
+                }, 300);
+            }
         });
         plannedRidesHTML += `</div>`;
     } else {
