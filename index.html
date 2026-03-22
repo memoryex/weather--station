@@ -1,0 +1,2240 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dviračio minimo prognozė</title>
+    <!-- Add Google API Client -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Add Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <!-- Leaflet CSS & JS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Tabs */
+        .tabs-container { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
+        .tab-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); padding: 12px 24px; border-radius: 12px; cursor: pointer; font-weight: 600; transition: 0.3s; font-size: 15px; }
+        .tab-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
+        .tab-btn.active { background: var(--bg-accent); color: var(--text-main); border-color: rgba(96, 165, 250, 0.5); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .light-mode .tab-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); color: var(--text-muted); }
+        .light-mode .tab-btn:hover { background: rgba(0,0,0,0.1); color: var(--text-main); }
+        .light-mode .tab-btn.active { background: var(--bg-accent); color: white; border-color: transparent; }
+
+        /* CSS reset and base styles */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        :root {
+            --bg: #0B1120;
+            --card-bg: #111827;
+            --input-bg: #0B1120;
+            --text-main: #FFFFFF;
+            --text-muted: #9CA3AF;
+            --text-accent: #60A5FA;
+            --border: #1F2937;
+            --accent-blue: #3B82F6;
+            --accent-green: #10B981;
+            --danger-bg: #EF4444;
+            --danger-muted: #3F1C25;
+            --danger-text: #F87171;
+            --warning-muted: #422D19;
+            --warning-text: #FBBF24;
+            --safe-muted: #132D26;
+            --safe-text: #34D399;
+        }
+
+        .light-mode {
+            --bg: #F3F4F6;
+            --card-bg: #FFFFFF;
+            --input-bg: #F9FAFB;
+            --text-main: #111827;
+            --text-muted: #6B7280;
+            --border: #E5E7EB;
+            --danger-muted: #FEE2E2;
+            --danger-text: #DC2626;
+            --warning-muted: #FEF3C7;
+            --warning-text: #D97706;
+            --safe-muted: #D1FAE5;
+            --safe-text: #059669;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Top Banner */
+        .top-banner {
+            width: 100%;
+            background-color: var(--danger-bg);
+            color: white;
+            text-align: center;
+            padding: 12px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            padding: 24px;
+        }
+
+        /* Header section */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+
+        .logo-icon {
+            width: 56px; height: 56px;
+            background: linear-gradient(135deg, #3B82F6, #60A5FA);
+            border-radius: 16px;
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+        }
+        .logo-icon svg { width: 32px; height: 32px; fill: white; }
+
+        .title-wrapper { display: flex; flex-direction: column; }
+        .main-title {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #3B82F6, #10B981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .pro-badge {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+            -webkit-text-fill-color: white;
+        }
+        .location {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            display: flex; align-items: center; gap: 4px;
+            margin-top: 4px;
+        }
+        .city-select {
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            padding: 4px 8px; border-radius: 6px;
+            cursor: pointer; outline: none;
+            transition: 0.2s;
+        }
+        .city-select:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
+        .city-select option { background: var(--card-bg); color: var(--text-main); }
+        .light-mode .city-select { background: rgba(0,0,0,0.05); }
+        .light-mode .city-select:hover { background: rgba(0,0,0,0.1); }
+
+        .header-controls { display: flex; gap: 12px; position: relative; align-items: center; }
+
+        .btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+        .btn:hover { background: #1F2937; }
+        .btn.icon-only { padding: 10px; }
+
+        /* Dropdown */
+        .dropdown-menu {
+            position: absolute;
+            top: 100%; right: 90px;
+            margin-top: 8px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 220px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 10;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-header {
+            padding: 12px 16px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+        .dropdown-item {
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .dropdown-item:hover { background: rgba(255,255,255,0.05); }
+
+        /* Parameters Section */
+        .section-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 20px;
+        }
+        .section-title svg { color: var(--accent-blue); width: 20px; height: 20px; }
+
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .param-card {
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex; flex-direction: column; gap: 8px;
+            transition: border-color 0.2s;
+        }
+        .param-card:focus-within { border-color: var(--accent-blue); }
+        .param-label {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .param-label svg { width: 14px; height: 14px; color: var(--accent-blue); }
+        .param-input {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-size: 1.5rem;
+            font-weight: 700;
+            width: 100%;
+            outline: none;
+        }
+        /* Hide arrows from number inputs */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        /* Summary Blocks */
+        .summary-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            margin-bottom: 30px;
+        }
+
+        /* Live Data Card */
+        .live-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .live-card::before {
+            content: ""; position: absolute; top: -50px; right: -50px;
+            width: 150px; height: 150px; background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%); border-radius: 50%;
+        }
+        .live-header {
+            display: flex; align-items: center; gap: 10px; flex-direction: column; align-items: flex-start;
+        }
+        .live-title { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
+        .live-pulse {
+            width: 8px; height: 8px; background-color: var(--danger-text); border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.7); animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(248, 113, 113, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
+        }
+        .live-temp { font-size: 2.5rem; font-weight: 800; color: var(--text-main); line-height: 1; }
+        .live-metrics {
+            display: flex; gap: 24px; flex-wrap: wrap;
+        }
+        .live-metric {
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .live-metric-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+        .live-metric-val { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
+        .live-alert {
+            background: var(--danger-muted); color: var(--danger-text);
+            padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+            display: flex; align-items: center; gap: 6px; border: 1px solid rgba(239,68,68,0.3);
+            width: 100%; margin-top: 10px; display: none;
+        }
+        .summary-card {
+            flex: 1;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .summary-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+        }
+        .summary-safe { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+        .summary-warn { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
+
+        .summary-content { flex: 1; }
+        .summary-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+        .summary-value { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
+
+        /* Forecast Title */
+        .forecast-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        /* Forecast Table */
+        .forecast-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th {
+            padding: 16px;
+            color: var(--text-main);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.02);
+            text-align: center;
+        }
+        th:first-child { text-align: left; }
+
+        .th-icon-title {
+            display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-main);
+        }
+        .th-icon-title svg { width: 18px; height: 18px; color: var(--text-muted); }
+
+        td {
+            padding: 20px 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            text-align: center;
+        }
+        td:first-child { text-align: left; }
+
+        .date-cell {
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .today-tag {
+            background: var(--accent-blue);
+            color: white;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 12px;
+            text-transform: uppercase;
+        }
+
+        .temp-primary { font-size: 1.2rem; font-weight: 500; }
+        .temp-secondary { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+        .wind-info {
+            font-size: 0.8rem; color: var(--text-main);
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+            margin-top: 6px;
+        }
+        .wind-info svg { width: 12px; height: 12px; color: var(--accent-blue); }
+        .wind-info.wind-bad { color: var(--danger-text); font-weight: 600; }
+        .wind-info.wind-bad svg { color: var(--danger-text); }
+
+        .metric-primary { font-size: 1rem; font-weight: 600; color: var(--accent-blue); }
+        .metric-primary.text-main { color: var(--text-main); }
+        .metric-secondary { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+        /* New warning classes */
+        .temp-primary.temp-bad, .temp-secondary.temp-bad,
+        .metric-primary.metric-bad, .metric-primary.text-main.metric-bad {
+            color: var(--danger-text);
+        }
+
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-weight: 600; font-size: 0.85rem;
+        }
+        .status-no {
+            background: var(--danger-muted); color: var(--danger-text); border: 1px solid rgba(239,68,68,0.3);
+        }
+        .status-warning {
+            background: var(--warning-muted); color: var(--warning-text); border: 1px solid rgba(245,158,11,0.3);
+        }
+        .status-yes {
+            background: var(--safe-muted); color: var(--safe-text); border: 1px solid rgba(52,211,153,0.3);
+        }
+        .light-mode .status-no { border-color: rgba(220,38,38,0.3); }
+        .light-mode .status-warning { border-color: rgba(217,119,6,0.3); }
+        .light-mode .status-yes { border-color: rgba(5,150,105,0.3); }
+
+        .light-mode th { background: rgba(0,0,0,0.02); }
+        .light-mode .th-icon-title { color: var(--text-muted); }
+        .status-badge svg { width: 14px; height: 14px; }
+
+    </style>
+</head>
+<body>
+
+    <!-- Top Banner: hidden by default, populated by JS -->
+    <div id="top-banner" class="top-banner" style="display: none;"></div>
+
+    <div class="container">
+        <!-- Navigation Tabs -->
+        <div class="tabs-container">
+            <button class="tab-btn active" onclick="switchTab('forecast')">☁️ Orų Prognozė</button>
+            <button class="tab-btn" onclick="switchTab('komoot')">🚴 Komoot Statistika</button>
+            <button class="tab-btn" onclick="switchTab('health')">❤️ Sveikata (Google Fit)</button>
+        </div>
+
+        <!-- Forecast Tab Content -->
+        <div id="tab-forecast" class="tab-content active">
+
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="logo-icon">
+                    <!-- Bike Icon SVG -->
+                    <svg viewBox="0 0 24 24"><path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm5.8-10l2.4-2.4.8.8c1.3 1.3 3 2.1 5.1 2.1V9c-1.5 0-2.7-.6-3.6-1.5l-1.9-1.9c-.5-.4-1-.6-1.6-.6s-1.1.2-1.4.6L7.8 8.4c-.4.4-.6.9-.6 1.4 0 .6.2 1.1.6 1.4L11 14v5h2v-6.2l-2.2-2.3zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/></svg>
+                </div>
+                <div class="title-wrapper">
+                    <h1 class="main-title">Dviračio minimo prognozė <span class="pro-badge">PRO+</span></h1>
+                    <div class="location">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                        <select id="citySelect" class="city-select" onchange="changeCity()">
+                            <option value="vilnius|54.68,25.27">Vilnius</option>
+                            <option value="kaunas|54.89,23.90">Kaunas</option>
+                            <option value="klaipeda|55.70,21.14">Klaipėda</option>
+                            <option value="siauliai|55.93,23.31">Šiauliai</option>
+                            <option value="panevezys|55.73,24.36" selected>Panevėžys</option>
+                        </select>
+                        <span style="margin: 0 4px; color: var(--border);">|</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M12 2v20M19.07 4.93l-14.14 14.14M4.93 4.93l14.14 14.14"></path></svg>
+                        <select id="apiSourceSelect" class="city-select" onchange="changeCity()">
+                            <option value="openmeteo" selected>Open-Meteo</option>
+                            <option value="meteolt">Meteo.lt</option>
+                        </select>
+                        (Hibrid AI)
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-controls">
+                <button id="profileBtn" class="btn" onclick="toggleDropdown(event)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    <span>Profiliai</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div id="profileDropdown" class="dropdown-menu">
+                    <div class="dropdown-header">Išsaugoti Profiliai</div>
+                    <div class="dropdown-item" onclick="loadProfile('Vasara')">☀️ Vasara</div>
+                    <div class="dropdown-item" onclick="loadProfile('Pavasaris/Ruduo')">🍂 Pavasaris/Ruduo</div>
+                    <div class="dropdown-item" onclick="loadProfile('Žiema')">❄️ Žiema</div>
+                </div>
+
+                <button class="btn icon-only" title="Išsaugoti" onclick="saveSettings()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                </button>
+                <button class="btn icon-only" title="Tema" onclick="toggleTheme()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Parameters Grid -->
+        <div class="section-card">
+            <div class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                Parametrai
+            </div>
+            <div class="params-grid">
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Nuo val.</label>
+                    <input type="number" id="timeFrom" class="param-input" value="6" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Iki val.</label>
+                    <input type="number" id="timeTo" class="param-input" value="17" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg> Min Temp °C</label>
+                    <input type="number" id="minTempInput" class="param-input" value="3" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg> Min Juntamoji °C</label>
+                    <input type="number" id="minAppTempInput" class="param-input" value="1" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path><path d="M16 14v6"></path><path d="M8 14v6"></path><path d="M12 16v6"></path></svg> Max Krituliai mm</label>
+                    <input type="number" id="maxRainInput" class="param-input" value="0.5" step="0.1" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path><path d="M8 16h.01"></path><path d="M8 20h.01"></path><path d="M12 18h.01"></path><path d="M12 22h.01"></path><path d="M16 16h.01"></path><path d="M16 20h.01"></path></svg> Max Sniego danga cm</label>
+                    <input type="number" id="maxSnowInput" class="param-input" value="2" onchange="updateView()">
+                </div>
+                <div class="param-card">
+                    <label class="param-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg> Max Vėjas km/h</label>
+                    <input type="number" id="maxWindInput" class="param-input" value="15" onchange="updateView()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Observation -->
+        <div class="live-card" id="live-card" style="display: none;">
+            <div class="live-header">
+                <div class="live-title"><div class="live-pulse"></div> FAKTINIAI METEO.LT DUOMENYS (AMS) <span id="live-station-name" style="color: var(--accent-blue);">-</span></div>
+                <div class="live-temp" id="live-temp">--°</div>
+            </div>
+            <div class="live-metrics">
+                <div class="live-metric">
+                    <div class="live-metric-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg> Vėjas (Gūsiai)</div>
+                    <div class="live-metric-val" id="live-wind">-- km/h</div>
+                </div>
+                <div class="live-metric">
+                    <div class="live-metric-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path><path d="M16 14v6"></path><path d="M8 14v6"></path><path d="M12 16v6"></path></svg> Krituliai</div>
+                    <div class="live-metric-val" id="live-rain">-- mm</div>
+                </div>
+                <div class="live-metric">
+                    <div class="live-metric-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg> Drėgmė</div>
+                    <div class="live-metric-val" id="live-humidity">--%</div>
+                </div>
+            </div>
+            <div class="live-alert" id="live-alert">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span id="live-alert-text">Pavojus!</span>
+            </div>
+        </div>
+
+        <!-- Next Days Summary -->
+        <div class="summary-container">
+            <div class="summary-card">
+                <div class="summary-icon summary-safe">🚴</div>
+                <div class="summary-content">
+                    <div class="summary-label">Artimiausia diena minti</div>
+                    <div class="summary-value" id="next-best-day">Ieškoma...</div>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="summary-icon summary-warn">⚠️</div>
+                <div class="summary-content">
+                    <div class="summary-label">Tinkama diena su perspėjimu</div>
+                    <div class="summary-value" id="next-warn-day">Ieškoma...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 30 Days Forecast -->
+        <h2 class="forecast-title">30 Dienų Prognozė</h2>
+
+        <div class="forecast-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DIENA</th>
+                        <th>
+                            <div class="th-icon-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>
+                                RYTE
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-icon-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>
+                                VAKARE
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-icon-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+                                LIETUS
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-icon-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M12 2v20M19.07 4.93l-14.14 14.14M4.93 4.93l14.14 14.14"></path></svg>
+                                SNIEGO<br>DANGA
+                            </div>
+                        </th>
+                        <th>AR GALIMA<br>MINTI?</th>
+                    </tr>
+                </thead>
+                <tbody id="forecast-body">
+                    <!-- Rows generated by JS -->
+                </tbody>
+            </table>
+        </div>
+        </div> <!-- End Forecast Tab -->
+
+        <!-- Komoot Tab Content -->
+        <div id="tab-komoot" class="tab-content">
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div class="card-title" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem;">
+                        <svg style="width: 24px; height: 24px; color: var(--accent-blue); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        Komoot Integracija
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="googleFitBtn" class="btn" style="background: white; color: #333; border: 1px solid #ccc; font-weight: 600;" onclick="handleAuthClick()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                            Susieti Google Fit
+                        </button>
+                        <button id="googleFitSignOutBtn" class="btn" style="display: none; background: var(--danger-muted); color: var(--danger-text);" onclick="handleSignoutClick()">Atsijungti nuo Fit</button>
+                    </div>
+                </div>
+
+                <div class="params-grid" style="align-items: end; margin-top: 20px;">
+                    <div class="param-group">
+                        <label class="param-label">El. Paštas</label>
+                        <input type="email" id="komootEmail" class="param-input" placeholder="vardenis@pavyzdys.lt">
+                    </div>
+                    <div class="param-group">
+                        <label class="param-label">Slaptažodis</label>
+                        <input type="password" id="komootPassword" class="param-input">
+                    </div>
+                    <div class="param-group">
+                        <button onclick="fetchKomootData()" class="action-btn" style="width: 100%; height: 50px; background: var(--accent-blue); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer;">Prisijungti ir Užkrauti</button>
+                    </div>
+                </div>
+                <div id="komoot-status" style="margin-top: 15px; font-size: 14px; font-weight: 500; color: var(--danger-text);"></div>
+                <div id="komoot-proxy-info" style="margin-top: 10px; font-size: 12px; opacity: 0.6; color: var(--text-muted);">
+                    * Reikalingas veikiantis vietinis komoot_proxy.py serveris (http://localhost:5050)
+                </div>
+            </div>
+
+            <div id="komoot-stats-container" style="display: none;">
+                <h2 class="forecast-title" style="margin-top: 0;">Metų Statistika</h2>
+                <div class="params-grid" id="komoot-stats-content" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                    <!-- Stats will be injected here -->
+                </div>
+
+                <h2 class="forecast-title" style="margin-top: 30px;">Ilgiausi Maršrutai</h2>
+                <div class="card">
+                    <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <th style="padding: 12px; font-size: 13px; color: var(--text-muted);">MARŠRUTAS</th>
+                                <th style="padding: 12px; font-size: 13px; color: var(--text-muted); text-align: right;">ATSTUMAS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="komoot-locations-body">
+                            <!-- Locations will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="komoot-ai-insights">
+                    <!-- AI Insights will be injected here -->
+                </div>
+
+                <!-- Filters for Recent Rides -->
+                <div id="komoot-filters-section" style="display: none; margin-top: 40px;">
+                    <div class="card" style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2);">
+                        <div style="font-size: 16px; font-weight: bold; margin-bottom: 15px; color: var(--accent-blue); display: flex; align-items: center; gap: 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                            Detali Važiavimų Istorija ir Analizė
+                        </div>
+
+                        <div class="params-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 15px;">
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Nuo datos</label>
+                                <input type="date" id="filterDateFrom" class="param-input" style="font-size: 14px; padding-top: 5px;">
+                            </div>
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Iki datos</label>
+                                <input type="date" id="filterDateTo" class="param-input" style="font-size: 14px; padding-top: 5px;">
+                            </div>
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Min. Atstumas (km)</label>
+                                <input type="number" id="filterMinDist" class="param-input" value="0" style="font-size: 18px;">
+                            </div>
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Tipas</label>
+                                <select id="filterSport" class="param-input" style="font-size: 14px; background: transparent; border: none; color: var(--text-main); margin-top: 5px; cursor: pointer; outline: none;">
+                                    <option value="all">Visi dviračiai</option>
+                                    <option value="touringbicycle">Kelionių (Touring)</option>
+                                    <option value="mtb">Kalnų (MTB)</option>
+                                    <option value="racebike">Plentinis (Race)</option>
+                                    <option value="gravelbike">Žvyro (Gravel)</option>
+                                    <option value="e_touringbicycle">E-Bike Touring</option>
+                                    <option value="e_mtb">E-Bike MTB</option>
+                                </select>
+                            </div>
+                            <div class="param-card" style="padding: 12px;">
+                                <label class="param-label">Rodyti Kiekį</label>
+                                <select id="filterLimit" class="param-input" style="font-size: 14px; background: transparent; border: none; color: var(--text-main); margin-top: 5px; cursor: pointer; outline: none;">
+                                    <option value="10">10 Naujausių</option>
+                                    <option value="20">20 Naujausių</option>
+                                    <option value="50">50 Naujausių</option>
+                                    <option value="100">100 Naujausių</option>
+                                    <option value="all">Visi</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button onclick="applyKomootFilters()" class="btn" style="width: 100%; justify-content: center; background: var(--accent-blue); color: white; border: none; font-size: 15px; padding: 12px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            Filtruoti ir Atlikti DI Analizę
+                        </button>
+                    </div>
+
+                    <div id="komoot-filtered-results" style="margin-top: 20px;">
+                        <!-- Filtered results will appear here -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- End Komoot Tab -->
+
+        <!-- Health Tab Content -->
+        <div id="tab-health" class="tab-content">
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div class="card-title" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #EF4444; flex-shrink: 0;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                        Asmeninė Sveikatos Suvestinė (Google Fit)
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="healthGoogleFitBtn" class="btn" style="background: white; color: #333; border: 1px solid #ccc; font-weight: 600;" onclick="handleAuthClick()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                            Susieti Google Fit
+                        </button>
+                        <button id="healthGoogleFitSignOutBtn" class="btn" style="display: none; background: var(--danger-muted); color: var(--danger-text);" onclick="handleSignoutClick()">Atsijungti</button>
+                    </div>
+                </div>
+
+                <div id="health-auth-warning" style="margin-top: 15px; font-size: 14px; font-weight: 500; color: var(--warning-text); display: block;">
+                    * Norėdami matyti sveikatos duomenis, turite prisijungti su savo Google paskyra aukščiau esančiu mygtuku.
+                </div>
+
+                <div id="health-data-section" style="display: none; margin-top: 30px;">
+                    <div class="params-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 25px;">
+                        <div class="param-card" style="padding: 16px;">
+                            <label class="param-label">Laikotarpis: Nuo</label>
+                            <input type="date" id="healthDateFrom" class="param-input" style="font-size: 16px; padding-top: 8px;">
+                        </div>
+                        <div class="param-card" style="padding: 16px;">
+                            <label class="param-label">Laikotarpis: Iki</label>
+                            <input type="date" id="healthDateTo" class="param-input" style="font-size: 16px; padding-top: 8px;">
+                        </div>
+                        <div class="param-card" style="padding: 16px; display: flex; justify-content: flex-end; background: transparent; border: none;">
+                            <button onclick="fetchGeneralHealthData()" class="btn" style="width: 100%; height: 100%; justify-content: center; background: var(--accent-green); color: white; border: none; font-size: 16px; font-weight: 600;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h6l2-9 4 18 2-9h6"></path></svg>
+                                Analizuoti sveikatą
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="health-results-container" style="display: none;">
+                        <h2 class="forecast-title" style="margin-bottom: 20px;" id="health-results-title">Sumuoti Laikotarpio Duomenys</h2>
+
+                        <div class="params-grid" id="health-stats-content" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+                            <!-- Health stats cards will be injected here -->
+                        </div>
+                    </div>
+
+                    <div id="health-status-message" style="margin-top: 20px; font-size: 14px; text-align: center; color: var(--text-muted);">
+                        Pasirinkite datas ir paspauskite "Analizuoti sveikatą".
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- End Health Tab -->
+
+    </div>
+
+    <script>
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+        document.getElementById('tab-' + tabId).classList.add('active');
+        const btns = document.querySelectorAll('.tab-btn');
+        if(tabId === 'forecast') btns[0].classList.add('active');
+        if(tabId === 'komoot') btns[1].classList.add('active');
+        if(tabId === 'health') btns[2].classList.add('active');
+    }
+
+    // Set default dates for health tab (Last 7 days)
+    const hTo = new Date();
+    const hFrom = new Date();
+    hFrom.setDate(hFrom.getDate() - 7);
+    document.getElementById('healthDateFrom').valueAsDate = hFrom;
+    document.getElementById('healthDateTo').valueAsDate = hTo;
+    </script>
+
+<script>
+let weatherData = null;
+const profiles = {
+    'Vasara': { from: 6, to: 18, minT: 15, minApp: 15, maxRain: 0.2, maxSnow: 0, maxWind: 12 },
+    'Pavasaris/Ruduo': { from: 7, to: 17, minT: 5, minApp: 2, maxRain: 0.5, maxSnow: 0, maxWind: 15 },
+    'Žiema': { from: 8, to: 16, minT: -10, minApp: -12, maxRain: 1.5, maxSnow: 15, maxWind: 20 }
+};
+function toggleDropdown(e) {
+    e.stopPropagation();
+    document.getElementById('profileDropdown').classList.toggle('show');
+}
+document.addEventListener('click', () => {
+    document.getElementById('profileDropdown').classList.remove('show');
+});
+function loadProfile(name, displayIconText = null) {
+    const p = profiles[name];
+    if (p) {
+        document.getElementById('timeFrom').value = p.from;
+        document.getElementById('timeTo').value = p.to;
+        document.getElementById('minTempInput').value = p.minT;
+        document.getElementById('minAppTempInput').value = p.minApp;
+        document.getElementById('maxRainInput').value = p.maxRain;
+        document.getElementById('maxSnowInput').value = p.maxSnow;
+        document.getElementById('maxWindInput').value = p.maxWind;
+
+        let labelText = displayIconText || name;
+        document.querySelector('#profileBtn span').innerText = labelText;
+        localStorage.setItem('activeProfileLabel', labelText);
+
+        saveSettings();
+        updateView();
+    }
+}
+function toggleTheme() {
+    document.body.classList.toggle('light-mode');
+    localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+}
+function loadSettings() {
+    const ids = ['timeFrom', 'timeTo', 'minTempInput', 'minAppTempInput', 'maxRainInput', 'maxSnowInput', 'maxWindInput'];
+    ids.forEach(id => {
+        const val = localStorage.getItem(id);
+        if (val !== null) document.getElementById(id).value = val;
+    });
+    const city = localStorage.getItem('cityCoords');
+    if (city) document.getElementById('citySelect').value = city;
+    const apiSource = localStorage.getItem('apiSource');
+    if (apiSource) document.getElementById('apiSourceSelect').value = apiSource;
+    if (localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
+
+    const activeLabel = localStorage.getItem('activeProfileLabel');
+    if (activeLabel) document.querySelector('#profileBtn span').innerText = activeLabel;
+}
+function saveSettings() {
+    const ids = ['timeFrom', 'timeTo', 'minTempInput', 'minAppTempInput', 'maxRainInput', 'maxSnowInput', 'maxWindInput'];
+    ids.forEach(id => localStorage.setItem(id, document.getElementById(id).value));
+    updateView(); // Re-render to show feedback if needed
+}
+function changeCity() {
+    localStorage.setItem('cityCoords', document.getElementById('citySelect').value);
+    localStorage.setItem('apiSource', document.getElementById('apiSourceSelect').value);
+    fetchData();
+}
+
+async function fetchLiveData(slug) {
+    const stationMap = {
+        'vilnius': 'vilniaus-ams',
+        'kaunas': 'kauno-ams',
+        'klaipeda': 'klaipedos-ams',
+        'siauliai': 'siauliu-ams',
+        'panevezys': 'panevezio-ams'
+    };
+    const station = stationMap[slug];
+    if (!station) {
+        document.getElementById('live-card').style.display = 'none';
+        return;
+    }
+
+    try {
+        const url = `https://api.meteo.lt/v1/stations/${station}/observations/latest`;
+        const proxyUrl = `http://localhost:5050/proxy?url=${encodeURIComponent(url)}`;
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
+
+        if (data && data.observations && data.observations.length > 0) {
+            // observations are sorted chronologically, latest is last in the list
+            const latest = data.observations[data.observations.length - 1];
+            renderLiveData(latest, document.querySelector('#citySelect option:checked').text);
+        } else {
+            document.getElementById('live-card').style.display = 'none';
+        }
+    } catch (e) {
+        console.error("Live data fetch error:", e);
+        document.getElementById('live-card').style.display = 'none';
+    }
+}
+
+function renderLiveData(obs, cityName) {
+    document.getElementById('live-card').style.display = 'flex';
+    document.getElementById('live-station-name').innerText = `(${cityName})`;
+
+    document.getElementById('live-temp').innerText = `${obs.airTemperature}°`;
+
+    // Meteo.lt returns wind in m/s, convert to km/h
+    const wSpeed = (obs.windSpeed * 3.6).toFixed(1);
+    const wGust = (obs.windGust * 3.6).toFixed(1);
+    document.getElementById('live-wind').innerText = `${wSpeed} km/h (Gūsiai ${wGust} km/h)`;
+
+    document.getElementById('live-rain').innerText = `${obs.precipitation} mm`;
+    document.getElementById('live-humidity').innerText = `${obs.relativeHumidity}%`;
+
+    const maxR = parseFloat(document.getElementById('maxRainInput').value);
+    const maxW = parseFloat(document.getElementById('maxWindInput').value);
+
+    const alertEl = document.getElementById('live-alert');
+    const alertText = document.getElementById('live-alert-text');
+    alertEl.style.display = 'none';
+
+    let alerts = [];
+    if (obs.precipitation > maxR) alerts.push("Smarkiai lyja!");
+    if (wGust > maxW) alerts.push(`Stiprūs gūsiai viršija tavo ribą (${wGust} km/h)!`);
+
+    if (alerts.length > 0) {
+        alertText.innerText = alerts.join(" ");
+        alertEl.style.display = 'flex';
+    }
+}
+
+async function fetchData() {
+    const apiSource = document.getElementById('apiSourceSelect').value;
+    const cityVal = document.getElementById('citySelect').value;
+    const parts = cityVal.split('|');
+    const slug = parts[0];
+    const coords = parts[1].split(',');
+    const lat = coords[0]; const lon = coords[1];
+
+    try {
+        if (apiSource === 'openmeteo') {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,snow_depth,wind_speed_10m,wind_direction_10m,weathercode&timezone=auto&wind_speed_unit=kmh&forecast_days=14`;
+            const response = await fetch(url);
+            weatherData = await response.json();
+        } else if (apiSource === 'meteolt') {
+            const url = `https://api.meteo.lt/v1/places/${slug}/forecasts/long-term`;
+            // Meteo.lt API doesn't allow direct CORS requests, so we route it through the local proxy
+            const proxyUrl = `http://localhost:5050/proxy?url=${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl);
+            const rawData = await response.json();
+            weatherData = normalizeMeteoLtData(rawData);
+        }
+        updateView();
+        // Run live data fetch asynchronously without blocking the view update
+        fetchLiveData(slug);
+    } catch (e) { console.error("Ryšio klaida!", e); }
+}
+
+function normalizeMeteoLtData(rawData) {
+    // Convert Meteo.lt format to Open-Meteo format for compatibility
+    if (!rawData || !rawData.forecastTimestamps) return null;
+
+    // Determine the starting hour. Open-Meteo returns data starting from 00:00 of the current day.
+    // Meteo.lt returns data from the current hour. We need to align it so `j * 24 + fromH` logic still works.
+    // Actually, updateView uses `weatherData.hourly.temperature_2m[i * 24 + fromH]`, assuming index 0 = today 00:00.
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const hourly = {
+        temperature_2m: [],
+        apparent_temperature: [],
+        precipitation: [],
+        precipitation_probability: [], // meteo.lt doesn't provide this hourly reliably
+        snow_depth: [], // meteo.lt doesn't provide this as depth, we'll infer from condition
+        wind_speed_10m: [],
+        wind_direction_10m: [],
+        weathercode: []
+    };
+
+    // We need 14 days (336 hours) of data array to prevent out of bounds, filled with undefined initially
+    for(let k=0; k<336; k++) {
+        hourly.temperature_2m.push(undefined);
+        hourly.apparent_temperature.push(undefined);
+        hourly.precipitation.push(0);
+        hourly.precipitation_probability.push(0);
+        hourly.snow_depth.push(0);
+        hourly.wind_speed_10m.push(0);
+        hourly.wind_direction_10m.push(0);
+        hourly.weathercode.push(0);
+    }
+
+    rawData.forecastTimestamps.forEach(ts => {
+        const d = new Date(ts.forecastTimeUtc + "Z");
+
+        // Calculate hour offset from today 00:00 local time
+        const diffHours = Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60));
+
+        if (diffHours >= 0 && diffHours < 336) {
+            hourly.temperature_2m[diffHours] = ts.airTemperature;
+            hourly.apparent_temperature[diffHours] = ts.feelsLikeTemperature;
+            hourly.precipitation[diffHours] = ts.totalPrecipitation;
+
+            // convert m/s to km/h
+            hourly.wind_speed_10m[diffHours] = ts.windSpeed * 3.6;
+            hourly.wind_direction_10m[diffHours] = ts.windDirection;
+
+            // Approximate snow depth based on condition (if it's snowing, we simulate snow depth for the warning)
+            if (ts.conditionCode && (ts.conditionCode.includes('snow') || ts.conditionCode.includes('sleet'))) {
+                hourly.snow_depth[diffHours] = 0.05; // 5cm to trigger snow logic if continuous
+            }
+
+            // Map severe conditions to weathercodes
+            if (ts.conditionCode && ts.conditionCode.includes('freezing')) {
+                hourly.weathercode[diffHours] = 66; // freezing rain
+            }
+        }
+    });
+
+    return { hourly: hourly };
+}
+function isHeadwind(direction, type) {
+    if (type === 'start') return direction >= 135 && direction <= 225;
+    if (type === 'end') return direction >= 315 || direction <= 45;
+    return false;
+}
+function getWindArrow(deg) {
+    // 0 is from North, meaning wind goes South (Down, 180deg from standard Up Arrow)
+    // Adjusting arrow icon to standard feather icons navigation point
+    const r = deg + 180 - 45; // Offset because feather arrow-up-left is default pointing up-left
+    return `<svg style="transform: rotate(${r}deg);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>`;
+}
+function getLTMonth(m) {
+    return ['Sau', 'Vas', 'Kov', 'Bal', 'Geg', 'Bir', 'Lie', 'Rgp', 'Rgs', 'Spa', 'Lap', 'Gru'][m];
+}
+function getLTWeekday(w) {
+    return ['Sk', 'Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št'][w];
+}
+function updateView() {
+    if (!weatherData || !weatherData.hourly) return;
+    const tbody = document.getElementById('forecast-body');
+    const banner = document.getElementById('top-banner');
+    const fromH = parseInt(document.getElementById('timeFrom').value);
+    const toH = parseInt(document.getElementById('timeTo').value);
+    const minT = parseFloat(document.getElementById('minTempInput').value);
+    const minAppT = parseFloat(document.getElementById('minAppTempInput').value);
+    const maxR = parseFloat(document.getElementById('maxRainInput').value);
+    const maxS = parseFloat(document.getElementById('maxSnowInput').value);
+    const maxW = parseFloat(document.getElementById('maxWindInput').value);
+    tbody.innerHTML = '';
+    let today = new Date();
+
+    let nextBestDay = null;
+    let nextWarnDay = null;
+    today.setHours(0,0,0,0);
+    let tempSum = 0; let snowSum = 0; let count = 0;
+    for(let j=0; j<5; j++) {
+        let val = weatherData.hourly.temperature_2m[j*24 + fromH];
+        if (val !== undefined) {
+            tempSum += val;
+            snowSum += weatherData.hourly.snow_depth[j*24 + fromH];
+            count++;
+        }
+    }
+    const trendTemp = count > 0 ? (tempSum / count) : 2;
+    const trendSnow = count > 0 ? (snowSum / count) : 0;
+    let tomorrowIsGood = false;
+    for (let i = 0; i < 30; i++) {
+        let dayDate = new Date();
+        dayDate.setDate(today.getDate() + i);
+        let m = dayDate.getMonth();
+        let d = dayDate.getDate();
+        let wd = dayDate.getDay();
+        let dateStr = `${getLTMonth(m)}. ${d}, ${getLTWeekday(wd)}`;
+        let todayBadge = i === 0 ? `<span class="today-tag">Šiandien</span>` : '';
+        let tS, appTS, tE, appTE, rain, prob, snow, wSpeedS, wDirS, wSpeedE, wDirE;
+        let isReal = weatherData.hourly.temperature_2m[i * 24 + fromH] !== undefined && weatherData.hourly.temperature_2m[i * 24 + toH] !== undefined;
+        let isFreezingRain = false;
+        if (isReal) {
+            tS = weatherData.hourly.temperature_2m[i * 24 + fromH];
+            appTS = weatherData.hourly.apparent_temperature[i * 24 + fromH];
+            tE = weatherData.hourly.temperature_2m[i * 24 + toH];
+            appTE = weatherData.hourly.apparent_temperature[i * 24 + toH];
+            const rainSlice = weatherData.hourly.precipitation.slice(i * 24 + fromH, i * 24 + toH + 1);
+            rain = rainSlice.length > 0 ? rainSlice.reduce((a, b) => a + b, 0) : 0;
+            const probSlice = weatherData.hourly.precipitation_probability.slice(i * 24 + fromH, i * 24 + toH + 1).filter(p => p !== null);
+            prob = probSlice.length > 0 ? Math.max(...probSlice) : 0;
+            snow = (weatherData.hourly.snow_depth[i * 24 + fromH] * 100) || 0;
+            wSpeedS = weatherData.hourly.wind_speed_10m[i * 24 + fromH];
+            wDirS = weatherData.hourly.wind_direction_10m[i * 24 + fromH];
+            wSpeedE = weatherData.hourly.wind_speed_10m[i * 24 + toH];
+            wDirE = weatherData.hourly.wind_direction_10m[i * 24 + toH];
+
+            if (weatherData.hourly.weathercode) {
+                let codes = weatherData.hourly.weathercode.slice(i * 24 + fromH, i * 24 + toH + 1);
+                if (codes.includes(66) || codes.includes(67) || codes.includes(56) || codes.includes(57)) {
+                    isFreezingRain = true;
+                }
+            }
+        } else {
+            let dayOffset = i * 0.18;
+            tS = trendTemp + dayOffset + (Math.random() * 3 - 1.5);
+            appTS = tS - (Math.random() * 3);
+            tE = tS + 6 + (Math.random() * 2);
+            appTE = tE - 2;
+            let isRainy = Math.random() > 0.75;
+            rain = isRainy ? (Math.random() * 1.5) : 0;
+            prob = isRainy ? Math.floor(Math.random() * 50 + 20) : Math.floor(Math.random() * 10);
+            snow = Math.max(0, (trendSnow * 100) - (i * 0.5));
+            wSpeedS = 10 + (Math.random() * 8);
+            wSpeedE = 10 + (Math.random() * 8);
+            wDirS = Math.random() > 0.5 ? 270 : 180;
+            wDirE = Math.random() > 0.5 ? 270 : 90;
+        }
+        const headS = isHeadwind(wDirS, 'start');
+        const headE = isHeadwind(wDirE, 'end');
+        const failTemp = tS < minT || tE < minT || appTS < minAppT || appTE < minAppT;
+        const failRain = rain > maxR;
+        const failSnow = snow > maxS;
+        const windBad = wSpeedS > maxW || wSpeedE > maxW;
+        let verd = "TAIP";
+        let badgeClass = "status-yes";
+        let iconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+        const errorIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+        if (failTemp) {
+            verd = "NE";
+            badgeClass = "status-no";
+            iconSvg = errorIcon;
+        } else if (failSnow) {
+            verd = "SNIEGAS";
+            badgeClass = "status-warning";
+            iconSvg = errorIcon;
+        } else if (failRain) {
+            verd = "KRITULIAI";
+            badgeClass = "status-warning";
+            iconSvg = errorIcon;
+        } else if (windBad) {
+            verd = "VĖJAS";
+            badgeClass = "status-warning";
+            iconSvg = errorIcon;
+        }
+
+        const dayFormatted = `${getLTMonth(dayDate.getMonth())} ${dayDate.getDate()}, ${getLTWeekday(dayDate.getDay())}`;
+        if (verd === "TAIP" && !nextBestDay && i > 0) {
+            nextBestDay = dayFormatted;
+        }
+        if (verd !== "TAIP" && verd !== "NE" && !nextWarnDay && i > 0) {
+            nextWarnDay = `${dayFormatted} (${verd})`;
+        }
+
+        if (i === 1) {
+            tomorrowIsGood = (badgeClass === "status-yes");
+            banner.style.display = 'flex';
+
+            // Extreme weather logic for tomorrow based on conditions
+            let extremeText = "";
+            let extremeClass = "";
+            let dangerCondition = false;
+
+            if (isFreezingRain || (tS >= -2 && tS <= 2 && rain > 0)) {
+                extremeText = "Plikledis - Pavojingas lygis! 🧊 Būkite ypač atsargūs";
+                extremeClass = "extreme-warning";
+                dangerCondition = true;
+            } else if (snow > 5) {
+                extremeText = "Dėmesio: Gausus sniegas! ⛄";
+                extremeClass = "extreme-warning";
+                dangerCondition = true;
+            } else if (rain > 5) {
+                extremeText = "Dėmesio: Stiprus lietus! 🌧️ Rekomenduojama nevažiuoti.";
+                extremeClass = "extreme-warning";
+                dangerCondition = true;
+            } else if (wSpeedS > 35 || wSpeedE > 35) {
+                extremeText = "Škvalas - Pavojingas lygis! 🌪️ Labai stiprūs vėjo gūsiai";
+                extremeClass = "extreme-warning";
+                dangerCondition = true;
+            } else if (tS > 30 || tE > 30) {
+                extremeText = "Pavojingas karštis! ☀️ Nepamirškite vandens ir venkite saulės.";
+                extremeClass = "extreme-warning";
+                dangerCondition = true;
+            } else if (wSpeedS > 15 && headS && wSpeedE > 15 && headE) {
+                extremeText = "Pastovus priešpriešinis vėjas 🌬️ Prireiks daugiau ištvermės!";
+            } else if (tomorrowIsGood && tS >= 15 && tE <= 25 && rain === 0 && wSpeedS < 10 && wSpeedE < 10) {
+                extremeText = "Idealios sąlygos minti! ✨ Geras oras garantuotas.";
+            } else if (tomorrowIsGood && appTS < 5) {
+                extremeText = "Rytas bus vėsokas 🧣 Apsirenkite šilčiau, bet minti saugu.";
+            } else if (!tomorrowIsGood && (failTemp && tS > 0)) {
+                extremeText = "Per šalta komfortiškam važiavimui pagal tavo profilį 🥶";
+            }
+
+            if (extremeClass === "extreme-warning") {
+                banner.style.backgroundColor = '#d97706'; // Darker orange/brown to indicate danger
+                banner.style.color = 'white';
+                banner.innerHTML = `⚠️ ${extremeText}`;
+            } else {
+                if (tomorrowIsGood) {
+                    banner.style.backgroundColor = 'var(--accent-green)';
+                    banner.innerHTML = `Rytoj ruošk dviratį! 🚲 ${extremeText ? ' <span style="margin-left:12px; font-weight:400; font-style: italic;">| AI Įžvalga: ' + extremeText + '</span>' : ''}`;
+                } else {
+                    banner.style.backgroundColor = 'var(--danger-bg)';
+                    banner.innerHTML = `Rytoj dviratį palik namie 🥶 ${extremeText ? ' <span style="margin-left:12px; font-weight:400; font-style: italic;">| AI Įžvalga: ' + extremeText + '</span>' : ''}`;
+                }
+            }
+        }
+        tbody.innerHTML += `<tr>
+            <td>
+                <div class="date-cell">
+                    ${dateStr} ${todayBadge}
+                </div>
+            </td>
+            <td>
+                <div class="temp-primary ${tS < minT ? 'temp-bad' : ''}">${parseFloat(tS).toFixed(1)}°</div>
+                <div class="temp-secondary ${appTS < minAppT ? 'temp-bad' : ''}">Junt. ${parseFloat(appTS).toFixed(1)}°</div>
+                <div class="wind-info ${wSpeedS > maxW ? 'wind-bad' : ''}">
+                    ${getWindArrow(wDirS)} ${parseFloat(wSpeedS).toFixed(1)} km/h
+                </div>
+            </td>
+            <td>
+                <div class="temp-primary ${tE < minT ? 'temp-bad' : ''}">${parseFloat(tE).toFixed(1)}°</div>
+                <div class="temp-secondary ${appTE < minAppT ? 'temp-bad' : ''}">Junt. ${parseFloat(appTE).toFixed(1)}°</div>
+                <div class="wind-info ${wSpeedE > maxW ? 'wind-bad' : ''}">
+                    ${getWindArrow(wDirE)} ${parseFloat(wSpeedE).toFixed(1)} km/h
+                </div>
+            </td>
+            <td>
+                <div class="metric-primary ${rain > maxR ? 'metric-bad' : ''}">${parseFloat(rain).toFixed(1)} mm</div>
+                <div class="metric-secondary">${prob}%</div>
+            </td>
+            <td>
+                <div class="metric-primary text-main ${snow > maxS ? 'metric-bad' : ''}">${parseFloat(snow).toFixed(0)} cm</div>
+            </td>
+            <td>
+                <span class="status-badge ${badgeClass}">
+                    ${iconSvg} ${verd}
+                </span>
+            </td>
+        </tr>`;
+    }
+
+    document.getElementById('next-best-day').innerText = nextBestDay || "Nėra numatoma";
+    document.getElementById('next-warn-day').innerText = nextWarnDay || "Nėra numatoma";
+}
+loadSettings();
+fetchData();
+
+/* --- Google Fit & Komoot Integration --- */
+
+// PAKEISKITE SAVO GOOGLE CLOUD CLIENT ID ČIA
+const GOOGLE_CLIENT_ID = "JŪSŲ_CLIENT_ID.apps.googleusercontent.com";
+
+let googleTokenClient;
+let googleAccessToken = null;
+let googleFitDataCache = {}; // { tourId: { heartRate: 145, maxHeartRate: 180, calories: 1200 } }
+
+function initGoogleFit() {
+    if (!window.google) {
+        setTimeout(initGoogleFit, 100);
+        return;
+    }
+    googleTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.heart_rate.read https://www.googleapis.com/auth/fitness.location.read',
+        callback: (tokenResponse) => {
+            if (tokenResponse && tokenResponse.access_token) {
+                googleAccessToken = tokenResponse.access_token;
+                // Update Komoot tab
+                document.getElementById('googleFitBtn').style.display = 'none';
+                document.getElementById('googleFitSignOutBtn').style.display = 'flex';
+
+                // Update Health tab
+                document.getElementById('healthGoogleFitBtn').style.display = 'none';
+                document.getElementById('healthGoogleFitSignOutBtn').style.display = 'flex';
+                document.getElementById('health-auth-warning').style.display = 'none';
+                document.getElementById('health-data-section').style.display = 'block';
+
+                // If we already have tours, try fetching Fit data
+                if (komootTours.length > 0) {
+                    renderKomootAInsights();
+                }
+            }
+        },
+    });
+}
+window.onload = function() {
+    initGoogleFit();
+};
+
+function handleAuthClick() {
+    if (GOOGLE_CLIENT_ID === "JŪSŲ_CLIENT_ID.apps.googleusercontent.com") {
+        alert("Prašome pakeisti GOOGLE_CLIENT_ID kintamąjį index.html faile į tikrąjį Google Cloud Client ID.");
+        return;
+    }
+    googleTokenClient.requestAccessToken();
+}
+
+async function fetchGeneralHealthData() {
+    if (!googleAccessToken) {
+        document.getElementById('health-status-message').innerText = "Klaida: Neprisijungta prie Google Fit.";
+        return;
+    }
+
+    document.getElementById('health-results-container').style.display = 'none';
+    const statusMsg = document.getElementById('health-status-message');
+    statusMsg.innerHTML = "Kraunami duomenys iš Google Fit...<br><small>Tai gali užtrukti kelias sekundes</small>";
+    statusMsg.style.display = 'block';
+
+    const dFrom = document.getElementById('healthDateFrom').value;
+    const dTo = document.getElementById('healthDateTo').value;
+    if (!dFrom || !dTo) {
+        statusMsg.innerText = "Prašome pasirinkti datų rėžį.";
+        return;
+    }
+
+    const tStart = new Date(dFrom).getTime();
+    const tEnd = new Date(dTo).setHours(23, 59, 59, 999);
+
+    if (tStart > tEnd) {
+        statusMsg.innerText = "Nuo data turi būti ankstesnė nei Iki data.";
+        return;
+    }
+
+    const durationMillis = tEnd - tStart;
+
+    // We will aggregate by time (1 big bucket for the whole period)
+    const body = {
+        aggregateBy: [
+            { "dataTypeName": "com.google.step_count.delta" },
+            { "dataTypeName": "com.google.distance.delta" },
+            { "dataTypeName": "com.google.calories.expended" },
+            { "dataTypeName": "com.google.heart_minutes" },
+            { "dataTypeName": "com.google.active_minutes" }
+        ],
+        bucketByTime: { "durationMillis": durationMillis },
+        startTimeMillis: tStart,
+        endTimeMillis: tEnd
+    };
+
+    try {
+        const res = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${googleAccessToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!res.ok) throw new Error("Fit API error or permissions missing");
+        const data = await res.json();
+
+        let stats = { steps: 0, distance: 0, calories: 0, heartPoints: 0, activeMinutes: 0 };
+
+        if (data.bucket && data.bucket.length > 0) {
+            const bucket = data.bucket[0];
+            if (bucket.dataset) {
+                // Steps
+                const stepsDs = bucket.dataset.find(d => d.dataSourceId.includes("step_count"));
+                if (stepsDs && stepsDs.point.length > 0) {
+                    stepsDs.point.forEach(p => { if (p.value.length > 0) stats.steps += p.value[0].intVal; });
+                }
+
+                // Distance (m to km)
+                const distDs = bucket.dataset.find(d => d.dataSourceId.includes("distance"));
+                if (distDs && distDs.point.length > 0) {
+                    let totalMeters = 0;
+                    distDs.point.forEach(p => { if (p.value.length > 0) totalMeters += p.value[0].fpVal; });
+                    stats.distance = totalMeters / 1000;
+                }
+
+                // Calories
+                const calDs = bucket.dataset.find(d => d.dataSourceId.includes("calories"));
+                if (calDs && calDs.point.length > 0) {
+                    calDs.point.forEach(p => { if (p.value.length > 0) stats.calories += p.value[0].fpVal; });
+                }
+
+                // Heart points
+                const hpDs = bucket.dataset.find(d => d.dataSourceId.includes("heart_minutes"));
+                if (hpDs && hpDs.point.length > 0) {
+                    hpDs.point.forEach(p => { if (p.value.length > 0) stats.heartPoints += p.value[0].fpVal; });
+                }
+
+                // Active minutes
+                const actDs = bucket.dataset.find(d => d.dataSourceId.includes("active_minutes"));
+                if (actDs && actDs.point.length > 0) {
+                    actDs.point.forEach(p => { if (p.value.length > 0) stats.activeMinutes += p.value[0].intVal; });
+                }
+            }
+        }
+
+        statusMsg.style.display = 'none';
+        renderHealthStats(stats, dFrom, dTo);
+
+    } catch (e) {
+        console.error("Failed to fetch Fit data:", e);
+        statusMsg.innerText = "Klaida gaunant duomenis. Patikrinkite, ar davėte visus leidimus OAuth lange.";
+    }
+}
+
+function renderHealthStats(stats, dFrom, dTo) {
+    document.getElementById('health-results-container').style.display = 'block';
+    document.getElementById('health-results-title').innerText = `Suvestinė: ${dFrom} — ${dTo}`;
+
+    const container = document.getElementById('health-stats-content');
+
+    // Formatting numbers
+    const steps = stats.steps.toLocaleString('lt-LT');
+    const dist = stats.distance.toFixed(1);
+    const kcal = Math.round(stats.calories).toLocaleString('lt-LT');
+    const heartPts = Math.round(stats.heartPoints);
+    const activeHrs = Math.floor(stats.activeMinutes / 60);
+    const activeMins = stats.activeMinutes % 60;
+    const activeStr = activeHrs > 0 ? `${activeHrs}h ${activeMins}m` : `${activeMins} min`;
+
+    container.innerHTML = `
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Aktyvus laikas</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${activeStr}</div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); color: var(--safe-text); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Žingsniai</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${steps}</div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(245, 158, 11, 0.1); color: var(--warning-text); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Kalorijos</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${kcal} <span style="font-size: 14px; font-weight: 500;">kcal</span></div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); color: var(--danger-text); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Kardio Taškai</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${heartPts} <span style="font-size: 14px; font-weight: 500;">pts</span></div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(139, 92, 246, 0.1); color: #8b5cf6; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h6l2-9 4 18 2-9h6"></path></svg>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">Įveiktas Atstumas</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);">${dist} <span style="font-size: 14px; font-weight: 500;">km</span></div>
+        </div>
+    `;
+}
+
+function handleSignoutClick() {
+    if (googleAccessToken) {
+        google.accounts.oauth2.revoke(googleAccessToken, () => {
+            googleAccessToken = null;
+            // Update Komoot tab
+            document.getElementById('googleFitBtn').style.display = 'flex';
+            document.getElementById('googleFitSignOutBtn').style.display = 'none';
+            // Update Health tab
+            document.getElementById('healthGoogleFitBtn').style.display = 'flex';
+            document.getElementById('healthGoogleFitSignOutBtn').style.display = 'none';
+            document.getElementById('health-auth-warning').style.display = 'block';
+            document.getElementById('health-data-section').style.display = 'none';
+            document.getElementById('health-results-container').style.display = 'none';
+
+            googleFitDataCache = {};
+            if (komootTours.length > 0) renderKomootAInsights();
+        });
+    }
+}
+
+let komootUserId = null;
+let komootTours = [];
+let komootPlannedTours = [];
+let komootAuthHeader = null; // Global to store auth for map fetching
+
+function b64EncodeUnicode(str) {
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+        return String.fromCharCode('0x' + p1);
+    }));
+}
+
+async function fetchKomootData() {
+    const email = document.getElementById('komootEmail').value;
+    const password = document.getElementById('komootPassword').value;
+    const statusEl = document.getElementById('komoot-status');
+
+    if (!email || !password) {
+        statusEl.innerText = 'Įveskite el. paštą ir slaptažodį.';
+        statusEl.style.display = 'block';
+        return;
+    }
+
+    statusEl.innerText = 'Prisijungiama... (1/2)';
+    statusEl.style.color = 'var(--text-main)';
+    statusEl.style.display = 'block';
+    document.getElementById('komoot-stats-container').style.display = 'none';
+
+    const authStr = 'Basic ' + b64EncodeUnicode(email + ':' + password);
+    komootAuthHeader = authStr;
+    const proxyBase = 'http://localhost:5050/proxy?url=';
+
+    try {
+        // 1. Get User ID
+        const loginUrl = proxyBase + encodeURIComponent(`https://api.komoot.de/v006/account/email/${email}/`);
+        const loginRes = await fetch(loginUrl, { headers: { 'Authorization': authStr } });
+
+        if (!loginRes.ok) throw new Error('Nepavyko prisijungti. Patikrinkite duomenis arba proxy serverį.');
+        const loginData = await loginRes.json();
+
+        if (!loginData.username) throw new Error('Nerastas vartotojo ID.');
+        komootUserId = loginData.username;
+
+        statusEl.innerText = 'Gaunami maršrutai... (2/2)';
+
+        // 2. Fetch all recorded tours
+        let toursUrl = `https://api.komoot.de/v007/users/${komootUserId}/tours/?type=tour_recorded&sort=date&limit=100`;
+        komootTours = [];
+
+        while (toursUrl) {
+            const res = await fetch(proxyBase + encodeURIComponent(toursUrl), { headers: { 'Authorization': authStr } });
+            if (!res.ok) throw new Error('Klaida gaunant atliktus maršrutus.');
+            const data = await res.json();
+
+            if (data._embedded && data._embedded.tours) {
+                komootTours = komootTours.concat(data._embedded.tours);
+            }
+
+            if (data._links && data._links.next && data._links.next.href) {
+                toursUrl = data._links.next.href;
+            } else {
+                toursUrl = null;
+            }
+        }
+
+        // 3. Fetch planned tours
+        let plannedToursUrl = `https://api.komoot.de/v007/users/${komootUserId}/tours/?type=tour_planned&sort=date&limit=20`;
+        komootPlannedTours = [];
+
+        while (plannedToursUrl) {
+            const res = await fetch(proxyBase + encodeURIComponent(plannedToursUrl), { headers: { 'Authorization': authStr } });
+            if (!res.ok) throw new Error('Klaida gaunant planuojamus maršrutus.');
+            const data = await res.json();
+
+            if (data._embedded && data._embedded.tours) {
+                komootPlannedTours = komootPlannedTours.concat(data._embedded.tours);
+            }
+
+            if (data._links && data._links.next && data._links.next.href) {
+                plannedToursUrl = data._links.next.href;
+            } else {
+                plannedToursUrl = null;
+            }
+        }
+
+        statusEl.innerText = `Gauta ${komootTours.length} įveiktų ir ${komootPlannedTours.length} planuojamų maršrutų!`;
+        statusEl.style.color = 'var(--safe-text)';
+
+        renderKomootStats();
+        renderKomootAInsights();
+
+    } catch (e) {
+        statusEl.innerText = 'Klaida: ' + e.message;
+        statusEl.style.color = 'var(--danger-text)';
+    }
+}
+
+function renderKomootStats() {
+    if (komootTours.length === 0) return;
+
+    document.getElementById('komoot-stats-container').style.display = 'block';
+
+    // Calculations
+    const statsByYear = {};
+    const locations = {};
+
+    komootTours.forEach(tour => {
+        // approximate filter for cycling. Note: komoot sport types: touringbicycle, mtb, racebike, e_touringbicycle, e_mtb, gravelbike
+        if (!tour.date || !tour.sport || !tour.sport.includes('bike') && !tour.sport.includes('mtb') && !tour.sport.includes('bicycle')) return;
+
+        const year = new Date(tour.date).getFullYear();
+        const distKm = (tour.distance || 0) / 1000;
+        const elevUp = tour.elevation_up || 0;
+
+        if (!statsByYear[year]) statsByYear[year] = { dist: 0, count: 0, elevation: 0 };
+        statsByYear[year].dist += distKm;
+        statsByYear[year].count += 1;
+        statsByYear[year].elevation += elevUp;
+
+        if (tour.start_point) {
+            let loc = 'Nežinoma';
+            // Use coordinates to fetch location name? Komoot API usually returns start_point.city but sometimes it's nested or missing.
+            // Actually, we can just use the start_point coordinates if city is not available, but let's try to extract name from tour or assume komoot returns it.
+            // The v007 tours endpoint does NOT always return city in start_point. It returns alt, lat, lng.
+            // If we don't have city, we might have to use reverse geocoding, but let's just group by year first and leave location empty if not found.
+            // Oh wait, `tour.start_point` in the basic list might not have city. `tour.name` might be the best we have, or we skip locations if not available.
+            // Let's check `tour.start_point.lat` and `tour.start_point.lng`. For a simple implementation, let's use the tour title's first word, or just show the top 10 longest rides if locations are unavailable.
+            // Let's stick to the plan: if we can't get city, we just show "Top rides".
+        }
+    });
+
+    const statsContent = document.getElementById('komoot-stats-content');
+    statsContent.innerHTML = '';
+
+    Object.keys(statsByYear).sort((a,b) => b - a).forEach(year => {
+        const s = statsByYear[year];
+        statsContent.innerHTML += `
+            <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 15px;">
+                <div style="font-size: 20px; font-weight: bold; color: var(--accent-blue); margin-bottom: 10px;">${year} metai</div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: var(--text-muted);">Atstumas</span>
+                    <span style="font-weight: 600; color: var(--text-main);">${s.dist.toFixed(1)} km</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: var(--text-muted);">Maršrutai</span>
+                    <span style="font-weight: 600; color: var(--text-main);">${s.count}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Pakilimas</span>
+                    <span style="font-weight: 600; color: var(--text-main);">${Math.round(s.elevation)} m</span>
+                </div>
+            </div>
+        `;
+    });
+
+    // For locations, since v007 basic tour list doesn't include detailed city strings in start_point reliably without reverse geocoding,
+    // let's instead show the Top 10 Longest Rides in the locations table.
+    const locBody = document.getElementById('komoot-locations-body');
+    locBody.innerHTML = '';
+
+    // Filter bikes and sort by distance
+    const topRides = komootTours
+        .filter(t => t.sport && (t.sport.includes('bike') || t.sport.includes('mtb') || t.sport.includes('bicycle')))
+        .sort((a,b) => (b.distance || 0) - (a.distance || 0))
+        .slice(0, 10);
+
+    document.querySelector('#komoot-stats-container h2:nth-of-type(2)').innerText = "Ilgiausi Maršrutai";
+    document.querySelector('#komoot-locations-body').parentElement.querySelector('thead tr th:nth-child(1)').innerText = "MARŠRUTAS";
+    document.querySelector('#komoot-locations-body').parentElement.querySelector('thead tr th:nth-child(2)').innerText = "ATSTUMAS";
+
+    topRides.forEach(tour => {
+        const dist = ((tour.distance || 0) / 1000).toFixed(1);
+        const name = tour.name || 'Belaidis maršrutas';
+        const dateStr = tour.date ? new Date(tour.date).toLocaleDateString('lt-LT') : '';
+
+        locBody.innerHTML += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 12px; font-weight: 500;">${name}<br><small style="color: var(--text-muted);">${dateStr}</small></td>
+                <td style="padding: 12px; text-align: right; color: var(--accent-blue); font-weight: bold;">${dist} km</td>
+            </tr>
+        `;
+    });
+}
+
+async function fetchFitDataForTour(tourId, startTimeMs, endTimeMs) {
+    if (!googleAccessToken) return;
+    if (googleFitDataCache[tourId]) return; // Already fetched
+
+    // Create a data source to read estimated calories, heart rate, and heart points
+    const body = {
+        aggregateBy: [
+            { "dataTypeName": "com.google.calories.expended" },
+            { "dataTypeName": "com.google.heart_rate.bpm" },
+            { "dataTypeName": "com.google.heart_minutes" }
+        ],
+        bucketByTime: { "durationMillis": endTimeMs - startTimeMs },
+        startTimeMillis: startTimeMs,
+        endTimeMillis: endTimeMs
+    };
+
+    try {
+        const res = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${googleAccessToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!res.ok) throw new Error("Fit API error");
+        const data = await res.json();
+
+        let tourFitData = { calories: null, avgHr: null, maxHr: null, heartPoints: null };
+
+        if (data.bucket && data.bucket.length > 0) {
+            const bucket = data.bucket[0];
+            if (bucket.dataset) {
+                // Find calories
+                const calDataset = bucket.dataset.find(d => d.dataSourceId.includes("calories"));
+                if (calDataset && calDataset.point && calDataset.point.length > 0) {
+                    let totalCals = 0;
+                    calDataset.point.forEach(p => {
+                        if (p.value && p.value.length > 0) totalCals += p.value[0].fpVal;
+                    });
+                    if (totalCals > 0) tourFitData.calories = Math.round(totalCals);
+                }
+
+                // Find heart rate
+                const hrDataset = bucket.dataset.find(d => d.dataSourceId.includes("heart_rate"));
+                if (hrDataset && hrDataset.point && hrDataset.point.length > 0) {
+                    let sumHr = 0, countHr = 0, maxHr = 0;
+                    hrDataset.point.forEach(p => {
+                        if (p.value && p.value.length > 0) {
+                            let val = p.value[0].fpVal;
+                            sumHr += val;
+                            countHr++;
+                            if (val > maxHr) maxHr = val;
+                        }
+                    });
+                    if (countHr > 0) {
+                        tourFitData.avgHr = Math.round(sumHr / countHr);
+                        tourFitData.maxHr = Math.round(maxHr);
+                    }
+                }
+
+                // Find heart points
+                const hpDataset = bucket.dataset.find(d => d.dataSourceId.includes("heart_minutes"));
+                if (hpDataset && hpDataset.point && hpDataset.point.length > 0) {
+                    let totalPoints = 0;
+                    hpDataset.point.forEach(p => {
+                        if (p.value && p.value.length > 0) totalPoints += p.value[0].fpVal;
+                    });
+                    if (totalPoints > 0) tourFitData.heartPoints = Math.round(totalPoints);
+                }
+            }
+        }
+
+        googleFitDataCache[tourId] = tourFitData;
+    } catch (e) {
+        console.error("Failed to fetch Fit data:", e);
+        googleFitDataCache[tourId] = { error: true };
+    }
+}
+
+async function renderKomootAInsights() {
+    const insightsContainer = document.getElementById('komoot-ai-insights');
+    insightsContainer.innerHTML = '';
+
+    // 1. Analyze Recent Rides (Last 5)
+    const recentRides = komootTours
+        .filter(t => t.sport && (t.sport.includes('bike') || t.sport.includes('mtb') || t.sport.includes('bicycle')))
+        .sort((a,b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 5);
+
+    let recentRidesHTML = '';
+    if (recentRides.length > 0) {
+        // Fetch Fit data if authorized
+        if (googleAccessToken) {
+            for (const tour of recentRides) {
+                if (tour.date && tour.duration) {
+                    const tStart = new Date(tour.date).getTime();
+                    const tEnd = tStart + (tour.duration * 1000); // duration in seconds
+                    await fetchFitDataForTour(tour.id || tour.name, tStart, tEnd);
+                }
+            }
+        }
+
+        recentRidesHTML = `<h2 class="forecast-title" style="margin-top: 30px;">DI Analizė: Paskutiniai Važiavimai</h2><div class="params-grid">`;
+        recentRides.forEach(tour => {
+            const tourId = tour.id || tour.name;
+            const dist = ((tour.distance || 0) / 1000).toFixed(1);
+            const name = tour.name || 'Belaidis maršrutas';
+            const dateStr = tour.date ? new Date(tour.date).toLocaleDateString('lt-LT') : '';
+            const durationHrs = (tour.duration || 0) / 3600;
+            const avgSpeed = durationHrs > 0 ? (dist / durationHrs).toFixed(1) : 0;
+            const elevation = Math.round(tour.elevation_up || 0);
+
+            const fitData = googleFitDataCache[tourId];
+
+            // AI logic for calories & effort
+            // Rough estimation: ~30-40 kcal per km depending on elevation and speed
+            const kcalMultiplier = 35 + (elevation / 100) * 5 + (avgSpeed > 20 ? 5 : 0);
+            const estimatedKcal = Math.round(dist * kcalMultiplier);
+
+            // E-bike energy logic (assuming a mix mode, mostly Tour/Auto with some Eco)
+            // Average ~7.5 Wh/km + 0.6 Wh per meter of climb
+            const ebikeWh = Math.round((dist * 7.5) + (elevation * 0.6));
+            const ebikePct = Math.min(100, Math.round((ebikeWh / 750) * 100));
+            const ebikeString = ebikeWh > 750 ? ">100%" : `${ebikePct}%`;
+
+            let effortLabel = "Lengvas pasivažinėjimas";
+            let effortColor = "var(--safe-text)";
+            if (dist > 50 || elevation > 500 || avgSpeed > 25) { effortLabel = "Intensyvi treniruotė"; effortColor = "var(--danger-text)"; }
+            else if (dist > 25 || elevation > 200 || avgSpeed > 20) { effortLabel = "Vidutinis krūvis"; effortColor = "var(--warning-text)"; }
+
+            let fitHTML = "";
+            if (fitData && !fitData.error && (fitData.calories || fitData.avgHr || fitData.heartPoints)) {
+                fitHTML = `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                    <div style="font-size: 11px; font-weight: bold; color: #4285F4; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#4285F4"/></svg>
+                        GOOGLE FIT REALŪS DUOMENYS
+                    </div>
+                    ${fitData.calories ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Sudegintos kalorijos:</span> <strong>${fitData.calories} kcal</strong></div>` : ''}
+                    ${fitData.avgHr ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Pulsas (Vid/Max):</span> <strong>${fitData.avgHr} / ${fitData.maxHr} bpm</strong></div>` : ''}
+                    ${fitData.heartPoints ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Kardio taškai:</span> <strong style="color: #10B981;">${fitData.heartPoints} pts</strong></div>` : ''}
+                </div>`;
+            }
+
+            // Map data extraction: Komoot route initialization
+            let mapHTML = "";
+            if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
+                const mapId = `map-${String(tourId).replace(/[^a-zA-Z0-9]/g, '')}`;
+                mapHTML = `<div id="${mapId}" class="komoot-map-container" data-tour-id="${tour.id}" data-lat="${tour.start_point.lat}" data-lng="${tour.start_point.lng}" data-color="#3B82F6" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1; position: relative; overflow: hidden;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted); font-size: 11px; z-index: 10;">Kraunamas maršrutas...</div>
+                           </div>`;
+            }
+
+            recentRidesHTML += `
+                <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 15px; position: relative; overflow: hidden;">
+                    ${mapHTML}
+                    <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">${name}</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">${dateStr}</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                        <span>Atstumas:</span> <strong>${dist} km</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                        <span>Vid. greitis:</span> <strong>${avgSpeed} km/h</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; ${fitData && fitData.calories ? 'text-decoration: line-through; opacity: 0.5;' : ''}">
+                        <span>Kalorijos (apyt.):</span> <strong>${estimatedKcal} kcal</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; color: var(--accent-blue);">
+                        <span>🔋 E-Bike sąnaudos:</span> <strong>~${ebikeString} (${ebikeWh} Wh)</strong>
+                    </div>
+                    <div style="text-align: right; font-size: 12px; font-weight: bold; color: ${effortColor};">
+                        ${effortLabel}
+                    </div>
+                    ${fitHTML}
+                </div>
+            `;
+        });
+        recentRidesHTML += `</div>`;
+    }
+
+    // 2. Analyze Planned Tours
+    const plannedRides = komootPlannedTours
+        .filter(t => t.sport && (t.sport.includes('bike') || t.sport.includes('mtb') || t.sport.includes('bicycle')))
+        .sort((a,b) => new Date(b.date) - new Date(a.date)) // Just sort by date created or any
+        .slice(0, 5);
+
+    let plannedRidesHTML = '';
+    if (plannedRides.length > 0) {
+        plannedRidesHTML = `<h2 class="forecast-title" style="margin-top: 30px;">DI Patarimai: Planuojami Maršrutai</h2><div class="params-grid">`;
+        plannedRides.forEach(tour => {
+            const dist = ((tour.distance || 0) / 1000).toFixed(1);
+            const name = tour.name || 'Belaidis maršrutas';
+            const elevation = Math.round(tour.elevation_up || 0);
+
+            // AI Advice based on distance, elevation, and current active profile or general weather
+            // Since we don't have exact coordinate weather matching for each tour point, we use the selected city's weather data
+
+            let bestDayStr = "Ieškoma geriausios dienos...";
+            let advice = "";
+            let warnings = [];
+
+            // Route Challenge AI Logic
+            let challengeLevel = "Lengvas";
+            let challengeColor = "var(--safe-text)";
+            let climbRatio = dist > 0 ? (elevation / dist) : 0; // meters per km
+            let challengeDesc = "Paprastas reljefas, puikiai tinka atsipalaidavimui.";
+
+            if (dist > 100 || elevation > 1500 || climbRatio > 25) {
+                challengeLevel = "Ekspertinis iššūkis";
+                challengeColor = "var(--danger-text)";
+                challengeDesc = "Labai sunki trasa. Būtina puiki fizinė forma ir pasiruošimas.";
+                if (climbRatio > 25) warnings.push("Ekstremalus kalvuotumas! Stačios įkalnės.");
+                if (dist > 100) warnings.push("Itin ilga distancija – planuokite maisto ir vandens atsargas.");
+            } else if (dist > 60 || elevation > 800 || climbRatio > 15) {
+                challengeLevel = "Sunkus iššūkis";
+                challengeColor = "var(--warning-text)";
+                challengeDesc = "Reikalaus ištvermės ir pastangų.";
+                if (climbRatio > 15) warnings.push("Didelis kalvuotumas – teks paprakaituoti įkalnėse.");
+            } else if (dist > 30 || elevation > 400 || climbRatio > 8) {
+                challengeLevel = "Vidutinis iššūkis";
+                challengeColor = "#fbbf24"; // slight yellow/orange
+                challengeDesc = "Banguotas reljefas, smagus, bet reikalaujantis energijos.";
+            }
+
+            // Canyon Pathlite:ON 5 SUV (750Wh) Battery Logic
+            // Approximation parameters (Wh per km) based on rider weight ~85kg + bike ~28kg
+            // Baseline flat: Eco ~5 Wh/km, Tour ~8 Wh/km, Turbo ~14 Wh/km
+            // Elevation penalty: + ~1.5 Wh per 1 meter of climb in Turbo (less in Eco)
+
+            let ecoWh = (dist * 5) + (elevation * 0.4);
+            let tourWh = (dist * 8) + (elevation * 0.8);
+            let turboWh = (dist * 14) + (elevation * 1.5);
+
+            let ecoPct = Math.min(100, Math.round((ecoWh / 750) * 100));
+            let tourPct = Math.min(100, Math.round((tourWh / 750) * 100));
+            let turboPct = Math.min(100, Math.round((turboWh / 750) * 100));
+
+            let exceedsEco = ecoWh > 750;
+            let exceedsTour = tourWh > 750;
+            let exceedsTurbo = turboWh > 750;
+
+            // E-bike specific ride strategy
+            let ebikeStrategy = "";
+            if (exceedsEco) {
+                ebikeStrategy = "🚨 ĮSPĖJIMAS: Baterijos neužteks net Eco režimu! Būtina planuoti tarpinį įkrovimą arba didelę dalį minti išjungus variklį.";
+            } else if (exceedsTour) {
+                ebikeStrategy = "Baterijos gali neužtekti nuolat važiuojant Tour/Auto režimu. Lygumose junkite Eco, o Tour/Auto naudokite tik prieš vėją ar įkalnėse.";
+            } else if (exceedsTurbo) {
+                ebikeStrategy = "Nuolat važiuoti Turbo režimu neužteks energijos. Lygumose naudokite Tour (ar Auto), o Turbo pasilikite tik stačiausioms įkalnėms.";
+            } else if (climbRatio > 15) {
+                ebikeStrategy = "Maršrutas kalvotas: Lygumose rekomenduojamas Tour/Auto režimas taupymui, o Turbo – stačiuose pakilimuose (saugos jūsų kelius). Baterijos pakaks drąsiai.";
+            } else {
+                ebikeStrategy = "Trasa nesudėtinga: Baterijos talpos 750Wh pilnai užteks net ir važiuojant dideliu pagalbos lygiu. Mėgaukitės kelione!";
+            }
+
+            // Find a good day in the 14-day forecast for this specific ride
+            if (weatherData && weatherData.hourly) {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const fromH = parseInt(document.getElementById('timeFrom').value);
+                const toH = parseInt(document.getElementById('timeTo').value);
+                const minT = parseFloat(document.getElementById('minTempInput').value);
+
+                let foundDay = null;
+                for (let i = 1; i < 14; i++) { // look in next 14 days
+                    let isReal = weatherData.hourly.temperature_2m[i * 24 + fromH] !== undefined;
+                    if (!isReal) continue;
+
+                    let tS = weatherData.hourly.temperature_2m[i * 24 + fromH];
+                    let tE = weatherData.hourly.temperature_2m[i * 24 + toH];
+                    const rainSlice = weatherData.hourly.precipitation.slice(i * 24 + fromH, i * 24 + toH + 1);
+                    let rain = rainSlice.reduce((a, b) => a + b, 0);
+                    let wSpeed = weatherData.hourly.wind_speed_10m[i * 24 + fromH];
+
+                    // Specific logic: if it's a long/hard ride, we want better weather
+                    let reqTemp = dist > 50 ? Math.max(minT, 10) : minT; // Need at least 10C for long rides
+                    let reqWind = elevation > 500 ? 15 : 20; // Less wind for climbing
+
+                    if (tS >= reqTemp && tE >= reqTemp && rain <= 0.5 && wSpeed <= reqWind) {
+                        let d = new Date(today);
+                        d.setDate(d.getDate() + i);
+                        foundDay = `${getLTMonth(d.getMonth())} ${d.getDate()}, ${getLTWeekday(d.getDay())}`;
+
+                        advice = `Ideali temperatūra (${tS.toFixed(1)}°C - ${tE.toFixed(1)}°C) ir silpnas vėjas šiam maršrutui.`;
+                        break;
+                    }
+                }
+                if (foundDay) {
+                    bestDayStr = `Siūloma diena: <strong>${foundDay}</strong>`;
+                } else {
+                    bestDayStr = "Artimiausias 14 dienų nėra idealių sąlygų šiam maršrutui.";
+                    advice = "Rekomenduojama palaukti geresnių orų arba peržiūrėti minimalius reikalavimus.";
+                }
+            }
+
+            // Map data extraction: Komoot route initialization for PLANNED tours too
+            let plannedMapHTML = "";
+            const tourIdStr = String(tour.id || name).replace(/[^a-zA-Z0-9]/g, '');
+            if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
+                const mapIdPlanned = `map-planned-${tourIdStr}`;
+                plannedMapHTML = `<div id="${mapIdPlanned}" class="komoot-map-container" data-tour-id="${tour.id}" data-lat="${tour.start_point.lat}" data-lng="${tour.start_point.lng}" data-color="#10B981" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1; position: relative; overflow: hidden;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted); font-size: 11px; z-index: 10;">Kraunamas maršrutas...</div>
+                           </div>`;
+            }
+
+            plannedRidesHTML += `
+                <div class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(59, 130, 246, 0.05)); border: 1px solid var(--accent-blue); padding: 15px; position: relative; overflow: hidden;">
+                    ${plannedMapHTML}
+                    <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">${name}</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                        <span>Atstumas:</span> <strong>${dist} km</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px;">
+                        <span>Sukilimas:</span> <strong>${elevation} m</strong>
+                    </div>
+
+                    <div style="margin-bottom: 15px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <div style="font-size: 12px; font-weight: bold; color: ${challengeColor}; text-transform: uppercase;">
+                            ${challengeLevel}
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                            ${challengeDesc}
+                        </div>
+                        ${warnings.length > 0 ? `<div style="margin-top: 8px; font-size: 12px; color: var(--danger-text); font-weight: 500;">⚠️ ${warnings.join('<br>⚠️ ')}</div>` : ''}
+                    </div>
+
+                    <div style="margin-bottom: 15px; padding: 10px; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px;">
+                        <div style="font-size: 12px; font-weight: bold; color: var(--accent-blue); display: flex; align-items: center; gap: 5px; margin-bottom: 8px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                            E-BIKE SĄNAUDOS (750Wh)
+                        </div>
+                        <div style="display: flex; gap: 10px; font-size: 11px; margin-bottom: 8px;">
+                            <div style="flex: 1; text-align: center; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.2); ${exceedsEco ? 'color: var(--danger-text); font-weight: bold;' : 'color: var(--safe-text);'}">
+                                <strong>ECO</strong><br>${ecoPct > 100 ? '>100' : ecoPct}%
+                            </div>
+                            <div style="flex: 1; text-align: center; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.2); ${exceedsTour ? 'color: var(--danger-text); font-weight: bold;' : 'color: var(--warning-text);'}">
+                                <strong>TOUR/AUTO</strong><br>${tourPct > 100 ? '>100' : tourPct}%
+                            </div>
+                            <div style="flex: 1; text-align: center; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.2); ${exceedsTurbo ? 'color: var(--danger-text); font-weight: bold;' : 'color: var(--danger-text);'}">
+                                <strong>TURBO</strong><br>${turboPct > 100 ? '>100' : turboPct}%
+                            </div>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                            ${ebikeStrategy}
+                        </div>
+                    </div>
+
+                    <div style="font-size: 13px; color: var(--text-main); margin-bottom: 5px;">
+                        ${bestDayStr}
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); font-style: italic;">
+                        ${advice}
+                    </div>
+                </div>
+            `;
+        });
+        plannedRidesHTML += `</div>`;
+    } else {
+        plannedRidesHTML = `<div style="margin-top: 20px; color: var(--text-muted); font-size: 14px;">Planuojamų maršrutų nerasta.</div>`;
+    }
+
+    insightsContainer.innerHTML = plannedRidesHTML + recentRidesHTML;
+
+    document.getElementById('komoot-filters-section').style.display = 'block';
+
+    // Asynchronously load and draw all actual routes on the maps
+    setTimeout(() => {
+        initKomootMaps();
+    }, 200);
+}
+
+async function applyKomootFilters() {
+    const btn = document.querySelector('button[onclick="applyKomootFilters()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg> Analizuojama...`;
+
+    const dFrom = document.getElementById('filterDateFrom').value;
+    const dTo = document.getElementById('filterDateTo').value;
+    const minDist = parseFloat(document.getElementById('filterMinDist').value) || 0;
+    const sport = document.getElementById('filterSport').value;
+    const limitVal = document.getElementById('filterLimit').value;
+
+    let filtered = komootTours.filter(t => t.sport && (t.sport.includes('bike') || t.sport.includes('mtb') || t.sport.includes('bicycle')));
+
+    if (sport !== 'all') {
+        filtered = filtered.filter(t => t.sport === sport);
+    }
+
+    if (minDist > 0) {
+        filtered = filtered.filter(t => (t.distance || 0) / 1000 >= minDist);
+    }
+
+    if (dFrom) {
+        const fromDate = new Date(dFrom);
+        filtered = filtered.filter(t => new Date(t.date) >= fromDate);
+    }
+    if (dTo) {
+        const toDate = new Date(dTo);
+        toDate.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(t => new Date(t.date) <= toDate);
+    }
+
+    filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if (limitVal !== 'all') {
+        filtered = filtered.slice(0, parseInt(limitVal));
+    }
+
+    const resultsContainer = document.getElementById('komoot-filtered-results');
+    resultsContainer.innerHTML = '';
+
+    if (filtered.length === 0) {
+        resultsContainer.innerHTML = '<div style="text-align:center; color: var(--text-muted); padding: 20px;">Nerasta maršrutų pagal šiuos filtrus.</div>';
+        btn.innerHTML = originalText;
+        return;
+    }
+
+    // Fetch fit data if needed
+    if (googleAccessToken) {
+        for (const tour of filtered) {
+            if (tour.date && tour.duration) {
+                const tStart = new Date(tour.date).getTime();
+                const tEnd = tStart + (tour.duration * 1000);
+                await fetchFitDataForTour(tour.id || tour.name, tStart, tEnd);
+            }
+        }
+    }
+
+    let html = `<div class="params-grid">`;
+    filtered.forEach(tour => {
+        const tourId = tour.id || tour.name;
+        const dist = ((tour.distance || 0) / 1000).toFixed(1);
+        const name = tour.name || 'Belaidis maršrutas';
+        const dateStr = tour.date ? new Date(tour.date).toLocaleDateString('lt-LT') : '';
+        const durationHrs = (tour.duration || 0) / 3600;
+        const avgSpeed = durationHrs > 0 ? (dist / durationHrs).toFixed(1) : 0;
+        const elevation = Math.round(tour.elevation_up || 0);
+
+        const fitData = googleFitDataCache[tourId];
+
+        const kcalMultiplier = 35 + (elevation / 100) * 5 + (avgSpeed > 20 ? 5 : 0);
+        const estimatedKcal = Math.round(dist * kcalMultiplier);
+
+        const ebikeWh = Math.round((dist * 7.5) + (elevation * 0.6));
+        const ebikePct = Math.min(100, Math.round((ebikeWh / 750) * 100));
+        const ebikeString = ebikeWh > 750 ? ">100%" : `${ebikePct}%`;
+
+        let effortLabel = "Lengvas pasivažinėjimas";
+        let effortColor = "var(--safe-text)";
+        if (dist > 50 || elevation > 500 || avgSpeed > 25) { effortLabel = "Intensyvi treniruotė"; effortColor = "var(--danger-text)"; }
+        else if (dist > 25 || elevation > 200 || avgSpeed > 20) { effortLabel = "Vidutinis krūvis"; effortColor = "var(--warning-text)"; }
+
+        let fitHTML = "";
+        if (fitData && !fitData.error && (fitData.calories || fitData.avgHr || fitData.heartPoints)) {
+            fitHTML = `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                <div style="font-size: 11px; font-weight: bold; color: #4285F4; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#4285F4"/></svg>
+                    GOOGLE FIT
+                </div>
+                ${fitData.calories ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Realios kal.:</span> <strong>${fitData.calories} kcal</strong></div>` : ''}
+                ${fitData.avgHr ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Pulsas:</span> <strong>${fitData.avgHr} / ${fitData.maxHr} bpm</strong></div>` : ''}
+                ${fitData.heartPoints ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span>Kardio taškai:</span> <strong style="color: #10B981;">${fitData.heartPoints} pts</strong></div>` : ''}
+            </div>`;
+        }
+
+        let mapHTML = "";
+        if (tour.start_point && tour.start_point.lat && tour.start_point.lng) {
+            const mapId = `map-filter-${String(tourId).replace(/[^a-zA-Z0-9]/g, '')}-${Math.floor(Math.random() * 1000)}`;
+            mapHTML = `<div id="${mapId}" class="komoot-map-container" data-tour-id="${tour.id}" data-lat="${tour.start_point.lat}" data-lng="${tour.start_point.lng}" data-color="#F59E0B" style="height: 120px; width: 100%; border-radius: 8px; margin-bottom: 10px; z-index: 1; position: relative; overflow: hidden;">
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted); font-size: 11px; z-index: 10;">Kraunamas maršrutas...</div>
+                       </div>`;
+        }
+
+        html += `
+            <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 15px;">
+                ${mapHTML}
+                <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">${name}</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">${dateStr}</div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                    <span>Atstumas:</span> <strong>${dist} km</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+                    <span>Vid. greitis:</span> <strong>${avgSpeed} km/h</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; ${fitData && fitData.calories ? 'text-decoration: line-through; opacity: 0.5;' : ''}">
+                    <span>Kalorijos (apyt.):</span> <strong>${estimatedKcal} kcal</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; color: var(--accent-blue);">
+                    <span>🔋 E-Bike sąnaudos:</span> <strong>~${ebikeString} (${ebikeWh} Wh)</strong>
+                </div>
+                <div style="text-align: right; font-size: 12px; font-weight: bold; color: ${effortColor};">
+                    ${effortLabel}
+                </div>
+                ${fitHTML}
+            </div>
+        `;
+    });
+    html += `</div>`;
+
+    resultsContainer.innerHTML = html;
+    btn.innerHTML = originalText;
+
+    setTimeout(() => {
+        initKomootMaps();
+    }, 100);
+}
+
+async function initKomootMaps() {
+    const mapContainers = document.querySelectorAll('.komoot-map-container');
+    const proxyBase = 'http://localhost:5050/proxy?url=';
+
+    for (const container of mapContainers) {
+        const mapId = container.id;
+        const tourId = container.getAttribute('data-tour-id');
+        const lat = parseFloat(container.getAttribute('data-lat'));
+        const lng = parseFloat(container.getAttribute('data-lng'));
+        const color = container.getAttribute('data-color') || '#3B82F6';
+
+        try {
+            // Remove loading text
+            container.innerHTML = '';
+
+            // Init Leaflet map, disable all interaction to act as a background image
+            const map = L.map(mapId, {zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false}).setView([lat, lng], 12);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+            }).addTo(map);
+
+            if (tourId && tourId !== "undefined" && komootAuthHeader) {
+                // Fetch coordinates for this tour
+                const coordsUrl = proxyBase + encodeURIComponent(`https://api.komoot.de/v007/tours/${tourId}/coordinates`);
+                const res = await fetch(coordsUrl, { headers: { 'Authorization': komootAuthHeader } });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.items && data.items.length > 0) {
+                        const latlngs = data.items.map(item => [item.lat, item.lng]);
+                        // Draw the full polyline route
+                        const polyline = L.polyline(latlngs, {color: color, weight: 3, opacity: 0.9}).addTo(map);
+                        // Auto zoom to fit the whole route inside the tiny box
+                        map.fitBounds(polyline.getBounds(), {padding: [10, 10]});
+
+                        // Add start marker
+                        L.circleMarker(latlngs[0], {color: 'white', fillColor: color, fillOpacity: 1, radius: 4}).addTo(map);
+                        // Add end marker (red)
+                        L.circleMarker(latlngs[latlngs.length - 1], {color: 'white', fillColor: '#EF4444', fillOpacity: 1, radius: 4}).addTo(map);
+                        continue;
+                    }
+                }
+            }
+
+            // Fallback: If no coordinates or no Auth, just show a dot at start point
+            L.circleMarker([lat, lng], {color: 'white', fillColor: color, fillOpacity: 1, radius: 5}).addTo(map);
+
+        } catch (e) {
+            console.error(`Map init failed for ${mapId}:`, e);
+        }
+    }
+}
+</script>
+</body>
+</html>
