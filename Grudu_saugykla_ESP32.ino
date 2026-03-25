@@ -577,11 +577,20 @@ void sendDS18B20ToThingSpeak() {
 
     if (xSemaphoreTake(networkMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
       auto sendBus = [](unsigned long channel, const char* apiKey, float* values, int count, const char* label) {
+          bool hasData = false;
           for (int i = 0; i < count && i < 8; i++) {
-              ThingSpeak.setField(i + 1, String(values[i], 2).c_str());
+              float v = values[i];
+              if (v != DEVICE_DISCONNECTED_C && v != -127.0f && v != 85.0f && !isnan(v)) {
+                  ThingSpeak.setField(i + 1, String(v, 2).c_str());
+                  hasData = true;
+              }
           }
-          int code = ThingSpeak.writeFields(channel, apiKey);
-          logMessage(String(label) + "🌐 ThingSpeak write code=" + String(code));
+          if (hasData) {
+              int code = ThingSpeak.writeFields(channel, apiKey);
+              logMessage(String(label) + "🌐 ThingSpeak write code=" + String(code));
+          } else {
+              logMessage(String(label) + "🌐 Nėra validžių duomenų siuntimui į ThingSpeak.");
+          }
       };
 
       sendBus(myChannelNumber1, myWriteAPIKey1, sensorValues1, numberOfDevices1, "130T");
@@ -638,10 +647,16 @@ void sendQuickSensorsToThingSpeak() {
 
       // OPTIMIZACIJA: Apjungiame Džiovyklos (Bus4) jutiklių duomenis į tą pačią užklausą
       if (numberOfDevices4 >= 1) {
-          ThingSpeak.setField(7, String(sensorValues4[0], 2).c_str());
+          float v1 = sensorValues4[0];
+          if (v1 != DEVICE_DISCONNECTED_C && v1 != -127.0f && v1 != 85.0f && !isnan(v1)) {
+              ThingSpeak.setField(7, String(v1, 2).c_str());
+          }
       }
       if (numberOfDevices4 >= 2) {
-          ThingSpeak.setField(8, String(sensorValues4[1], 2).c_str());
+          float v2 = sensorValues4[1];
+          if (v2 != DEVICE_DISCONNECTED_C && v2 != -127.0f && v2 != 85.0f && !isnan(v2)) {
+              ThingSpeak.setField(8, String(v2, 2).c_str());
+          }
       }
 
       int code4 = ThingSpeak.writeFields(myChannelNumber4, myWriteAPIKey4);
