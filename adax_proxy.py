@@ -11,17 +11,20 @@ PORT = 8081
 
 class ProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        # 1. Parse URL from query string
-        query = urllib.parse.urlparse(self.path).query
-        params = urllib.parse.parse_qs(query)
-
-        if 'url' not in params:
+        # Improved URL extraction: Get everything after "?url="
+        # This handles cases where target_url has its own unencoded query parameters
+        path = self.path
+        if "?url=" not in path:
             self.send_response(400)
             self.end_headers()
             self.wfile.write(b"Missing 'url' parameter. Usage: http://localhost:8081/?url=TARGET_URL")
             return
 
-        target_url = params['url'][0]
+        # Extract everything after the first occurrence of ?url=
+        target_url = path.split("?url=", 1)[1]
+        # Unquote once just in case the browser encoded the whole thing
+        target_url = urllib.parse.unquote(target_url)
+
         print(f"[{self.date_time_string()}] Proxying to: {target_url}")
 
         try:
@@ -61,9 +64,9 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', '*')
         self.end_headers()
 
-    # Disable logging of every request to console for cleaner output
-    def log_message(self, format, *args):
-        return
+    # Enable logging for debugging
+    # def log_message(self, format, *args):
+    #     return
 
 if __name__ == "__main__":
     try:

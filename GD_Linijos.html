@@ -1143,14 +1143,17 @@ function renderVizPlaceholder(id, name, type) {
     window.testAdax = async function(lid) {
         const PROXY_URL = window.ADAX_PROXY || '';
         const targetUrl = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
+        // Encode only if using proxy, otherwise browser handles simple URL
         const url = PROXY_URL ? PROXY_URL + encodeURIComponent(targetUrl) : targetUrl;
+
+        console.log(`Testing ADAX lid=${lid}, final URL:`, url);
 
         try {
                 const r = await fetchWithTimeout(url, { timeout: 5000 });
                 const text = await r.text();
-                alert(`ADAX lid=${lid} atsakymas:\nStatus: ${r.status}\nTurinys: ${text.substring(0, 500)}`);
+                alert(`ADAX lid=${lid} atsakymas:\nURL: ${url}\nStatus: ${r.status}\nTurinys: ${text.substring(0, 500)}`);
             } catch(e) {
-                alert(`ADAX lid=${lid} klaida:\n${e.toString()}`);
+                alert(`ADAX lid=${lid} klaida:\nURL: ${url}\n${e.toString()}`);
             }
         };
 
