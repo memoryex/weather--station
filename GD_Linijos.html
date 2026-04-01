@@ -136,9 +136,9 @@
   .viz-group-adax { display:flex; gap:40px; position:absolute; top:160px; left:400px; }
   .adax-pod {
     display:flex; flex-direction:column; align-items:center;
-    border:4px solid #444; border-radius:80px / 150px;
-    padding:60px 15px; background:rgba(255,255,255,0.03);
-    width:200px; height:600px;
+    border:4px solid #444; border-radius:20px;
+    padding:20px 15px; background:rgba(255,255,255,0.03);
+    width:200px; height:500px;
   }
   .adax-split { display:flex; width:100%; height:100%; position:relative; }
   .adax-divider { width:2px; background:#444; height:100%; position:absolute; left:50%; margin-left:-1px; }
@@ -771,9 +771,31 @@ async function getAdaxData(lid) {
     try {
         const url = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
         const r = await fetch(url);
-        if (!r.ok) throw "HTTP error";
-        return r.json();
-    } catch { return null; }
+        if (!r.ok) throw `HTTP error ${r.status}`;
+
+        const contentType = r.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            return await r.json();
+        } else {
+            // Handle cases where PHP might return text (like the var_dump shown in the screenshot)
+            const text = await r.text();
+            console.error(`ADAX API lid=${lid} returned non-JSON content:`, text.substring(0, 500));
+
+            // Heuristic to try and find JSON in the response if it's mixed with other output
+            const match = text.match(/\{[\s\S]*\}/);
+            if (match) {
+                try {
+                    return JSON.parse(match[0]);
+                } catch(e) {
+                    console.error(`Failed to parse extracted JSON from lid=${lid}:`, e);
+                }
+            }
+            return null;
+        }
+    } catch(e) {
+        console.error(`ADAX API Fetch error for lid=${lid}:`, e);
+        return null;
+    }
 }
 
 function buildAdaxSegments(data, from, to, tz) {
