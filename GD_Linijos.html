@@ -235,6 +235,24 @@
       </select>
     </div>
     <div id="statusMapInfo" class="msg"></div>
+    <button class="action-btn" onclick="toggleAdaxSettings()" style="background:#666; padding:6px 12px;">⚙️ ADAX Nustatymai</button>
+
+    <div id="adaxDiagnostic" class="msg" style="color:#ffa726; display:none; border:1px solid #ffa726; padding:15px; border-radius:8px; margin:15px auto; width:95%; max-width:800px; background:rgba(255,167,38,0.05);">
+        <div style="font-weight:bold; margin-bottom:10px;">⚠️ ADAX Ryšio Diagnostika</div>
+        ADAX duomenys gali būti blokuojami dėl naršyklės saugumo ribojimų (CORS arba Mixed Content), nes dashboardas veikia per HTTPS, o API per HTTP. <br/>
+        <b>Sprendimas:</b>
+        <ol style="text-align:left; margin:5px 0 0 20px;">
+            <li>Atsisiųskite ir paleiskite <code>adax_proxy.py</code> (Python).</li>
+            <li>Nustatymų laukelyje žemiau įveskite: <code>http://localhost:8081/?url=</code></li>
+        </ol>
+        <div style="margin-top:15px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <label>ADAX Proxy URL:</label>
+            <input id="proxySetting" type="text" class="report-input" style="width:300px;" placeholder="http://localhost:8081/?url=">
+            <button class="action-btn" onclick="saveProxy()">Išsaugoti</button>
+            <button class="action-btn" onclick="testProxy()" style="background:#28a745;">Testuoti Proxy</button>
+        </div>
+        <div id="proxyTestResult" style="margin-top:8px; font-size:12px; min-height:14px;"></div>
+    </div>
   </div>
 
   <table>
@@ -249,6 +267,7 @@
       <th>Linijos būsena</th>
       <th>Tarpas tarp testų</th>
       <th>Greitis (vnt/val.)</th>
+      <th>Įrankiai</th>
     </tr>
     </thead>
     <tbody id="data"></tbody>
@@ -660,6 +679,21 @@ function toggleTheme(e) {
 /* ===================== SHARED HELPERS ===================== */
 const pad2 = n => String(n).padStart(2,'0');
 
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 5000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 // --- GLOBAL INSIGHTS LOGIC ---
 window.getInsightText = function(minutes, startTs) {
     const m = Math.round(minutes);
@@ -768,12 +802,19 @@ function normalizeCode(v){
 }
 
 async function getAdaxData(lid) {
+    // If you have CORS or Mixed Content (HTTP on HTTPS) issues,
+    // you can set this to use the provided adax_proxy.py, e.g., 'http://localhost:8081/?url='
+    if (typeof window.ADAX_PROXY === 'undefined') window.ADAX_PROXY = '';
+    const PROXY_URL = window.ADAX_PROXY;
+    const targetUrl = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
+    const url = PROXY_URL ? PROXY_URL + encodeURIComponent(targetUrl) : targetUrl;
+
     try {
-        const url = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
-        const r = await fetch(url);
-        if (!r.ok) throw `HTTP error ${r.status}`;
+        const r = await fetchWithTimeout(url, { timeout: 5000 });
+        if (!r.ok) throw `HTTP ${r.status}`;
 
         const text = await r.text();
+        if (!text || text.trim() === "") throw "Tuščias atsakymas";
         try {
             // Case 1: Simple JSON
             return JSON.parse(text);
@@ -799,19 +840,30 @@ async function getAdaxData(lid) {
             let lastBrace = text.lastIndexOf('}');
             if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
                 try {
-                    const extracted = text.substring(firstBrace, lastBrace + 1);
-                    return JSON.parse(extracted);
+                    // Be more aggressive for objects, find matching closing brace
+                    // In case multiple objects exist (e.g. from debug logs)
+                    let sub = text.substring(firstBrace);
+                    let balance = 0, endIdx = -1;
+                    for (let i=0; i<sub.length; i++) {
+                        if (sub[i] === '{') balance++;
+                        else if (sub[i] === '}') {
+                            balance--;
+                            if (balance === 0) { endIdx = i; break; }
+                        }
+                    }
+                    if (endIdx !== -1) {
+                        return JSON.parse(sub.substring(0, endIdx + 1));
+                    }
                 } catch(err) {
                     console.error(`Failed to parse extracted JSON Object for lid=${lid}:`, err);
                 }
             }
 
-            console.error(`Could not extract valid JSON from lid=${lid} response.`);
-            return null;
+            throw "Nerasta JSON atsakyme";
         }
     } catch(e) {
         console.error(`ADAX API Fetch error for lid=${lid}:`, e);
-        return null;
+        throw e;
     }
 }
 
@@ -1039,114 +1091,199 @@ function renderVizPlaceholder(id, name, type) {
         return null;
     }
 
+    window.toggleAdaxSettings = function() {
+        const el = document.getElementById('adaxDiagnostic');
+        if (el) el.style.display = (el.style.display === 'none') ? 'block' : 'none';
+    };
+
+    window.saveProxy = function() {
+        const val = document.getElementById('proxySetting').value.trim();
+        localStorage.setItem('adax_proxy', val);
+        window.ADAX_PROXY = val;
+        const res = document.getElementById('proxyTestResult');
+        if(res) {
+            res.innerText = "Išsaugota. Atnaujinama...";
+            res.style.color = "#00d67a";
+        }
+        window.refresh();
+    };
+
+    window.testProxy = async function() {
+        const val = document.getElementById('proxySetting').value.trim();
+        const res = document.getElementById('proxyTestResult');
+        if(!val) {
+            res.innerText = "Klaida: Proxy URL tuščias";
+            res.style.color = "#ff5252";
+            return;
+        }
+        res.innerText = "Tikrinama...";
+        res.style.color = "#ffa726";
+
+        try {
+            const testUrl = val + encodeURIComponent("http://10.12.24.51:8088/api/index.php?lid=1&group=1");
+            const r = await fetchWithTimeout(testUrl, { timeout: 3000 });
+            if (r.ok) {
+                res.innerText = "SĖKMĖ: Proxy veikia ir pasiekia ADAX API.";
+                res.style.color = "#00d67a";
+            } else {
+                res.innerText = `Klaida: Proxy pasiekiamas, bet API grąžino ${r.status}`;
+                res.style.color = "#ff5252";
+            }
+        } catch(e) {
+            res.innerText = "Klaida: Proxy nepasiekiamas arba blokuojamas. Įsitikinkite, kad adax_proxy.py paleistas.";
+            res.style.color = "#ff5252";
+        }
+    };
+
+    // Load saved proxy
+    window.ADAX_PROXY = localStorage.getItem('adax_proxy') || '';
+    const ps = document.getElementById('proxySetting');
+    if(ps) ps.value = window.ADAX_PROXY;
+
+    window.testAdax = async function(lid) {
+        const PROXY_URL = window.ADAX_PROXY || '';
+        const targetUrl = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
+        const url = PROXY_URL ? PROXY_URL + encodeURIComponent(targetUrl) : targetUrl;
+
+        try {
+                const r = await fetchWithTimeout(url, { timeout: 5000 });
+                const text = await r.text();
+                alert(`ADAX lid=${lid} atsakymas:\nStatus: ${r.status}\nTurinys: ${text.substring(0, 500)}`);
+            } catch(e) {
+                alert(`ADAX lid=${lid} klaida:\n${e.toString()}`);
+            }
+        };
+
     // Expose refresh globally so file loader can call it
     window.refresh = async function() {
         const tbody = document.getElementById("data");
         const sortSelect = document.getElementById("sortBy");
         const sortBy = sortSelect ? sortSelect.value : "default";
 
-        if(tbody) tbody.innerHTML = "<tr><td class='loading' colspan='9'>Kraunama (gali užtrukti)…</td></tr>";
+        if(tbody) tbody.innerHTML = "<tr><td class='loading' colspan='10'>Kraunama (gali užtrukti)…</td></tr>";
 
         let totalCount = 0;
         const now = Date.now();
         const rowData = [];
 
-        // Parallel fetch for all lines
-        const promises = LINE_MAP.map(async (L) => {
-            if (L.apiType === "ADAX") {
-                try {
-                    const data = await getAdaxData(L.lid);
-                    if (!data) throw "No data";
+        // ADAX logic: Sequential fetch with delay to avoid overwhelming internal API
+        const adaxLines = LINE_MAP.filter(L => L.apiType === "ADAX");
+        const tsLines = LINE_MAP.filter(L => L.apiType !== "ADAX");
 
-                    let allRecords = [];
-                    let totalUnits = 0;
+        const adaxPromises = adaxLines.map(async (L, idx) => {
+            console.log("Fetching ADAX line:", L.name);
+            // Sequential delay: 300ms between each ADAX request
+            await new Promise(r => setTimeout(r, idx * 300));
 
-                    if (Array.isArray(data)) {
-                        // Case 1: Flat Array
-                        allRecords = data;
-                        // Find max PusgaminioNr in whole array
-                        allRecords.forEach(r => {
-                            let p = parseInt(r.PusgaminioNr) || 0;
-                            if (p > totalUnits) totalUnits = p;
-                        });
-                    } else if (typeof data === 'object' && data !== null) {
-                        // Case 2: Grouped by product (as seen in var_dump)
-                        for (let prod in data) {
-                            if (Array.isArray(data[prod]) && data[prod].length > 0) {
-                                allRecords.push(...data[prod]);
-                                // Sum up production for each unique product category
-                                let maxP = 0;
-                                data[prod].forEach(r => {
-                                    let p = parseInt(r.PusgaminioNr) || 0;
-                                    if (p > maxP) maxP = p;
-                                });
-                                totalUnits += maxP;
-                            }
+            try {
+                const data = await getAdaxData(L.lid);
+                if (!data) throw "No data";
+
+                let allRecords = [];
+                let totalUnits = 0;
+
+                if (Array.isArray(data)) {
+                    // Case 1: Flat Array
+                    allRecords = data;
+                    // Find max PusgaminioNr in whole array
+                    allRecords.forEach(r => {
+                        let p = parseInt(r.PusgaminioNr) || 0;
+                        if (p > totalUnits) totalUnits = p;
+                    });
+                } else if (typeof data === 'object' && data !== null) {
+                    // Case 2: Grouped by product (as seen in var_dump)
+                    for (let prod in data) {
+                        if (Array.isArray(data[prod]) && data[prod].length > 0) {
+                            allRecords.push(...data[prod]);
+                            // Sum up production for each unique product category
+                            let maxP = 0;
+                            data[prod].forEach(r => {
+                                let p = parseInt(r.PusgaminioNr) || 0;
+                                if (p > maxP) maxP = p;
+                            });
+                            totalUnits += maxP;
                         }
                     }
-                    if (allRecords.length === 0) throw "Empty data";
-
-                    // Sort by TestavimoLaikas
-                    allRecords.sort((a, b) => new Date(a.TestavimoLaikas.replace(' ', 'T')) - new Date(b.TestavimoLaikas.replace(' ', 'T')));
-                    const latest = allRecords[allRecords.length - 1];
-
-                    const countValNum = totalUnits;
-                    const countValStr = countValNum.toString();
-                    const barcodeVal = latest.Produktas ? latest.Produktas.trim() : "-";
-
-                    let productName = "—";
-                    if (barcodeVal !== "-") {
-                        const code = normalizeCode(barcodeVal);
-                        if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
-                    }
-
-                    const tStart = toLT(latest.NuskanavimoLaikas);
-                    const tLast = toLT(latest.TestavimoLaikas);
-                    const latestIso = latest.TestavimoLaikas;
-
-                    let status="NEAKTYVI", statusCls="status-offline";
-                    let active = false;
-                    let msSinceLast = 0;
-                    if (latestIso) {
-                        msSinceLast = now - new Date(latestIso.replace(' ', 'T')).getTime();
-                        if (msSinceLast/60000 <= OFFLINE_MINUTES) {
-                            status="AKTYVI"; statusCls="status-online";
-                            active = true;
-                        }
-                    }
-
-                    let spTxt="–", gapTxt="–", spClass="";
-                    let speedVal = 0;
-                    if (msSinceLast > 24 * 3600 * 1000) {
-                        spTxt = "Nėra naujų duomenų >24h";
-                        spClass = "bad";
-                    } else if (allRecords.length >= 2) {
-                        // For speed, take last 10 records or all if less, to average out
-                        const sample = allRecords.slice(-10);
-                        const r1 = sample[sample.length - 1];
-                        const r0 = sample[0];
-                        const t1 = new Date(r1.TestavimoLaikas.replace(' ', 'T')).getTime();
-                        const t0 = new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
-
-                        const dHours = (t1 - t0) / 3600000;
-                        if (dHours > 0) {
-                            // Number of units in this time window is (sample.length - 1)
-                            speedVal = (sample.length - 1) / dHours;
-                            spTxt = speedVal.toFixed(2);
-                            gapTxt = formatDuration((t1 - t0) / (sample.length - 1));
-                            if (speedVal > 10) spClass="good";
-                            else if (speedVal >= 5) spClass="warn";
-                            else spClass="bad";
-                        }
-                    }
-
-                    return { L, countValStr, countValNum, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active };
-                } catch(e) {
-                    console.error("ADAX error", L.name, e);
-                    return { L, countValStr: "-", countValNum: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: "KLAIDA", statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false };
                 }
-            }
+                if (allRecords.length === 0) throw "Empty data";
 
+                // Sort by TestavimoLaikas
+                allRecords.sort((a, b) => new Date(a.TestavimoLaikas.replace(' ', 'T')) - new Date(b.TestavimoLaikas.replace(' ', 'T')));
+                const latest = allRecords[allRecords.length - 1];
+
+                const countValNum = totalUnits;
+                const countValStr = countValNum.toString();
+                const barcodeVal = latest.Produktas ? latest.Produktas.trim() : "-";
+
+                let productName = "—";
+                if (barcodeVal !== "-") {
+                    const code = normalizeCode(barcodeVal);
+                    if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
+                }
+
+                const tStart = toLT(latest.NuskanavimoLaikas);
+                const tLast = toLT(latest.TestavimoLaikas);
+                const latestIso = latest.TestavimoLaikas;
+
+                let status="NEAKTYVI", statusCls="status-offline";
+                let active = false;
+                let msSinceLast = 0;
+                if (latestIso) {
+                    msSinceLast = now - new Date(latestIso.replace(' ', 'T')).getTime();
+                    if (msSinceLast/60000 <= OFFLINE_MINUTES) {
+                        status="AKTYVI"; statusCls="status-online";
+                        active = true;
+                    }
+                }
+
+                let spTxt="–", gapTxt="–", spClass="";
+                let speedVal = 0;
+                if (msSinceLast > 24 * 3600 * 1000) {
+                    spTxt = "Nėra naujų duomenų >24h";
+                    spClass = "bad";
+                } else if (allRecords.length >= 2) {
+                    // For speed, take last 10 records or all if less, to average out
+                    const sample = allRecords.slice(-10);
+                    const r1 = sample[sample.length - 1];
+                    const r0 = sample[0];
+                    const t1 = new Date(r1.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    const t0 = new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
+
+                    const dHours = (t1 - t0) / 3600000;
+                    if (dHours > 0) {
+                        // Number of units in this time window is (sample.length - 1)
+                        speedVal = (sample.length - 1) / dHours;
+                        spTxt = speedVal.toFixed(2);
+                        gapTxt = formatDuration((t1 - t0) / (sample.length - 1));
+                        if (speedVal > 10) spClass="good";
+                        else if (speedVal >= 5) spClass="warn";
+                        else spClass="bad";
+                    }
+                }
+
+                    const tools = `<button onclick="testAdax(${L.lid})" style="font-size:10px; padding:2px 5px;">Testas</button>`;
+                    return { L, countValStr, countValNum, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, tools };
+            } catch(e) {
+                console.error("ADAX error", L.name, e);
+                // Provide detailed error feedback to help diagnose CORS/Mixed Content/Network issues
+                let errStatus = "KLAIDA";
+                const errStr = e.toString();
+                if (errStr.includes("Failed to fetch")) {
+                    errStatus = (window.location.protocol === 'https:') ? "Mixed Content (HTTPS vs HTTP)" : "CORS/Network Error";
+                } else if (errStr.includes("HTTP")) {
+                    errStatus = errStr;
+                }
+
+                // Log to the chart's debug log if it exists
+                if (typeof debugLog === 'function') debugLog(`ADAX ${L.name} Error: ${errStr}`);
+
+                    const tools = `<button onclick="testAdax(${L.lid})" style="font-size:10px; padding:2px 5px;">Testas</button>`;
+                    return { L, countValStr: "-", countValNum: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: errStatus, statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false, tools };
+            }
+        });
+
+        const tsPromises = tsLines.map(async (L) => {
+            console.log("Fetching TS line:", L.name);
             const key = READ_KEYS[L.channel];
             try {
                 // If fieldBarcode is null, don't fetch it
@@ -1241,7 +1378,8 @@ function renderVizPlaceholder(id, name, type) {
                     spTxt,
                     spClass,
                     speedVal,
-                    active
+                    active,
+                    tools: ""
                 };
 
             } catch(e) {
@@ -1250,7 +1388,15 @@ function renderVizPlaceholder(id, name, type) {
             }
         });
 
-        const results = await Promise.all(promises);
+        console.log("Waiting for all promises...");
+        const results = await Promise.all([...tsPromises, ...adaxPromises]);
+
+        // Show diagnostic warning if all ADAX lines failed
+        console.log("Results summary:", results.map(r => r ? `${r.L.name}: ${r.status}` : 'null'));
+        const adaxResults = results.filter(r => r && r.L.apiType === "ADAX");
+        const allAdaxFailed = adaxResults.length > 0 && adaxResults.every(r => r.status.includes("Error") || r.status === "KLAIDA");
+        const diagEl = document.getElementById("adaxDiagnostic");
+        if(diagEl) diagEl.style.display = allAdaxFailed ? "block" : "none";
 
         // Filter out failed fetches
         const validResults = results.filter(r => r !== null);
@@ -1283,6 +1429,7 @@ function renderVizPlaceholder(id, name, type) {
                 <td class="${r.statusCls}">${r.status}</td>
                 <td class="time">${r.gapTxt}</td>
                 <td class="${r.spClass}">${r.spTxt}</td>
+                <td>${r.tools}</td>
             </tr>
             `;
 
@@ -2732,12 +2879,13 @@ function renderVizPlaceholder(id, name, type) {
             for (const L of LINES) {
                 st.textContent = `Analizuojama linija: ${L.name}...`;
                 if (L.apiType === "ADAX") {
-                    const data = await getAdaxData(L.lid);
-                    if (!data) continue;
-                    const segs = buildAdaxSegments(data, from, now, tz);
-                    segs.forEach(s => s.line = L.name);
-                    totalSegs.push(...segs);
-                    continue;
+                    try {
+                        const data = await getAdaxData(L.lid);
+                        if (!data) continue;
+                        const segs = buildAdaxSegments(data, from, now, tz);
+                        segs.forEach(s => s.line = L.name);
+                        totalSegs.push(...segs);
+                    } catch(e) { console.error(`AI learn error for ${L.name}:`, e); }
                 }
 
                 const key = READ_KEYS[L.channel];
