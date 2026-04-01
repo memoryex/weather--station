@@ -140,6 +140,7 @@
     const charts = {};
     const sysLabels = ["Lauko temp.", "Lauko drėgmė", "Sist. įtampa", "Baterija", "CPU temp.", "Wi-Fi", "Džiovykla 1", "Džiovykla 2"];
     const sysUnits = ["°C", "%RH", "V", "%", "°C", "dBm", "°C", "°C"];
+    const sysIcons = ["🌡️", "💧", "⚡", "🔋", "🖥️", "📶", "🔥", "🔥"];
 
     let isMuted = false;
     let audioCtx = null;
@@ -529,8 +530,10 @@
 
             for (let i = 0; i < sensorItems.length; i++) {
                 const item = sensorItems[i];
-                const label = ch.type === "tower" ? `Gylis ${i+1}` : sysLabels[i];
-                const unit = ch.type === "tower" ? "°C" : sysUnits[i];
+                const sysIdx = item.id - 1; // Field 1 is index 0
+                const label = ch.type === "tower" ? `Gylis ${item.id}` : sysLabels[sysIdx];
+                const unit = ch.type === "tower" ? "°C" : sysUnits[sysIdx];
+                const icon = ch.type === "tower" ? "🌡️" : sysIcons[sysIdx];
                 const pill = document.createElement('div');
                 pill.className = `sensor-pill ${i===0?'active':''}`;
                 pill.onclick = function() {
@@ -538,10 +541,13 @@
                     this.classList.add('active');
                     drawChart(ch.id, data.feeds, item.id, label);
                 };
-                pill.innerHTML = `<span class="sensor-label">${label}</span><span class="sensor-value">${item.val.toFixed(1)}${unit}</span>`;
+                pill.innerHTML = `<span class="sensor-label">${icon} ${label}</span><span class="sensor-value">${item.val.toFixed(1)}${unit}</span>`;
                 display.appendChild(pill);
             }
-            drawChart(ch.id, data.feeds, sensorItems[0].id, ch.type === "tower" ? "Gylis 1" : sysLabels[0]);
+            // Draw chart for the first item initially
+            const firstSysIdx = sensorItems[0].id - 1;
+            const firstLabel = ch.type === "tower" ? `Gylis ${sensorItems[0].id}` : sysLabels[firstSysIdx];
+            drawChart(ch.id, data.feeds, sensorItems[0].id, firstLabel);
         } catch(e) {}
     }
 
