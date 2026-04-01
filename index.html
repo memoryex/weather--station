@@ -84,6 +84,23 @@
         .insight-box { background: rgba(0,242,254,0.05); padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid var(--accent); font-size: 0.8rem; }
         .rec-error { background: rgba(255, 85, 85, 0.1); border-left: 3px solid var(--danger); padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 0.8rem; }
 
+        .sensor-analysis-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 10px; }
+        .sensor-analysis-title { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .sa-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .sa-row:last-child { border-bottom: none; }
+        .sa-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; display: inline-block; }
+        .sa-dot.air { background-color: #00b4d8; }
+        .sa-dot.grain { background-color: #ffb703; }
+        .sa-name { flex: 1; display: flex; align-items: center; color: var(--text-main); }
+        .sa-field { font-size: 0.65rem; color: var(--text-muted); margin-left: 4px; }
+        .sa-tag { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-right: 8px; font-weight: bold; }
+        .sa-tag.air { background-color: rgba(0, 180, 216, 0.15); color: #00b4d8; border: 1px solid rgba(0, 180, 216, 0.3); }
+        .sa-tag.grain { background-color: rgba(255, 183, 3, 0.15); color: #ffb703; border: 1px solid rgba(255, 183, 3, 0.3); }
+        .sa-state { display: flex; align-items: center; font-size: 0.7rem; margin-right: 15px; width: 60px; }
+        .sa-state.variable { color: #f4a261; }
+        .sa-state.stable { color: #2a9d8f; }
+        .sa-temp { font-weight: bold; width: 40px; text-align: right; }
+
         @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } .top-bar { flex-direction: column; } }
     </style>
 </head>
@@ -272,7 +289,55 @@
                 const tsData = await (await fetch(`https://api.thingspeak.com/channels/${ch.id}/feeds.json?api_key=${ch.key}&results=100`)).json();
                 const last = tsData.feeds[tsData.feeds.length-1];
                 let sensorTemps = [];
-                for(let i=1;i<=5;i++){ let v = parseFloat(last[`field${i}`]); if(!isNaN(v)) sensorTemps.push(v); }
+
+                // Track historical variations for Sensor Analysis
+                let depthsHist = [[], [], [], [], []];
+                tsData.feeds.forEach(f => {
+                    for(let i=1; i<=5; i++) {
+                        let v = parseFloat(f[`field${i}`]);
+                        if(!isNaN(v) && v !== -127.0 && v !== 85.0) {
+                            depthsHist[i-1].push(v);
+                        }
+                    }
+                });
+
+                let sensorAnalysisHTML = `<div class="sensor-analysis-box">
+                    <div class="sensor-analysis-title">SENSOR ANALYSIS:</div>`;
+
+                // We want to loop from Depth 5 down to Depth 1 (as seen in the image)
+                for(let i=5; i>=1; i--) {
+                    let dHist = depthsHist[i-1];
+                    let currentV = parseFloat(last[`field${i}`]);
+
+                    if(!isNaN(currentV) && currentV !== -127.0 && currentV !== 85.0) {
+                        sensorTemps.push(currentV);
+
+                        let min = Math.min(...dHist);
+                        let max = Math.max(...dHist);
+                        let diff = max - min;
+
+                        let isAir = diff > 1.5; // If it varies by more than 1.5°C over ~100 data points, it's air.
+
+                        let typeClass = isAir ? 'air' : 'grain';
+                        let typeLabel = isAir ? 'air' : 'grain';
+
+                        let stateClass = isAir ? 'variable' : 'stable';
+                        let stateLabel = isAir ? '⚡ variable' : '↔ stable';
+
+                        sensorAnalysisHTML += `
+                            <div class="sa-row">
+                                <div class="sa-name">
+                                    <span class="sa-dot ${typeClass}"></span> Depth ${6-i} <span class="sa-field">(f${i})</span>
+                                </div>
+                                <div class="sa-tag ${typeClass}">${typeLabel}</div>
+                                <div class="sa-state ${stateClass}">${stateLabel}</div>
+                                <div class="sa-temp">${currentV.toFixed(1)}°C</div>
+                            </div>
+                        `;
+                    }
+                }
+                sensorAnalysisHTML += `</div>`;
+
                 sensorTemps.sort((a, b) => b - a);
                 let airTemp = sensorTemps[sensorTemps.length - 1] || 0;
                 let submergedCount = 0;
@@ -287,7 +352,10 @@
                 // AI Prediction
                 const historicalAvgs = tsData.feeds.map(f => {
                     let sT = [];
-                    for(let i=1;i<=5;i++){ let v = parseFloat(f[`field${i}`]); if(!isNaN(v)) sT.push(v); }
+                    for(let i=1;i<=5;i++){
+                        let v = parseFloat(f[`field${i}`]);
+                        if(!isNaN(v) && v !== -127.0 && v !== 85.0) sT.push(v);
+                    }
                     return sT.length ? sT.reduce((a,b)=>a+b,0)/sT.length : null;
                 }).filter(v => v !== null);
 
@@ -330,7 +398,10 @@
                         <p>48h Trendas: <b style="color:${trend>0?'#ff5555':'#00f2fe'}">${trend > 0 ? '↗' : '↘'} ${Math.abs(trend).toFixed(2)}°C</b></p>
                         <p>Prognozė po 3 parų (Linear): <b>${(currentAvg + (trend * 0.6)).toFixed(1)}°C</b></p>
                         <div style="margin: 8px 0;">🐜 Vabalų veikla: <span style="color:${currentAvg > 15 ? 'var(--danger)' : 'var(--success)'}">${currentAvg > 15 ? '⚠️ Aktyvūs' : '✅ Neaktyvūs'}</span></div>
-                        <div style="font-weight:bold; font-size:0.8rem; color:${isCritical ? 'var(--danger)' : isWarning ? 'var(--warning)' : 'var(--success)'}">${statusMessage}</div>
+
+                        ${sensorAnalysisHTML}
+
+                        <div style="font-weight:bold; font-size:0.8rem; margin-top:10px; padding:10px; border-radius:8px; border: 1px solid ${isCritical ? 'var(--danger)' : isWarning ? 'var(--warning)' : 'var(--success)'}; background: rgba(${isCritical ? '255,85,85' : isWarning ? '255,152,0' : '3,218,198'}, 0.05); color:${isCritical ? 'var(--danger)' : isWarning ? 'var(--warning)' : 'var(--success)'}">${statusMessage}</div>
 
                         <div style="margin-top: 10px; background: rgba(100, 0, 255, 0.1); border: 1px solid #8a2be2; padding: 10px; border-radius: 8px;">
                             <h4 style="margin: 0 0 5px 0; color: #c77dff;">🧠 AI Prognozė (Neural Net)</h4>
@@ -412,12 +483,15 @@
             let sensorItems = [];
 
             if(ch.type === "tower") {
-                for(let i=1; i<=5; i++) { let v = parseFloat(lastFeed[`field${i}`]); if(!isNaN(v)) sensorItems.push({ id: i, val: v }); }
+                for(let i=1; i<=5; i++) {
+                    let v = parseFloat(lastFeed[`field${i}`]);
+                    if(!isNaN(v) && v !== -127.0 && v !== 85.0) sensorItems.push({ id: i, val: v });
+                }
                 sensorItems.sort((a, b) => b.val - a.val);
             } else {
                 for(let i=1; i<=8; i++) {
                     let v = parseFloat(lastFeed[`field${i}`]);
-                    if(!isNaN(v)) {
+                    if(!isNaN(v) && v !== -127.0 && v !== 85.0) {
                         sensorItems.push({ id: i, val: v });
                     }
                 }
@@ -443,13 +517,23 @@
 
     function drawChart(id, feeds, fIdx, label) {
         const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+
+        // Filter valid data points for the chart to avoid plotting -127 or 85
+        const chartData = [];
+        feeds.forEach(f => {
+            let v = parseFloat(f[`field${fIdx}`]);
+            if (!isNaN(v) && v !== -127.0 && v !== 85.0) {
+                chartData.push([new Date(f.created_at).getTime(), v]);
+            }
+        });
+
         charts[id] = Highcharts.chart(`chart-${id}`, {
             chart: { backgroundColor: 'transparent', height: 200, margin: [10, 5, 30, 45] },
             title: { text: null },
             xAxis: { type: 'datetime', labels: { style: { color: 'var(--text-muted)', fontSize: '10px' } } },
             yAxis: { gridLineColor: '#222', title: { text: null }, labels: { style: { color: 'var(--text-muted)' } } },
             legend: { enabled: false }, credits: { enabled: false },
-            series: [{ name: label, data: feeds.map(f => [new Date(f.created_at).getTime(), parseFloat(f[`field${fIdx}`])]), color: accent, lineWidth: 2, marker: { enabled: false } }]
+            series: [{ name: label, data: chartData, color: accent, lineWidth: 2, marker: { enabled: false } }]
         });
     }
 
