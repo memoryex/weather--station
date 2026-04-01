@@ -130,7 +130,7 @@
 
 <script>
     const config = [
-        { name: "Bokštas 130T", id: "176883", key: "YDLSGDT4FW33IDZV", type: "tower", capacity: 110 },
+        { name: "Bokštas 130T", id: "176883", key: "YDLSGDT4FW33IDZV", type: "tower", capacity: 130 },
         { name: "Bokštas 250T", id: "176884", key: "0RYI1OGPSKOMMOY0", type: "tower", capacity: 240 },
         { name: "Bokštas 100T", id: "191988", key: "A2RJQTIAKZPJAU59", type: "tower", capacity: 100 },
         { name: "Kiti davikliai", id: "293499", key: "PUK7197Y2HN8NS0W", type: "system" }
@@ -321,16 +321,17 @@
                     }
                 }
 
-                // Sort by variance (lowest variance first = most stable = deepest in grain)
-                activeSensors.sort((a, b) => a.diff - b.diff);
+                // We assume physical layers are fixed: field 1 is bottom (Gylis 1), field 5 is top (Gylis 5).
+                // Sort by field id (1 to 5)
+                activeSensors.sort((a, b) => a.field - b.field);
 
-                // Physical constraint: Fill from the bottom (lowest variance).
-                // Once we hit a sensor with > 1.5 variance (air), all subsequent sensors (higher variance = higher up) MUST be air.
+                // Physical constraint: Fill from the bottom (f1).
+                // Once we hit a sensor with > 1.5 variance (air), all subsequent sensors higher up (f2, f3...) MUST be air.
                 let airReached = false;
                 let submergedCount = 0;
 
-                // We add depth properties to the objects. Depth 1 is bottom.
-                activeSensors.forEach((sensor, index) => {
+                // We add depth properties to the objects. Depth 1 is bottom (field 1).
+                activeSensors.forEach((sensor) => {
                     let isAir = sensor.diff > 1.5;
 
                     if (isAir) {
@@ -344,11 +345,10 @@
                     }
 
                     sensor.isCurrentlyAir = isCurrentlyAir;
-                    // Lowest variance gets Depth 1 (bottom), up to Depth N (top)
-                    sensor.physicalDepth = index + 1;
+                    sensor.physicalDepth = sensor.field;
                 });
 
-                // Reverse the array so we display Top of silo first, down to Bottom (Depth 1)
+                // Reverse the array so we display Top of silo first (f5), down to Bottom (f1)
                 activeSensors.reverse();
 
                 // Render the UI
