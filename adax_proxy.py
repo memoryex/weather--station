@@ -70,7 +70,8 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     try:
-        server = http.server.HTTPServer(('0.0.0.0', PORT), ProxyHandler)
+        # Binding to 127.0.0.1 for security - accessibility limited to local machine
+        server = http.server.HTTPServer(('127.0.0.1', PORT), ProxyHandler)
         print("========================================")
         print(f" ADAX Proxy Server started on port {PORT}")
         print("========================================")

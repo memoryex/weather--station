@@ -805,8 +805,14 @@ async function getAdaxData(lid) {
     // If you have CORS or Mixed Content (HTTP on HTTPS) issues,
     // you can set this to use the provided adax_proxy.py, e.g., 'http://localhost:8081/?url='
     if (typeof window.ADAX_PROXY === 'undefined') window.ADAX_PROXY = '';
-    const PROXY_URL = window.ADAX_PROXY;
+    let PROXY_URL = window.ADAX_PROXY;
     const targetUrl = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
+
+    // Sanitize: ensure PROXY_URL ends with ?url= if it exists
+    if (PROXY_URL && !PROXY_URL.includes('?url=')) {
+        PROXY_URL = PROXY_URL.split('?')[0] + '?url=';
+    }
+
     const url = PROXY_URL ? PROXY_URL + encodeURIComponent(targetUrl) : targetUrl;
 
     try {
@@ -822,44 +828,42 @@ async function getAdaxData(lid) {
             // Case 2: PHP var_dump or warnings mixed with JSON
             console.warn(`ADAX API lid=${lid} direct JSON parse failed, trying heuristic.`, text.substring(0, 200));
 
-            // Heuristic: Find first '[' and last ']' for an array, or '{' and '}' for an object
-            let firstBracket = text.indexOf('[');
+            // Heuristic: Find the LAST valid JSON structure (array or object)
+            // This is safer if debug output (like var_dump) precedes the actual data.
+
+            // Try Array first
             let lastBracket = text.lastIndexOf(']');
-
-            if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-                try {
-                    const extracted = text.substring(firstBracket, lastBracket + 1);
-                    return JSON.parse(extracted);
-                } catch(err) {
-                    console.error(`Failed to parse extracted JSON Array for lid=${lid}:`, err);
+            if (lastBracket !== -1) {
+                let balance = 0;
+                for (let i = lastBracket; i >= 0; i--) {
+                    if (text[i] === ']') balance++;
+                    else if (text[i] === '[') balance--;
+                    if (balance === 0) {
+                        try {
+                            const candidate = text.substring(i, lastBracket + 1);
+                            return JSON.parse(candidate);
+                        } catch (err) { /* keep looking */ }
+                    }
                 }
             }
 
-            // Try object if array failed
-            let firstBrace = text.indexOf('{');
+            // Try Object next
             let lastBrace = text.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                try {
-                    // Be more aggressive for objects, find matching closing brace
-                    // In case multiple objects exist (e.g. from debug logs)
-                    let sub = text.substring(firstBrace);
-                    let balance = 0, endIdx = -1;
-                    for (let i=0; i<sub.length; i++) {
-                        if (sub[i] === '{') balance++;
-                        else if (sub[i] === '}') {
-                            balance--;
-                            if (balance === 0) { endIdx = i; break; }
-                        }
+            if (lastBrace !== -1) {
+                let balance = 0;
+                for (let i = lastBrace; i >= 0; i--) {
+                    if (text[i] === '}') balance++;
+                    else if (text[i] === '{') balance--;
+                    if (balance === 0) {
+                        try {
+                            const candidate = text.substring(i, lastBrace + 1);
+                            return JSON.parse(candidate);
+                        } catch (err) { /* keep looking */ }
                     }
-                    if (endIdx !== -1) {
-                        return JSON.parse(sub.substring(0, endIdx + 1));
-                    }
-                } catch(err) {
-                    console.error(`Failed to parse extracted JSON Object for lid=${lid}:`, err);
                 }
             }
 
-            throw "Nerasta JSON atsakyme";
+            throw "Nerasta JSON atsakyme po euristinės paieškos";
         }
     } catch(e) {
         console.error(`ADAX API Fetch error for lid=${lid}:`, e);
@@ -1060,7 +1064,7 @@ function renderVizPlaceholder(id, name, type) {
     async function getFieldLast(channel, field, key) {
         try {
             const url = `https://api.thingspeak.com/channels/${channel}/fields/${field}/last.json?api_key=${key}`;
-            const r = await fetch(url);
+            const r = await fetchWithTimeout(url, { timeout: 10000 });
             if (!r.ok) throw "HTTP error";
             return r.json();
         } catch { return null; }
@@ -1068,7 +1072,7 @@ function renderVizPlaceholder(id, name, type) {
     async function getFieldHistory(channel, field, key, results=50) {
         try {
             const url = `https://api.thingspeak.com/channels/${channel}/fields/${field}.json?api_key=${key}&results=${results}`;
-            const r = await fetch(url);
+            const r = await fetchWithTimeout(url, { timeout: 10000 });
             if (!r.ok) throw "HTTP error";
             return r.json();
         } catch { return null; }
@@ -1097,7 +1101,11 @@ function renderVizPlaceholder(id, name, type) {
     };
 
     window.saveProxy = function() {
-        const val = document.getElementById('proxySetting').value.trim();
+        let val = document.getElementById('proxySetting').value.trim();
+        if (val && !val.includes('?url=')) {
+            val = val.split('?')[0] + '?url=';
+        }
+        document.getElementById('proxySetting').value = val;
         localStorage.setItem('adax_proxy', val);
         window.ADAX_PROXY = val;
         const res = document.getElementById('proxyTestResult');
@@ -1180,6 +1188,7 @@ function renderVizPlaceholder(id, name, type) {
 
             try {
                 const data = await getAdaxData(L.lid);
+                console.log(`ADAX ${L.name} parsed data:`, data);
                 if (!data) throw "No data";
 
                 let allRecords = [];
@@ -1272,7 +1281,9 @@ function renderVizPlaceholder(id, name, type) {
                 let errStatus = "KLAIDA";
                 const errStr = e.toString();
                 if (errStr.includes("Failed to fetch")) {
-                    errStatus = (window.location.protocol === 'https:') ? "Mixed Content (HTTPS vs HTTP)" : "CORS/Network Error";
+                    errStatus = (window.location.protocol === 'https:') ? "Proxy Error (Mixed Content)" : "Network Error";
+                } else if (errStr.includes("JSON") || errStr.includes("SyntaxError") || errStr.includes("euristinės")) {
+                    errStatus = "JSON Error";
                 } else if (errStr.includes("HTTP")) {
                     errStatus = errStr;
                 }
@@ -1545,7 +1556,7 @@ function renderVizPlaceholder(id, name, type) {
     async function fetchFieldWindow(channel, field, readKey, startStr, endStr, tz){
         const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
         const qs=new URLSearchParams({ api_key:readKey, results:'8000', start:startStr, end:endStr, timezone:tz });
-        const r = await fetch(`${base}?${qs.toString()}`);
+        const r = await fetchWithTimeout(`${base}?${qs.toString()}`, { timeout: 15000 });
         if(!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
     }
@@ -1559,7 +1570,7 @@ function renderVizPlaceholder(id, name, type) {
         const qs=new URLSearchParams({ api_key:key, end:endIso, results:'8000', timezone:tz });
 
         try {
-            const r = await fetch(`${base}?${qs.toString()}`);
+            const r = await fetchWithTimeout(`${base}?${qs.toString()}`, { timeout: 15000 });
             if (!r.ok) return null;
             const j = await r.json();
             if (j.feeds && j.feeds.length > 0) {
@@ -2889,6 +2900,7 @@ function renderVizPlaceholder(id, name, type) {
                         segs.forEach(s => s.line = L.name);
                         totalSegs.push(...segs);
                     } catch(e) { console.error(`AI learn error for ${L.name}:`, e); }
+                    continue;
                 }
 
                 const key = READ_KEYS[L.channel];
@@ -2929,7 +2941,7 @@ function renderVizPlaceholder(id, name, type) {
     // --- HELPERS (Private) ---
     async function _fetchSeries(ch, field, key, tz, start, end, isNum=false) {
         const url = `https://api.thingspeak.com/channels/${ch}/fields/${field}.json?api_key=${key}&start=${toIso(start)}&end=${toIso(end)}&timezone=${tz}&results=8000`;
-        const r = await fetch(url);
+        const r = await fetchWithTimeout(url, { timeout: 15000 });
         if(!r.ok) return [];
         const j = await r.json();
         if(!j.feeds) return [];
