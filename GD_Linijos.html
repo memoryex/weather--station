@@ -773,23 +773,40 @@ async function getAdaxData(lid) {
         const r = await fetch(url);
         if (!r.ok) throw `HTTP error ${r.status}`;
 
-        const contentType = r.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-            return await r.json();
-        } else {
-            // Handle cases where PHP might return text (like the var_dump shown in the screenshot)
-            const text = await r.text();
-            console.error(`ADAX API lid=${lid} returned non-JSON content:`, text.substring(0, 500));
+        const text = await r.text();
+        try {
+            // Case 1: Simple JSON
+            return JSON.parse(text);
+        } catch(e) {
+            // Case 2: PHP var_dump or warnings mixed with JSON
+            console.warn(`ADAX API lid=${lid} direct JSON parse failed, trying heuristic.`, text.substring(0, 200));
 
-            // Heuristic to try and find JSON in the response if it's mixed with other output
-            const match = text.match(/\{[\s\S]*\}/);
-            if (match) {
+            // Heuristic: Find first '[' and last ']' for an array, or '{' and '}' for an object
+            let firstBracket = text.indexOf('[');
+            let lastBracket = text.lastIndexOf(']');
+
+            if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
                 try {
-                    return JSON.parse(match[0]);
-                } catch(e) {
-                    console.error(`Failed to parse extracted JSON from lid=${lid}:`, e);
+                    const extracted = text.substring(firstBracket, lastBracket + 1);
+                    return JSON.parse(extracted);
+                } catch(err) {
+                    console.error(`Failed to parse extracted JSON Array for lid=${lid}:`, err);
                 }
             }
+
+            // Try object if array failed
+            let firstBrace = text.indexOf('{');
+            let lastBrace = text.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                try {
+                    const extracted = text.substring(firstBrace, lastBrace + 1);
+                    return JSON.parse(extracted);
+                } catch(err) {
+                    console.error(`Failed to parse extracted JSON Object for lid=${lid}:`, err);
+                }
+            }
+
+            console.error(`Could not extract valid JSON from lid=${lid} response.`);
             return null;
         }
     } catch(e) {
@@ -804,8 +821,11 @@ function buildAdaxSegments(data, from, to, tz) {
     const fTs = from instanceof Date ? from.getTime() : (new Date(from)).getTime();
     const tTs = to instanceof Date ? to.getTime() : (new Date(to)).getTime();
 
-    for (let prodCode in data) {
-        const records = data[prodCode];
+    // Map any flat array to a grouped-like structure to reuse logic
+    const groupedData = Array.isArray(data) ? { "all": data } : data;
+
+    for (let prodCode in groupedData) {
+        const records = groupedData[prodCode];
         if (!Array.isArray(records)) continue;
 
         const filtered = records.filter(r => {
@@ -1040,16 +1060,28 @@ function renderVizPlaceholder(id, name, type) {
 
                     let allRecords = [];
                     let totalUnits = 0;
-                    for (let prod in data) {
-                        if (Array.isArray(data[prod]) && data[prod].length > 0) {
-                            allRecords.push(...data[prod]);
-                            // Find max PusgaminioNr for this product
-                            let maxP = 0;
-                            data[prod].forEach(r => {
-                                let p = parseInt(r.PusgaminioNr) || 0;
-                                if (p > maxP) maxP = p;
-                            });
-                            totalUnits += maxP;
+
+                    if (Array.isArray(data)) {
+                        // Case 1: Flat Array
+                        allRecords = data;
+                        // Find max PusgaminioNr in whole array
+                        allRecords.forEach(r => {
+                            let p = parseInt(r.PusgaminioNr) || 0;
+                            if (p > totalUnits) totalUnits = p;
+                        });
+                    } else if (typeof data === 'object' && data !== null) {
+                        // Case 2: Grouped by product (as seen in var_dump)
+                        for (let prod in data) {
+                            if (Array.isArray(data[prod]) && data[prod].length > 0) {
+                                allRecords.push(...data[prod]);
+                                // Sum up production for each unique product category
+                                let maxP = 0;
+                                data[prod].forEach(r => {
+                                    let p = parseInt(r.PusgaminioNr) || 0;
+                                    if (p > maxP) maxP = p;
+                                });
+                                totalUnits += maxP;
+                            }
                         }
                     }
                     if (allRecords.length === 0) throw "Empty data";
@@ -1628,11 +1660,14 @@ function renderVizPlaceholder(id, name, type) {
                 if (L.apiType === "ADAX") {
                     try {
                         const data = await getAdaxData(L.lid);
+                        if (!data) return [];
+                        const grouped = Array.isArray(data) ? { "all": data } : data;
+
                         if (isRaw) {
                             let pts = [];
-                            for (let prod in data) {
-                                if (Array.isArray(data[prod])) {
-                                    data[prod].forEach(r => {
+                            for (let prod in grouped) {
+                                if (Array.isArray(grouped[prod])) {
+                                    grouped[prod].forEach(r => {
                                         const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
                                         if (t >= from.getTime() && t <= to.getTime()) {
                                             pts.push({ line: L.name, startTs: t, val: parseInt(r.PusgaminioNr) || 0 });
@@ -2151,6 +2186,7 @@ function renderVizPlaceholder(id, name, type) {
                 if (L.apiType === "ADAX") {
                     st.textContent = `${L.name}: kraunam duomenis...`;
                     const data = await getAdaxData(L.lid);
+                    if (!data) continue;
                     const segs = buildAdaxSegments(data, from, to, tz);
                     segs.forEach(s => {
                         out.push({
@@ -2697,6 +2733,7 @@ function renderVizPlaceholder(id, name, type) {
                 st.textContent = `Analizuojama linija: ${L.name}...`;
                 if (L.apiType === "ADAX") {
                     const data = await getAdaxData(L.lid);
+                    if (!data) continue;
                     const segs = buildAdaxSegments(data, from, now, tz);
                     segs.forEach(s => s.line = L.name);
                     totalSegs.push(...segs);
