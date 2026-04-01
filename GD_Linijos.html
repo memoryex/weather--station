@@ -126,8 +126,24 @@
   .viz-box-wide { width:220px; height:110px; } /* Increased height for better text visibility */
   /* Horizontalioje juostoje box'ai aukšti vertikaliai */
   .viz-box-tall { width:120px; height:210px; flex-direction:column; justify-content:center; gap:10px; }
+  .viz-box-adax { width:75px; height:180px; flex-direction:column; justify-content:center; gap:5px; border-width:2px; }
+  .viz-box-adax .viz-value-big { font-size:14px; }
+  .viz-box-adax .viz-icon { width:12px; height:12px; }
 
   .viz-label { font-size:16px; font-weight:bold; color:var(--text-muted); }
+
+  /* ADAX layout */
+  .viz-group-adax { display:flex; gap:40px; position:absolute; top:160px; left:400px; }
+  .adax-pod {
+    display:flex; flex-direction:column; align-items:center;
+    border:4px solid #444; border-radius:80px / 150px;
+    padding:60px 15px; background:rgba(255,255,255,0.03);
+    width:200px; height:600px;
+  }
+  .adax-split { display:flex; width:100%; height:100%; position:relative; }
+  .adax-divider { width:2px; background:#444; height:100%; position:absolute; left:50%; margin-left:-1px; }
+  .adax-item-wrap { flex:1; display:flex; justify-content:center; align-items:center; z-index:2; }
+  .adax-nums { display:flex; width:100%; justify-content:space-around; margin-top:20px; font-size:22px; font-weight:bold; color:var(--text-muted); }
 
   .viz-info { font-size:12px; text-align:center; line-height:1.4; color:var(--text-main); }
   .viz-value-big { font-size:18px; font-weight:bold; display:block; }
@@ -257,6 +273,42 @@
     </div>
 
     <!-- HORIZONTAL ROW (Bottom): NOBO1, PLXE4...PLXE1 -->
+    <!-- ADAX SECTION -->
+    <div class="viz-group-adax">
+       <div style="display:flex; flex-direction:column; align-items:center;">
+          <div style="font-size:24px; font-weight:bold; color:var(--text-muted); margin-bottom:10px;">ADAX linijos</div>
+          <div style="display:flex; gap:40px;">
+             <!-- POD 3: 7 & 6 -->
+             <div class="adax-pod">
+                <div class="adax-split">
+                   <div class="adax-divider"></div>
+                   <div class="adax-item-wrap"><div id="viz-ADAX 7"></div></div>
+                   <div class="adax-item-wrap"><div id="viz-ADAX 6"></div></div>
+                </div>
+                <div class="adax-nums"><span>7</span><span>6</span></div>
+             </div>
+             <!-- POD 2: 4 & 3 -->
+             <div class="adax-pod">
+                <div class="adax-split">
+                   <div class="adax-divider"></div>
+                   <div class="adax-item-wrap"><div id="viz-ADAX 4"></div></div>
+                   <div class="adax-item-wrap"><div id="viz-ADAX 3"></div></div>
+                </div>
+                <div class="adax-nums"><span>4</span><span>3</span></div>
+             </div>
+             <!-- POD 1: 2 & 1 -->
+             <div class="adax-pod">
+                <div class="adax-split">
+                   <div class="adax-divider"></div>
+                   <div class="adax-item-wrap"><div id="viz-ADAX 2"></div></div>
+                   <div class="adax-item-wrap"><div id="viz-ADAX 1"></div></div>
+                </div>
+                <div class="adax-nums"><span>2</span><span>1</span></div>
+             </div>
+          </div>
+       </div>
+    </div>
+
     <div class="viz-group-horizontal">
       <div id="viz-NOBO 1" class="viz-item viz-item-h"></div>
       <div id="viz-PLXE 4" class="viz-item viz-item-h"></div>
@@ -461,20 +513,26 @@ const READ_KEYS = {
 };
 
 const LINES = [
-  { name:"QRAD 1", channel:807602, fieldCount:3, fieldBarcode:4 },
-  { name:"PLXE 1", channel:463450, fieldCount:1, fieldBarcode:2 },
-  { name:"PLXE 2", channel:463450, fieldCount:3, fieldBarcode:4 },
-  { name:"PLXE 3", channel:463450, fieldCount:5, fieldBarcode:6 },
-  { name:"PLXE 4", channel:463450, fieldCount:7, fieldBarcode:8 },
-  { name:"NOBO 1", channel:703669, fieldCount:1, fieldBarcode:2 },
-  { name:"NOBO 2", channel:703669, fieldCount:3, fieldBarcode:4 },
-  { name:"NOBO 3", channel:703669, fieldCount:5, fieldBarcode:6 },
-  { name:"NOBO 4", channel:703669, fieldCount:7, fieldBarcode:8 },
-  { name:"NOBO 5", channel:802414, fieldCount:1, fieldBarcode:2 },
-  { name:"NOBO 6", channel:802414, fieldCount:3, fieldBarcode:4 },
-  { name:"NOBO 7", channel:802414, fieldCount:5, fieldBarcode:6 },
-  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8 },
-  { name:"UI 1",   channel:807602, fieldCount:1, fieldBarcode:null }
+  { name:"QRAD 1", channel:807602, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"PLXE 1", channel:463450, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"PLXE 2", channel:463450, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"PLXE 3", channel:463450, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"PLXE 4", channel:463450, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"NOBO 1", channel:703669, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"NOBO 2", channel:703669, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"NOBO 3", channel:703669, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"NOBO 4", channel:703669, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"NOBO 5", channel:802414, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"NOBO 6", channel:802414, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"NOBO 7", channel:802414, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"UI 1",   channel:807602, fieldCount:1, fieldBarcode:null, apiType: "TS" },
+  { name:"ADAX 1", lid: 1, apiType: "ADAX" },
+  { name:"ADAX 2", lid: 2, apiType: "ADAX" },
+  { name:"ADAX 3", lid: 3, apiType: "ADAX" },
+  { name:"ADAX 4", lid: 4, apiType: "ADAX" },
+  { name:"ADAX 6", lid: 6, apiType: "ADAX" },
+  { name:"ADAX 7", lid: 7, apiType: "ADAX" }
 ];
 // Alias for Status code compatibility
 const LINE_MAP = LINES;
@@ -709,6 +767,72 @@ function normalizeCode(v){
   return digits.replace(/^0+/, '') || '0';
 }
 
+async function getAdaxData(lid) {
+    try {
+        const url = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
+        const r = await fetch(url);
+        if (!r.ok) throw "HTTP error";
+        return r.json();
+    } catch { return null; }
+}
+
+function buildAdaxSegments(data, from, to, tz) {
+    const segs = [];
+    if (!data) return segs;
+    const fTs = from instanceof Date ? from.getTime() : (new Date(from)).getTime();
+    const tTs = to instanceof Date ? to.getTime() : (new Date(to)).getTime();
+
+    for (let prodCode in data) {
+        const records = data[prodCode];
+        if (!Array.isArray(records)) continue;
+
+        const filtered = records.filter(r => {
+            const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
+            return t >= fTs && t <= tTs;
+        });
+
+        if (filtered.length === 0) continue;
+
+        filtered.sort((a, b) => (parseInt(a.PusgaminioNr) || 0) - (parseInt(b.PusgaminioNr) || 0));
+
+        let batchStartI = 0;
+        for (let i = 1; i < filtered.length; i++) {
+            if (parseInt(filtered[i].PusgaminioNr) < parseInt(filtered[i-1].PusgaminioNr)) {
+                processBatch(filtered.slice(batchStartI, i));
+                batchStartI = i;
+            }
+        }
+        processBatch(filtered.slice(batchStartI));
+
+        function processBatch(batch) {
+            if (batch.length === 0) return;
+            batch.sort((a, b) => new Date(a.TestavimoLaikas.replace(' ', 'T')) - new Date(b.TestavimoLaikas.replace(' ', 'T')));
+
+            const r0 = batch[0];
+            const rN = batch[batch.length - 1];
+            const sTs = new Date(r0.NuskanavimoLaikas.replace(' ', 'T')).getTime();
+            const eTs = new Date(rN.TestavimoLaikas.replace(' ', 'T')).getTime();
+            const units = parseInt(rN.PusgaminioNr) - parseInt(r0.PusgaminioNr) + 1;
+            const barcode = rN.Produktas.trim();
+            const code = normalizeCode(barcode);
+            const product = PRODUCT_MAP.get(code) || "";
+            const durationMs = eTs - sTs;
+            const avg = (durationMs > 0) ? (units / (durationMs / 3600000)) : 0;
+
+            segs.push({
+                barcode, product, units, avg, startTs: sTs, endTs: eTs,
+                startLT: toLTString(new Date(sTs).toISOString(), tz),
+                endLT: toLTString(new Date(eTs).toISOString(), tz),
+                barcodeTime: toLTString(new Date(sTs).toISOString(), tz),
+                duration: formatDuration(durationMs),
+                start: toLTString(new Date(sTs).toISOString(), tz),
+                end: toLTString(new Date(eTs).toISOString(), tz)
+            });
+        }
+    }
+    return segs.sort((a,b) => a.startTs - b.startTs);
+}
+
 /* ===================== SHARED FILE LOADER ===================== */
 
 // --- GLOBAL AI MODEL ---
@@ -757,13 +881,17 @@ function renderVizPlaceholder(id, name, type) {
   const el = document.getElementById(id);
   if(!el) return;
 
-  const boxClass = (type === 'v') ? 'viz-box-wide' : 'viz-box-tall';
+  let boxClass = 'viz-box-wide';
+  if(type === 'h') boxClass = 'viz-box-tall';
+  if(type === 'adax') boxClass = 'viz-box-adax';
 
   // Ikonėlės (paveikslėliai): Pulse (Būsena) ir Gauge (Greitis)
   const iconPulse = `<img src="icons/pulse.png" class="viz-icon" alt="Status" />`;
   const iconSpeed = (name === "UI 1")
       ? `<img src="icons/computer.png" class="viz-icon" alt="Speed" />`
       : `<img src="icons/speed.jpg" class="viz-icon" alt="Speed" />`;
+
+  const labelHtml = (type !== 'adax') ? `<div class="viz-label">${name}</div>` : '';
 
   el.innerHTML = `
     <div class="viz-box ${boxClass}">
@@ -783,18 +911,18 @@ function renderVizPlaceholder(id, name, type) {
 
        <div class="viz-info">
          <div style="line-height:1.2">
-           <span class="viz-value-big" id="val-speed-${name}" style="font-size:16px">-</span>
+           <span class="viz-value-big" id="val-speed-${name}" style="font-size:${type==='adax'?'13px':'16px'}">-</span>
            <span style="font-size:9px;color:#888">pcs/h</span>
          </div>
          <div style="line-height:1.2; margin-top:4px">
-           <span class="viz-value-big" id="val-units-${name}" style="font-size:16px">-</span>
+           <span class="viz-value-big" id="val-units-${name}" style="font-size:${type==='adax'?'13px':'16px'}">-</span>
            <span style="font-size:9px;color:#888">vnt</span>
          </div>
          <div style="margin-top:2px; font-size:10px; color:#bbb;" id="val-gap-${name}">-</div>
-         <div style="margin-top:2px; font-size:9px; line-height:1.1; color:#9ad; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80px;" id="val-prod-${name}">-</div>
+         <div style="margin-top:2px; font-size:9px; line-height:1.1; color:#9ad; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:${type==='adax'?'60px':'80px'};" id="val-prod-${name}">-</div>
        </div>
     </div>
-    <div class="viz-label">${name}</div>
+    ${labelHtml}
   `;
 }
 
@@ -806,6 +934,11 @@ function renderVizPlaceholder(id, name, type) {
   // Horizontal Row
   ['NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'h');
+  });
+
+  // ADAX lines
+  ['ADAX 7','ADAX 6','ADAX 4','ADAX 3','ADAX 2','ADAX 1'].forEach(n => {
+    renderVizPlaceholder(`viz-${n}`, n, 'adax');
   });
 
   // UI 1 (Top Right) - Inject dynamically if not in HTML
@@ -878,6 +1011,88 @@ function renderVizPlaceholder(id, name, type) {
 
         // Parallel fetch for all lines
         const promises = LINE_MAP.map(async (L) => {
+            if (L.apiType === "ADAX") {
+                try {
+                    const data = await getAdaxData(L.lid);
+                    if (!data) throw "No data";
+
+                    let allRecords = [];
+                    let totalUnits = 0;
+                    for (let prod in data) {
+                        if (Array.isArray(data[prod]) && data[prod].length > 0) {
+                            allRecords.push(...data[prod]);
+                            // Find max PusgaminioNr for this product
+                            let maxP = 0;
+                            data[prod].forEach(r => {
+                                let p = parseInt(r.PusgaminioNr) || 0;
+                                if (p > maxP) maxP = p;
+                            });
+                            totalUnits += maxP;
+                        }
+                    }
+                    if (allRecords.length === 0) throw "Empty data";
+
+                    // Sort by TestavimoLaikas
+                    allRecords.sort((a, b) => new Date(a.TestavimoLaikas.replace(' ', 'T')) - new Date(b.TestavimoLaikas.replace(' ', 'T')));
+                    const latest = allRecords[allRecords.length - 1];
+
+                    const countValNum = totalUnits;
+                    const countValStr = countValNum.toString();
+                    const barcodeVal = latest.Produktas ? latest.Produktas.trim() : "-";
+
+                    let productName = "—";
+                    if (barcodeVal !== "-") {
+                        const code = normalizeCode(barcodeVal);
+                        if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
+                    }
+
+                    const tStart = toLT(latest.NuskanavimoLaikas);
+                    const tLast = toLT(latest.TestavimoLaikas);
+                    const latestIso = latest.TestavimoLaikas;
+
+                    let status="NEAKTYVI", statusCls="status-offline";
+                    let active = false;
+                    let msSinceLast = 0;
+                    if (latestIso) {
+                        msSinceLast = now - new Date(latestIso.replace(' ', 'T')).getTime();
+                        if (msSinceLast/60000 <= OFFLINE_MINUTES) {
+                            status="AKTYVI"; statusCls="status-online";
+                            active = true;
+                        }
+                    }
+
+                    let spTxt="–", gapTxt="–", spClass="";
+                    let speedVal = 0;
+                    if (msSinceLast > 24 * 3600 * 1000) {
+                        spTxt = "Nėra naujų duomenų >24h";
+                        spClass = "bad";
+                    } else if (allRecords.length >= 2) {
+                        // For speed, take last 10 records or all if less, to average out
+                        const sample = allRecords.slice(-10);
+                        const r1 = sample[sample.length - 1];
+                        const r0 = sample[0];
+                        const t1 = new Date(r1.TestavimoLaikas.replace(' ', 'T')).getTime();
+                        const t0 = new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
+
+                        const dHours = (t1 - t0) / 3600000;
+                        if (dHours > 0) {
+                            // Number of units in this time window is (sample.length - 1)
+                            speedVal = (sample.length - 1) / dHours;
+                            spTxt = speedVal.toFixed(2);
+                            gapTxt = formatDuration((t1 - t0) / (sample.length - 1));
+                            if (speedVal > 10) spClass="good";
+                            else if (speedVal >= 5) spClass="warn";
+                            else spClass="bad";
+                        }
+                    }
+
+                    return { L, countValStr, countValNum, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active };
+                } catch(e) {
+                    console.error("ADAX error", L.name, e);
+                    return { L, countValStr: "-", countValNum: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: "KLAIDA", statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false };
+                }
+            }
+
             const key = READ_KEYS[L.channel];
             try {
                 // If fieldBarcode is null, don't fetch it
@@ -1388,6 +1603,29 @@ function renderVizPlaceholder(id, name, type) {
 
             // Parallel fetch for chart speed
             const promises = useLines.map(async (L) => {
+                if (L.apiType === "ADAX") {
+                    try {
+                        const data = await getAdaxData(L.lid);
+                        if (isRaw) {
+                            let pts = [];
+                            for (let prod in data) {
+                                if (Array.isArray(data[prod])) {
+                                    data[prod].forEach(r => {
+                                        const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
+                                        if (t >= from.getTime() && t <= to.getTime()) {
+                                            pts.push({ line: L.name, startTs: t, val: parseInt(r.PusgaminioNr) || 0 });
+                                        }
+                                    });
+                                }
+                            }
+                            return pts;
+                        } else {
+                            const segs = buildAdaxSegments(data, from, to, tz);
+                            return segs.map(s => ({ line: L.name, units: s.units, startTs: s.startTs, endTs: s.endTs }));
+                        }
+                    } catch(e) { console.error(e); return []; }
+                }
+
                 const key = READ_KEYS[L.channel];
                 try {
                     let barProm;
@@ -1888,6 +2126,20 @@ function renderVizPlaceholder(id, name, type) {
             // but parallel is faster if we trust ThingSpeak handling.
             // Staying safe with serial for report generation as it was.
             for(const L of useLines){
+                if (L.apiType === "ADAX") {
+                    st.textContent = `${L.name}: kraunam duomenis...`;
+                    const data = await getAdaxData(L.lid);
+                    const segs = buildAdaxSegments(data, from, to, tz);
+                    segs.forEach(s => {
+                        out.push({
+                            line: L.name, barcode: s.barcode, product: s.product, barcodeTime: s.barcodeTime,
+                            start: s.startLT, end: s.endLT, duration: s.duration, units: s.units, avg: s.avg,
+                            startTs: s.startTs, endTs: s.endTs
+                        });
+                    });
+                    continue;
+                }
+
                 const key=READ_KEYS[L.channel];
                 st.textContent=`${L.name}: barkodai…`;
 
@@ -2421,6 +2673,14 @@ function renderVizPlaceholder(id, name, type) {
 
             for (const L of LINES) {
                 st.textContent = `Analizuojama linija: ${L.name}...`;
+                if (L.apiType === "ADAX") {
+                    const data = await getAdaxData(L.lid);
+                    const segs = buildAdaxSegments(data, from, now, tz);
+                    segs.forEach(s => s.line = L.name);
+                    totalSegs.push(...segs);
+                    continue;
+                }
+
                 const key = READ_KEYS[L.channel];
 
                 // Fetch Barcodes & Counts
