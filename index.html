@@ -302,9 +302,10 @@
                 });
 
                 let sensorAnalysisHTML = `<div class="sensor-analysis-box">
-                    <div class="sensor-analysis-title">SENSOR ANALYSIS:</div>`;
+                    <div class="sensor-analysis-title">JUTIKLIŲ ANALIZĖ:</div>`;
 
-                // We want to loop from Depth 5 down to Depth 1 (as seen in the image)
+                // We want to loop from Depth 5 down to Depth 1 (bottom-up filling)
+                let airReached = false;
                 for(let i=5; i>=1; i--) {
                     let dHist = depthsHist[i-1];
                     let currentV = parseFloat(last[`field${i}`]);
@@ -318,16 +319,23 @@
 
                         let isAir = diff > 1.5; // If it varies by more than 1.5°C over ~100 data points, it's air.
 
-                        let typeClass = isAir ? 'air' : 'grain';
-                        let typeLabel = isAir ? 'air' : 'grain';
+                        // Physical constraint: if a lower sensor detects air, higher sensors must be air
+                        if (isAir) {
+                            airReached = true;
+                        }
 
-                        let stateClass = isAir ? 'variable' : 'stable';
-                        let stateLabel = isAir ? '⚡ variable' : '↔ stable';
+                        let isCurrentlyAir = airReached || isAir;
+
+                        let typeClass = isCurrentlyAir ? 'air' : 'grain';
+                        let typeLabel = isCurrentlyAir ? 'oras' : 'grūdai';
+
+                        let stateClass = isCurrentlyAir ? 'variable' : 'stable';
+                        let stateLabel = isCurrentlyAir ? '⚡ kintama' : '↔ stabili';
 
                         sensorAnalysisHTML += `
                             <div class="sa-row">
                                 <div class="sa-name">
-                                    <span class="sa-dot ${typeClass}"></span> Depth ${6-i} <span class="sa-field">(f${i})</span>
+                                    <span class="sa-dot ${typeClass}"></span> Gylis ${6-i} <span class="sa-field">(f${i})</span>
                                 </div>
                                 <div class="sa-tag ${typeClass}">${typeLabel}</div>
                                 <div class="sa-state ${stateClass}">${stateLabel}</div>
