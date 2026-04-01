@@ -304,9 +304,9 @@
                 let sensorAnalysisHTML = `<div class="sensor-analysis-box">
                     <div class="sensor-analysis-title">JUTIKLIŲ ANALIZĖ:</div>`;
 
-                // We want to loop from Depth 5 down to Depth 1 (bottom-up filling)
-                let airReached = false;
-                for(let i=5; i>=1; i--) {
+                let activeSensors = [];
+                // First pass: collect variance for all connected sensors
+                for(let i=1; i<=5; i++) {
                     let dHist = depthsHist[i-1];
                     let currentV = parseFloat(last[`field${i}`]);
 
@@ -317,43 +317,65 @@
                         let max = Math.max(...dHist);
                         let diff = max - min;
 
-                        let isAir = diff > 1.5; // If it varies by more than 1.5°C over ~100 data points, it's air.
-
-                        // Physical constraint: if a lower sensor detects air, higher sensors must be air
-                        if (isAir) {
-                            airReached = true;
-                        }
-
-                        let isCurrentlyAir = airReached || isAir;
-
-                        let typeClass = isCurrentlyAir ? 'air' : 'grain';
-                        let typeLabel = isCurrentlyAir ? 'oras' : 'grūdai';
-
-                        let stateClass = isCurrentlyAir ? 'variable' : 'stable';
-                        let stateLabel = isCurrentlyAir ? '⚡ kintama' : '↔ stabili';
-
-                        sensorAnalysisHTML += `
-                            <div class="sa-row">
-                                <div class="sa-name">
-                                    <span class="sa-dot ${typeClass}"></span> Gylis ${6-i} <span class="sa-field">(f${i})</span>
-                                </div>
-                                <div class="sa-tag ${typeClass}">${typeLabel}</div>
-                                <div class="sa-state ${stateClass}">${stateLabel}</div>
-                                <div class="sa-temp">${currentV.toFixed(1)}°C</div>
-                            </div>
-                        `;
+                        activeSensors.push({ field: i, temp: currentV, diff: diff });
                     }
                 }
+
+                // Sort by variance (lowest variance first = most stable = deepest in grain)
+                activeSensors.sort((a, b) => a.diff - b.diff);
+
+                // Physical constraint: Fill from the bottom (lowest variance).
+                // Once we hit a sensor with > 1.5 variance (air), all subsequent sensors (higher variance = higher up) MUST be air.
+                let airReached = false;
+                let submergedCount = 0;
+
+                // We add depth properties to the objects. Depth 1 is bottom.
+                activeSensors.forEach((sensor, index) => {
+                    let isAir = sensor.diff > 1.5;
+
+                    if (isAir) {
+                        airReached = true;
+                    }
+
+                    let isCurrentlyAir = airReached || isAir;
+
+                    if (!isCurrentlyAir) {
+                        submergedCount++;
+                    }
+
+                    sensor.isCurrentlyAir = isCurrentlyAir;
+                    // Lowest variance gets Depth 1 (bottom), up to Depth N (top)
+                    sensor.physicalDepth = index + 1;
+                });
+
+                // Reverse the array so we display Top of silo first, down to Bottom (Depth 1)
+                activeSensors.reverse();
+
+                // Render the UI
+                activeSensors.forEach(sensor => {
+                    let typeClass = sensor.isCurrentlyAir ? 'air' : 'grain';
+                    let typeLabel = sensor.isCurrentlyAir ? 'oras' : 'grūdai';
+                    let stateClass = sensor.isCurrentlyAir ? 'variable' : 'stable';
+                    let stateLabel = sensor.isCurrentlyAir ? '⚡ kintama' : '↔ stabili';
+
+                    sensorAnalysisHTML += `
+                        <div class="sa-row">
+                            <div class="sa-name">
+                                <span class="sa-dot ${typeClass}"></span> Gylis ${sensor.physicalDepth} <span class="sa-field">(f${sensor.field})</span>
+                            </div>
+                            <div class="sa-tag ${typeClass}">${typeLabel}</div>
+                            <div class="sa-state ${stateClass}">${stateLabel}</div>
+                            <div class="sa-temp">${sensor.temp.toFixed(1)}°C</div>
+                        </div>
+                    `;
+                });
                 sensorAnalysisHTML += `</div>`;
 
-                sensorTemps.sort((a, b) => b - a);
-                let airTemp = sensorTemps[sensorTemps.length - 1] || 0;
-                let submergedCount = 0;
-                sensorTemps.forEach(t => { if (t > airTemp + 1.5) submergedCount++; });
+                // Calculate fill percentage based on how many connected sensors are labeled as 'grūdai'
                 if(submergedCount === 0 && sensorTemps[0] > 0) submergedCount = 1;
-                let fillTons = (submergedCount / 5) * ch.capacity;
+                let fillTons = (submergedCount / (activeSensors.length || 5)) * ch.capacity;
                 let fillPercent = Math.round((fillTons / ch.capacity) * 100);
-                const currentAvg = sensorTemps.reduce((a,b)=>a+b,0)/sensorTemps.length;
+                const currentAvg = sensorTemps.length ? sensorTemps.reduce((a,b)=>a+b,0)/sensorTemps.length : 0;
                 const trend = currentAvg - (parseFloat(tsData.feeds[0].field1) || currentAvg);
                 const deltaT = (currentAvg - weather.main.temp).toFixed(1);
 
