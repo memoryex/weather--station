@@ -574,8 +574,91 @@ const card = document.createElement('div');
 
         const sCh = config.find(c => c.type === "system");
         try {
-            const sRes = await (await fetch(`https://api.thingspeak.com/channels/${sCh.id}/feeds.json?api_key=${sCh.key}&results=100`)).json();
+            const sRes = sysData || await (await fetch(`https://api.thingspeak.com/channels/${sCh.id}/feeds.json?api_key=${sCh.key}&results=100`)).json();
             const sLast = sRes.feeds[sRes.feeds.length-1];
+            const sFirst = sRes.feeds[0];
+
+            // 1. Power Analytics
+            let powerTrendStr = "N/A";
+            let powerColor = "var(--text-muted)";
+            if (sRes.feeds.length > 1) {
+                let vStart = parseFloat(sFirst.field3);
+                let vEnd = parseFloat(sLast.field3);
+                let diff = vEnd - vStart;
+                if (diff > 0.1) {
+                    powerTrendStr = `STABILI (Kraunama, ${vEnd.toFixed(2)}V)`;
+                    powerColor = "var(--success)";
+                } else if (diff < -0.1) {
+                    powerTrendStr = `IŠSIKRAUNA (${vEnd.toFixed(2)}V, nukrito ${Math.abs(diff).toFixed(2)}V)`;
+                    powerColor = "var(--danger)";
+                } else {
+                    powerTrendStr = `STABILI (Tinklo maitinimas, ${vEnd.toFixed(2)}V)`;
+                    powerColor = "var(--success)";
+                }
+            }
+
+            // 2. Wi-Fi Degradation
+            let wifiTrendStr = "N/A";
+            let wifiColor = "var(--text-muted)";
+            if (sRes.feeds.length > 1) {
+                let wStart = parseFloat(sFirst.field6);
+                let wEnd = parseFloat(sLast.field6);
+                let wDiff = wEnd - wStart;
+                if (wDiff < -5) {
+                    wifiTrendStr = `Prastėjantis (nukrito ${Math.abs(wDiff)} dBm)`;
+                    wifiColor = "var(--warning)";
+                } else if (wEnd < -85) {
+                    wifiTrendStr = `Silpnas (${wEnd} dBm)`;
+                    wifiColor = "var(--danger)";
+                } else {
+                    wifiTrendStr = `Stabilus (${wEnd} dBm)`;
+                    wifiColor = "var(--success)";
+                }
+            }
+
+            // 3. Enclosure Health (Microclimate)
+            let cpuTemp = parseFloat(sLast.field5);
+            let extTemp = parseFloat(sLast.field1);
+            let encTrendStr = "N/A";
+            let encColor = "var(--text-muted)";
+            if (!isNaN(cpuTemp) && !isNaN(extTemp)) {
+                let deltaT = cpuTemp - extTemp;
+                if (cpuTemp > 65 || deltaT > 50) {
+                    encTrendStr = `⚠️ PERKAITIMAS (ΔT=${deltaT.toFixed(1)}°C)`;
+                    encColor = "var(--danger)";
+                } else if (cpuTemp > 55) {
+                    encTrendStr = `Padidėjusi temp (ΔT=${deltaT.toFixed(1)}°C)`;
+                    encColor = "var(--warning)";
+                } else {
+                    encTrendStr = `NORMALUS (ΔT=${deltaT.toFixed(1)}°C)`;
+                    encColor = "var(--success)";
+                }
+            }
+
+            // 4. Packet Loss Index
+            let packetLossCount = 0;
+            let lastTime = null;
+            for (let f of sRes.feeds) {
+                let t = new Date(f.created_at).getTime();
+                if (lastTime) {
+                    let diffMs = t - lastTime;
+                    // Expected ~2 min (120000 ms). If > 3.5 min, count as loss
+                    if (diffMs > 210000) {
+                        packetLossCount++;
+                    }
+                }
+                lastTime = t;
+            }
+            let totalExpected = sRes.feeds.length + packetLossCount;
+            let successRate = totalExpected > 0 ? (sRes.feeds.length / totalExpected * 100) : 0;
+            let plColor = successRate > 95 ? "var(--success)" : successRate > 85 ? "var(--warning)" : "var(--danger)";
+            let plStr = `${successRate.toFixed(1)}% (${packetLossCount} trūkiai)`;
+
+            // 5. SHT45 Health
+            let shtTemp = parseFloat(sLast.field1);
+            let shtHum = parseFloat(sLast.field2);
+            let shtStr = (!isNaN(shtTemp) && !isNaN(shtHum) && shtTemp !== -127 && shtHum !== -127) ? "ONLINE" : "OFFLINE / KLAIDA";
+            let shtColor = shtStr === "ONLINE" ? "var(--success)" : "var(--danger)";
 
             // Blynk Data Integration
             const blynk = await fetchBlynkData();
@@ -586,13 +669,33 @@ const card = document.createElement('div');
             diag.innerHTML = `
                 <div class="analysis-card-content">
                     <h3 class="tower-name">🛠️ Sistemos Būsena</h3>
-                    <p><b>Terminė būklė:</b></p>
-                    <p>CPU viršlauko temp: +${parseFloat(sLast.field5).toFixed(1)}°C (⚠️ Didelė apkrova)</p>
-                    <p style="margin-top:10px"><b>Ryšio kokybė (Wi-Fi):</b></p>
-                    <p>Dabartinis signalas: ${sLast.field6} dBm (Vidutinis)</p>
-                    <p>Ryšio stabilumas: <b>95.3%</b></p>
-                    <p>Paskutinis ryšio trūkis: 04:03</p>
-                    <div class="insight-box"><b>ĮŽVALGA:</b> Sistemos ryšio atsarga pakankama.</div>
+
+                    <div style="display:grid; grid-template-columns: 1fr; gap:8px; font-size:0.8rem;">
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${powerColor};">
+                            ⚡ <b>Maitinimo būklė:</b> <span style="color:${powerColor}; font-weight:bold;">${powerTrendStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">Akumuliatoriaus / tinklo įtampos stebėsena</span>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${wifiColor};">
+                            📡 <b>Wi-Fi Signalo Trendas:</b> <span style="color:${wifiColor}; font-weight:bold;">${wifiTrendStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">Fizinio ryšio kokybė</span>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${encColor};">
+                            🌡️ <b>Dėžutės aušinimas:</b> <span style="color:${encColor}; font-weight:bold;">${encTrendStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">CPU: ${cpuTemp.toFixed(1)}°C | Lauke: ${extTemp.toFixed(1)}°C</span>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${plColor};">
+                            📶 <b>Tinklo stabilumas (pask. 3h):</b> <span style="color:${plColor}; font-weight:bold;">${plStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">Duomenų perdavimo sėkmingumas</span>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${shtColor};">
+                            💧 <b>SHT45 Jutiklio Būklė:</b> <span style="color:${shtColor}; font-weight:bold;">${shtStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">Aplinkos drėgmės ir temperatūros daviklis</span>
+                        </div>
+                    </div>
 
                     <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 10px;">
                         <p><b>🎛️ Valdymo Būsena (Relės):</b></p>
