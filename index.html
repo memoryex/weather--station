@@ -284,6 +284,12 @@
             }
         }
 
+        let sysData = null;
+        try {
+            const sCh = config.find(c => c.type === "system");
+            if (sCh) sysData = await (await fetch(`https://api.thingspeak.com/channels/${sCh.id}/feeds.json?api_key=${sCh.key}&results=100`)).json();
+        } catch(e) {}
+
         for (const ch of config) {
             if (ch.type !== "tower") continue;
             try {
@@ -378,6 +384,45 @@
                 let fillTons = (fillPercent / 100) * ch.capacity;
 
                 const currentAvg = sensorTemps.length ? sensorTemps.reduce((a,b)=>a+b,0)/sensorTemps.length : 0;
+                                // Calculate humidity prediction
+                let grainHumHTML = '';
+                if (sysData && sysData.feeds && forecast && forecast.list) {
+                    let pastHum = sysData.feeds.map(f => parseFloat(f.field2)).filter(n => !isNaN(n));
+                    let avgPastHum = pastHum.length ? pastHum.reduce((a,b)=>a+b,0)/pastHum.length : 65;
+
+                    let futureHum = forecast.list.slice(0, 16).map(f => f.main.humidity); // next ~48h
+                    let avgFutureHum = futureHum.length ? futureHum.reduce((a,b)=>a+b,0)/futureHum.length : 65;
+
+                    let estHum = 13.5 + Math.max(0, avgPastHum - 65) * 0.04 + Math.max(0, avgFutureHum - 65) * 0.02;
+                    estHum = Math.min(18.0, Math.max(12.0, estHum)); // clamp
+
+                    let humStatusLabel = 'Saugu';
+                    let humColor = 'var(--success)';
+                    let humBg = 'rgba(3,218,198, 0.05)';
+
+                    if (estHum > 15.0) {
+                        humStatusLabel = 'Kritinė drėgmė';
+                        humColor = 'var(--danger)';
+                        humBg = 'rgba(255,85,85, 0.05)';
+                    } else if (estHum > 14.0) {
+                        humStatusLabel = 'Rizika padidėjusi';
+                        humColor = 'var(--warning)';
+                        humBg = 'rgba(255,152,0, 0.05)';
+                    }
+
+                    grainHumHTML = `
+                        <div style="font-weight:bold; font-size:0.8rem; margin-top:10px; padding:10px; border-radius:8px; border: 1px solid ${humColor}; background: ${humBg}; color:${humColor}">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span>💧 AI Drėgmės Spėjimas: <b>~${estHum.toFixed(1)}%</b></span>
+                                <span>${humStatusLabel}</span>
+                            </div>
+                            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px; font-weight:normal;">
+                                Įvertinta praeities (${avgPastHum.toFixed(0)}%) ir ateities (${avgFutureHum.toFixed(0)}%) lauko drėgmė
+                            </div>
+                        </div>
+                    `;
+                }
+
                 const trend = currentAvg - (parseFloat(tsData.feeds[0].field1) || currentAvg);
                 const deltaT = (currentAvg - weather.main.temp).toFixed(1);
 
@@ -442,6 +487,7 @@
                             <p style="font-size: 0.75rem; color: #aaa;">Mokymosi taškai: ${historicalAvgs.length}</p>
                         </div>
 
+                        ${grainHumHTML}
                         <div style="margin-top: 10px; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 5px;">
                             <small>🌬️ Artimiausias vėdinimas (< 80%):<br><b>${nextVent}</b></small>
                         </div>
