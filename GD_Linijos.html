@@ -249,6 +249,7 @@
             <label>ADAX Proxy URL:</label>
             <input id="proxySetting" type="text" class="report-input" style="width:300px;" placeholder="http://localhost:8081/?url=">
             <button class="action-btn" onclick="saveProxy()">Išsaugoti</button>
+            <button class="action-btn" onclick="resetProxy()" style="background:#6c757d;">Reset</button>
             <button class="action-btn" onclick="testProxy()" style="background:#28a745;">Testuoti Proxy</button>
         </div>
         <div id="proxyTestResult" style="margin-top:8px; font-size:12px; min-height:14px;"></div>
@@ -624,7 +625,9 @@ const PRODUCT_MAP = new Map([
   ["91765", "PLX100NC 1.00kw Dimplex Panel NO CONTROL"],
   ["91772", "PLX125NC 1.25kw Dimplex Panel NO CONTROL"],
   ["91789", "PLX150NC 1.5kw Dimplex Panel NO CONTROL"],
-  ["91796", "PLX200NC 2.00kw Dimplex Panel NO CONTROL"]
+  ["91796", "PLX200NC 2.00kw Dimplex Panel NO CONTROL"],
+  ["672016", "ADAX CLEA White 600W"],
+  ["678811", "ADAX NEO Blue 1000W"]
 ]);
 
 /* ===================== TAB LOGIC ===================== */
@@ -816,7 +819,7 @@ async function getAdaxData(lid) {
     const url = PROXY_URL ? PROXY_URL + encodeURIComponent(targetUrl) : targetUrl;
 
     try {
-        const r = await fetchWithTimeout(url, { timeout: 5000 });
+        const r = await fetchWithTimeout(url, { timeout: 15000 });
         if (!r.ok) throw `HTTP ${r.status}`;
 
         const text = await r.text();
@@ -828,10 +831,28 @@ async function getAdaxData(lid) {
             // Case 2: PHP var_dump or warnings mixed with JSON
             console.warn(`ADAX API lid=${lid} direct JSON parse failed, trying heuristic.`, text.substring(0, 200));
 
-            // Heuristic: Find the LAST valid JSON structure (array or object)
-            // This is safer if debug output (like var_dump) precedes the actual data.
+            // Heuristic: Find the OUTMOST valid JSON structure (array or object)
+            // We search for the first and last pair, then verify with JSON.parse.
 
-            // Try Array first
+            // Priority 1: Arrays (common for lists)
+            let startB = text.indexOf('[');
+            let endB = text.lastIndexOf(']');
+            if (startB !== -1 && endB > startB) {
+                try {
+                    return JSON.parse(text.substring(startB, endB + 1));
+                } catch(err) {}
+            }
+
+            // Priority 2: Objects (common for keyed data)
+            let startBr = text.indexOf('{');
+            let endBr = text.lastIndexOf('}');
+            if (startBr !== -1 && endBr > startBr) {
+                try {
+                    return JSON.parse(text.substring(startBr, endBr + 1));
+                } catch(err) {}
+            }
+
+            // Fallback: search backwards for smaller valid blocks if outmost fails
             let lastBracket = text.lastIndexOf(']');
             if (lastBracket !== -1) {
                 let balance = 0;
@@ -840,25 +861,8 @@ async function getAdaxData(lid) {
                     else if (text[i] === '[') balance--;
                     if (balance === 0) {
                         try {
-                            const candidate = text.substring(i, lastBracket + 1);
-                            return JSON.parse(candidate);
-                        } catch (err) { /* keep looking */ }
-                    }
-                }
-            }
-
-            // Try Object next
-            let lastBrace = text.lastIndexOf('}');
-            if (lastBrace !== -1) {
-                let balance = 0;
-                for (let i = lastBrace; i >= 0; i--) {
-                    if (text[i] === '}') balance++;
-                    else if (text[i] === '{') balance--;
-                    if (balance === 0) {
-                        try {
-                            const candidate = text.substring(i, lastBrace + 1);
-                            return JSON.parse(candidate);
-                        } catch (err) { /* keep looking */ }
+                            return JSON.parse(text.substring(i, lastBracket + 1));
+                        } catch (err) {}
                     }
                 }
             }
@@ -1100,17 +1104,29 @@ function renderVizPlaceholder(id, name, type) {
         if (el) el.style.display = (el.style.display === 'none') ? 'block' : 'none';
     };
 
+    window.resetProxy = function() {
+        const def = 'http://localhost:8081/?url=';
+        document.getElementById('proxySetting').value = def;
+        saveProxy();
+    };
+
     window.saveProxy = function() {
         let val = document.getElementById('proxySetting').value.trim();
 
-        // If user pasted the whole target URL, extract just the proxy part
+        // Aggressive cleanup: if user pasted the whole target URL, extract base proxy
         if (val.includes('10.12.24.51')) {
             val = val.split('http://10.12.24.51')[0];
         }
 
+        // Ensure base proxy ends correctly
         if (val && !val.includes('?url=')) {
             val = val.split('?')[0] + '?url=';
         }
+
+        // Ensure no leftover target params in the proxy setting itself
+        val = val.replace(/([?&])lid=\d+(&|$)/, '$1').replace(/([?&])group=\d+(&|$)/, '$1');
+        if (val.endsWith('?') || val.endsWith('&')) val += 'url=';
+        if (val.includes('url=') && !val.endsWith('=')) val = val.split('url=')[0] + 'url=';
 
         document.getElementById('proxySetting').value = val;
         localStorage.setItem('adax_proxy', val);
@@ -1227,12 +1243,17 @@ function renderVizPlaceholder(id, name, type) {
                 if (allRecords.length === 0) throw "Empty data";
 
                 // Sort by TestavimoLaikas
-                allRecords.sort((a, b) => new Date(a.TestavimoLaikas.replace(' ', 'T')) - new Date(b.TestavimoLaikas.replace(' ', 'T')));
+                allRecords.sort((a, b) => {
+                    const da = a.TestavimoLaikas ? new Date(a.TestavimoLaikas.replace(' ', 'T')) : 0;
+                    const db = b.TestavimoLaikas ? new Date(b.TestavimoLaikas.replace(' ', 'T')) : 0;
+                    return da - db;
+                });
+
                 const latest = allRecords[allRecords.length - 1];
 
                 const countValNum = totalUnits;
                 const countValStr = countValNum.toString();
-                const barcodeVal = latest.Produktas ? latest.Produktas.trim() : "-";
+                const barcodeVal = (latest && latest.Produktas) ? latest.Produktas.trim() : "-";
 
                 let productName = "—";
                 if (barcodeVal !== "-") {
@@ -1240,9 +1261,9 @@ function renderVizPlaceholder(id, name, type) {
                     if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
                 }
 
-                const tStart = toLT(latest.NuskanavimoLaikas);
-                const tLast = toLT(latest.TestavimoLaikas);
-                const latestIso = latest.TestavimoLaikas;
+                const tStart = latest ? toLT(latest.NuskanavimoLaikas?.replace(' ', 'T')) : "-";
+                const tLast = latest ? toLT(latest.TestavimoLaikas?.replace(' ', 'T')) : "-";
+                const latestIso = latest ? latest.TestavimoLaikas : null;
 
                 let status="NEAKTYVI", statusCls="status-offline";
                 let active = false;
@@ -1287,7 +1308,11 @@ function renderVizPlaceholder(id, name, type) {
                 // Provide detailed error feedback to help diagnose CORS/Mixed Content/Network issues
                 let errStatus = "KLAIDA";
                 const errStr = e.toString();
-                if (errStr.includes("Failed to fetch")) {
+                if (errStr.includes("Empty data") || errStr.includes("No data")) {
+                    errStatus = "Nėra duomenų";
+                } else if (errStr.includes("timeout") || errStr.includes("AbortError")) {
+                    errStatus = "Timeout (15s)";
+                } else if (errStr.includes("Failed to fetch")) {
                     errStatus = (window.location.protocol === 'https:') ? "Proxy Error (Mixed Content)" : "Network Error";
                 } else if (errStr.includes("JSON") || errStr.includes("SyntaxError") || errStr.includes("euristinės")) {
                     errStatus = "JSON Error";
