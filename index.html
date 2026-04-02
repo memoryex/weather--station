@@ -374,8 +374,9 @@
 
                 // Calculate fill percentage based on how many connected sensors are labeled as 'grūdai'
                 if(submergedCount === 0 && sensorTemps[0] > 0) submergedCount = 1;
-                let fillTons = (submergedCount / (activeSensors.length || 5)) * ch.capacity;
-                let fillPercent = Math.round((fillTons / ch.capacity) * 100);
+                let fillPercent = Math.round((submergedCount / (activeSensors.length || 5)) * 90);
+                let fillTons = (fillPercent / 100) * ch.capacity;
+
                 const currentAvg = sensorTemps.length ? sensorTemps.reduce((a,b)=>a+b,0)/sensorTemps.length : 0;
                 const trend = currentAvg - (parseFloat(tsData.feeds[0].field1) || currentAvg);
                 const deltaT = (currentAvg - weather.main.temp).toFixed(1);
