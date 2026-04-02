@@ -37,17 +37,21 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
                 content = response.read()
 
                 # 3. Send response back with CORS headers
-                self.send_response(200)
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-                self.send_header('Access-Control-Allow-Headers', '*')
+                try:
+                    self.send_response(200)
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                    self.send_header('Access-Control-Allow-Headers', '*')
 
-                # Try to preserve Content-Type if possible, otherwise default to json
-                ctype = response.info().get_content_type() or 'application/json'
-                self.send_header('Content-Type', ctype)
+                    # Try to preserve Content-Type if possible, otherwise default to json
+                    ctype = response.info().get_content_type() or 'application/json'
+                    self.send_header('Content-Type', ctype)
 
-                self.end_headers()
-                self.wfile.write(content)
+                    self.end_headers()
+                    self.wfile.write(content)
+                except (ConnectionAbortedError, BrokenPipeError):
+                    # Client closed connection prematurely, ignore gracefully
+                    print(f"[{self.date_time_string()}] Client aborted connection.")
 
         except Exception as e:
             print(f"Error proxying request: {e}")

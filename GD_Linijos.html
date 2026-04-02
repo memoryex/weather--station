@@ -1102,9 +1102,16 @@ function renderVizPlaceholder(id, name, type) {
 
     window.saveProxy = function() {
         let val = document.getElementById('proxySetting').value.trim();
+
+        // If user pasted the whole target URL, extract just the proxy part
+        if (val.includes('10.12.24.51')) {
+            val = val.split('http://10.12.24.51')[0];
+        }
+
         if (val && !val.includes('?url=')) {
             val = val.split('?')[0] + '?url=';
         }
+
         document.getElementById('proxySetting').value = val;
         localStorage.setItem('adax_proxy', val);
         window.ADAX_PROXY = val;
