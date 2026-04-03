@@ -93,10 +93,10 @@
         .sa-dot.grain { background-color: #ffb703; }
         .sa-name { flex: 1; display: flex; align-items: center; color: var(--text-main); }
         .sa-field { font-size: 0.65rem; color: var(--text-muted); margin-left: 4px; }
-        .sa-tag { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-right: 8px; font-weight: bold; }
+        .sa-tag { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-weight: bold; }
         .sa-tag.air { background-color: rgba(0, 180, 216, 0.15); color: #00b4d8; border: 1px solid rgba(0, 180, 216, 0.3); }
         .sa-tag.grain { background-color: rgba(255, 183, 3, 0.15); color: #ffb703; border: 1px solid rgba(255, 183, 3, 0.3); }
-        .sa-state { display: flex; align-items: center; font-size: 0.7rem; margin-right: 15px; width: 60px; }
+        .sa-state { display: flex; align-items: center; font-size: 0.7rem; margin-right: 4px; width: 20px; justify-content: center; }
         .sa-state.variable { color: #f4a261; }
         .sa-state.stable { color: #2a9d8f; }
         .sa-temp { font-weight: bold; width: 40px; text-align: right; }
@@ -413,7 +413,7 @@
                     let typeClass = sensor.isCurrentlyAir ? 'air' : 'grain';
                     let typeLabel = sensor.isCurrentlyAir ? 'oras' : 'grūdai';
                     let stateClass = sensor.isCurrentlyAir ? 'variable' : 'stable';
-                    let stateLabel = sensor.isCurrentlyAir ? '⚡ kintama' : '↔ stabili';
+                    let stateLabel = sensor.isCurrentlyAir ? '⚡' : '↔';
 
                     let humStr = '<span style="color:var(--text-muted);">--</span>';
                     if (!sensor.isCurrentlyAir) {
@@ -423,7 +423,7 @@
                         layerHum = Math.min(18.0, Math.max(10.0, layerHum));
 
                         let humColor = layerHum > 15.0 ? 'var(--danger)' : layerHum > 14.0 ? 'var(--warning)' : 'var(--success)';
-                        humStr = `<span style="color:${humColor}; font-weight:bold; font-size: 0.75rem;">~${layerHum.toFixed(1)}%</span>`;
+                        humStr = `<span style="color:${humColor}; font-weight:bold; font-size: 0.75rem;">~${layerHum.toFixed(1)}%💧</span>`;
                     }
 
                     sensorAnalysisHTML += `
@@ -433,7 +433,7 @@
                             </div>
                             <div class="sa-tag ${typeClass}">${typeLabel}</div>
                             <div class="sa-state ${stateClass}">${stateLabel}</div>
-                            <div style="width: 45px; text-align: right;">${humStr}</div>
+                            <div style="width: 55px; text-align: right;">${humStr}</div>
                             <div class="sa-temp">${sensor.temp.toFixed(1)}°C</div>
                         </div>
                     `;
