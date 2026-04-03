@@ -394,12 +394,37 @@
                 // Reverse the array so we display Top of silo first (f5), down to Bottom (f1)
                 activeSensors.reverse();
 
+                // EMC Model setup for layer calculation
+                let avgPastHumL = 65, avgFutureHumL = 65;
+                if (sysData && sysData.feeds && forecast && forecast.list) {
+                    let pastHum = sysData.feeds.map(f => parseFloat(f.field2)).filter(n => !isNaN(n));
+                    if(pastHum.length) avgPastHumL = pastHum.reduce((a,b)=>a+b,0)/pastHum.length;
+
+                    let futureHum = forecast.list.slice(0, 16).map(f => f.main.humidity);
+                    if(futureHum.length) avgFutureHumL = futureHum.reduce((a,b)=>a+b,0)/futureHum.length;
+                }
+
+                let envRHL = (avgPastHumL * 0.6) + (avgFutureHumL * 0.4);
+                envRHL = Math.max(1, Math.min(99, envRHL));
+                const C1_L = 2.3007e-5, C2_L = 2.2857, C3_L = 55.815;
+
                 // Render the UI
                 activeSensors.forEach(sensor => {
                     let typeClass = sensor.isCurrentlyAir ? 'air' : 'grain';
                     let typeLabel = sensor.isCurrentlyAir ? 'oras' : 'grūdai';
                     let stateClass = sensor.isCurrentlyAir ? 'variable' : 'stable';
                     let stateLabel = sensor.isCurrentlyAir ? '⚡ kintama' : '↔ stabili';
+
+                    let humStr = '<span style="color:var(--text-muted);">--</span>';
+                    if (!sensor.isCurrentlyAir) {
+                        let T_C_L = Math.max(1, sensor.temp);
+                        let emcDecimalL = Math.pow( (-Math.log(1 - (envRHL / 100.0))) / (C1_L * (T_C_L + C3_L)), (1 / C2_L) );
+                        let layerHum = (13.5 * 0.3) + (emcDecimalL * 0.7);
+                        layerHum = Math.min(18.0, Math.max(10.0, layerHum));
+
+                        let humColor = layerHum > 15.0 ? 'var(--danger)' : layerHum > 14.0 ? 'var(--warning)' : 'var(--success)';
+                        humStr = `<span style="color:${humColor}; font-weight:bold; font-size: 0.75rem;">~${layerHum.toFixed(1)}%</span>`;
+                    }
 
                     sensorAnalysisHTML += `
                         <div class="sa-row">
@@ -408,6 +433,7 @@
                             </div>
                             <div class="sa-tag ${typeClass}">${typeLabel}</div>
                             <div class="sa-state ${stateClass}">${stateLabel}</div>
+                            <div style="width: 45px; text-align: right;">${humStr}</div>
                             <div class="sa-temp">${sensor.temp.toFixed(1)}°C</div>
                         </div>
                     `;
