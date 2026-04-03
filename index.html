@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Grūdų Saugykla PRO - Smilgiai</title>
+    <script src="https://cdn.jsdelivr.net/npm/highcharts@11/highcharts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+        :root {
+            --bg-body: #0f111a;
+            --bg-card: #141726;
+            --text-main: #ffffff;
+            --text-muted: #888;
+            --accent: #00f2fe;
+            --border: #2d324d;
+            --warning: #ff9800;
+            --danger: #ff5555;
+            --success: #03dac6;
+        }
+
+        [data-theme="light"] {
+            --bg-body: #f0f2f5;
+            --bg-card: #ffffff;
+            --text-main: #1a1a1a;
+            --text-muted: #666;
+            --border: #dee2e6;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-body); color: var(--text-main); margin: 0; padding: 10px; transition: 0.3s; }
+        .container { max-width: 1600px; margin: auto; }
+
+        .top-bar { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 10px 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
+        .settings-group { display: flex; align-items: center; gap: 10px; }
+        input[type="color"] { border: none; width: 25px; height: 25px; cursor: pointer; background: none; }
+        .theme-toggle, .mute-btn { background: var(--accent); color: #000; border: none; padding: 5px 12px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        .mute-btn.active { background: var(--danger); color: #fff; }
+
+        .analysis-frame { background: var(--bg-card); border-radius: 10px; border: 1px solid var(--border); border-top: 4px solid var(--warning); padding: 12px; margin-bottom: 20px; }
+        .frame-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .frame-title { color: var(--warning); font-size: 1rem; font-weight: bold; margin: 0; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+
+        .analysis-card {
+            background: rgba(128,128,128,0.05);
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border: 1px solid transparent;
+            transition: background 0.5s;
+        }
+
+        @keyframes alert-critical { 0% { background: rgba(255, 85, 85, 0.05); } 50% { background: rgba(255, 85, 85, 0.2); border-color: var(--danger); } 100% { background: rgba(255, 85, 85, 0.05); } }
+        .danger-critical { animation: alert-critical 3s infinite; }
+        @keyframes alert-warning { 0% { background: rgba(255, 152, 0, 0.05); } 50% { background: rgba(255, 152, 0, 0.15); border-color: var(--warning); } 100% { background: rgba(255, 152, 0, 0.05); } }
+        .danger-warning { animation: alert-warning 5s infinite; }
+        .status-safe { background: rgba(3, 218, 198, 0.08) !important; border: 1px solid var(--success) !important; }
+
+        .analysis-card-content { flex: 1; }
+        .silo-visual { width: 60px; height: 85px; border: 2px solid var(--border); border-radius: 4px 4px 2px 2px; position: relative; background: rgba(0,0,0,0.3); margin-left: 10px; flex-shrink: 0; margin-top: 25px; display: flex; flex-direction: column; justify-content: flex-end; overflow: visible; }
+        .silo-roof { position: absolute; top: -15px; left: -2px; width: 0; height: 0; border-left: 32px solid transparent; border-right: 32px solid transparent; border-bottom: 15px solid var(--border); }
+        .silo-fill { width: 100%; background: linear-gradient(to top, #d4a373, #e9c46a); transition: height 1.5s ease-in-out; box-shadow: inset 0 0 10px rgba(0,0,0,0.3); position: relative; z-index: 1; }
+        .silo-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center; z-index: 2; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,1); font-weight: bold; font-size: 0.7rem; pointer-events: none; line-height: 1.2; }
+
+        .analysis-card p { margin: 0 0 4px 0; }
+        .tower-name { color: var(--accent); font-size: 1.1rem; margin: 0 0 10px 0; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+
+        .chart-card { background: var(--bg-card); border-radius: 12px; padding: 12px; border: 1px solid var(--border); margin-bottom: 15px; }
+        .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .temp-display { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+        .sensor-pill { background: rgba(128,128,128,0.1); padding: 8px 4px; border-radius: 6px; text-align: center; cursor: pointer; border: 1px solid var(--border); }
+        .sensor-pill.active { border-color: var(--accent); background: rgba(0,242,254,0.1); }
+        .sensor-label { display: block; font-size: 0.65rem; color: var(--text-muted); }
+        .sensor-value { font-size: 0.9rem; font-weight: bold; color: var(--accent); }
+        .btn-opt { background: rgba(128,128,128,0.1); color: var(--text-main); border: 1px solid var(--border); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; }
+        .btn-opt.active { background: var(--accent); color: #000; font-weight: bold; }
+        .chart-container { width: 100%; height: 200px; }
+
+        .insight-box { background: rgba(0,242,254,0.05); padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid var(--accent); font-size: 0.8rem; }
+        .rec-error { background: rgba(255, 85, 85, 0.1); border-left: 3px solid var(--danger); padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 0.8rem; }
+
+        .sensor-analysis-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 10px; }
+        .sensor-analysis-title { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .sa-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .sa-row:last-child { border-bottom: none; }
+        .sa-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; display: inline-block; }
+        .sa-dot.air { background-color: #00b4d8; }
+        .sa-dot.grain { background-color: #ffb703; }
+        .sa-name { flex: 1; display: flex; align-items: center; color: var(--text-main); }
+        .sa-field { font-size: 0.65rem; color: var(--text-muted); margin-left: 4px; }
+        .sa-tag { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-weight: bold; }
+        .sa-tag.air { background-color: rgba(0, 180, 216, 0.15); color: #00b4d8; border: 1px solid rgba(0, 180, 216, 0.3); }
+        .sa-tag.grain { background-color: rgba(255, 183, 3, 0.15); color: #ffb703; border: 1px solid rgba(255, 183, 3, 0.3); }
+        .sa-state { display: flex; align-items: center; font-size: 0.7rem; margin-right: 4px; width: 20px; justify-content: center; }
+        .sa-state.variable { color: #f4a261; }
+        .sa-state.stable { color: #2a9d8f; }
+        .sa-temp { font-weight: bold; width: 40px; text-align: right; }
+
+        @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } .top-bar { flex-direction: column; } }
+    </style>
+</head>
+<body data-theme="dark" onclick="initAudio()">
+
+<div class="container">
+    <div class="top-bar">
+        <div style="font-weight: bold; color: var(--accent);">🌾 Grūdų Saugykla</div>
+        <div class="settings-group">
+            <button id="mute-toggle" class="mute-btn" onclick="toggleMute()">🔔 Garsas ON</button>
+            <input type="color" id="accentColor" value="#00f2fe" onchange="updateAccentColor(this.value)">
+            <button class="theme-toggle" onclick="toggleTheme()">🌓 Tema</button>
+        </div>
+    </div>
+
+    <div class="analysis-frame">
+        <div class="frame-header">
+            <h2 class="frame-title">🔮 Strateginė Analizė ir Diagnostika</h2>
+            <button class="btn-opt" onclick="initAnalytics()">Atnaujinti</button>
+        </div>
+        <div id="prediction-output" class="grid">
+            <p style="text-align:center; width: 100%;">Kraunama...</p>
+        </div>
+    </div>
+    <div class="grid" id="dashboard"></div>
+</div>
+
+<script>
+    const config = [
+        { name: "Bokštas 130T", id: "176883", key: "YDLSGDT4FW33IDZV", type: "tower", capacity: 130 },
+        { name: "Bokštas 250T", id: "176884", key: "0RYI1OGPSKOMMOY0", type: "tower", capacity: 240 },
+        { name: "Bokštas 100T", id: "191988", key: "A2RJQTIAKZPJAU59", type: "tower", capacity: 100 },
+        { name: "Kiti davikliai", id: "293499", key: "PUK7197Y2HN8NS0W", type: "system" }
+    ];
+
+    const WEATHER_KEY = "eecec93018c03418ee4b34f5955a2dfb";
+    const charts = {};
+    const sysLabels = ["Lauko temp.", "Lauko drėgmė", "Sist. įtampa", "Baterija", "CPU temp.", "Wi-Fi", "Džiovykla 1", "Džiovykla 2"];
+    const sysUnits = ["°C", "%RH", "V", "%", "°C", "dBm", "°C", "°C"];
+    const sysIcons = ["🌡️", "💧", "⚡", "🔋", "🖥️", "📶", "🔥", "🔥"];
+
+    let isMuted = false;
+    let audioCtx = null;
+    let lastSerialValue = "";
+
+    // Neural Network Logic
+    async function trainAndPredict(temps) {
+        if (temps.length < 10) return { prediction: temps[temps.length-1], trend: 0 };
+
+        // 1. Data Preparation
+        const min = Math.min(...temps);
+        const max = Math.max(...temps);
+        const range = max - min || 1;
+        const normalized = temps.map(t => (t - min) / range);
+
+        const windowSize = 5;
+        const X = [];
+        const y = [];
+
+        for (let i = 0; i < normalized.length - windowSize; i++) {
+            X.push(normalized.slice(i, i + windowSize));
+            y.push(normalized[i + windowSize]);
+        }
+
+        const xs = tf.tensor2d(X, [X.length, windowSize]);
+        const ys = tf.tensor2d(y, [y.length, 1]);
+
+        // 2. Model Definition
+        const model = tf.sequential();
+        model.add(tf.layers.dense({ units: 10, inputShape: [windowSize], activation: 'relu' }));
+        model.add(tf.layers.dense({ units: 1 }));
+
+        model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+
+        // 3. Training
+        await model.fit(xs, ys, { epochs: 50, verbose: 0 });
+
+        // 4. Prediction
+        const input = tf.tensor2d([normalized.slice(-windowSize)], [1, windowSize]);
+        const predTensor = model.predict(input);
+        const predVal = predTensor.dataSync()[0];
+
+        // Cleanup
+        xs.dispose(); ys.dispose(); input.dispose(); predTensor.dispose(); model.dispose();
+
+        // 5. Denormalize
+        const prediction = (predVal * range) + min;
+        const trend = prediction - temps[temps.length-1];
+
+        return { prediction, trend };
+    }
+
+    function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    function toggleMute() { isMuted = !isMuted; document.getElementById('mute-toggle').innerText = isMuted ? "🔕 Garsas OFF" : "🔔 Garsas ON"; document.getElementById('mute-toggle').classList.toggle('active', isMuted); }
+
+    function playAlertSound() {
+        if (isMuted || !audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine'; osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 1);
+    }
+
+    function updateAccentColor(color) {
+        document.documentElement.style.setProperty('--accent', color);
+        Object.values(charts).forEach(c => { if(c.series[0]) c.series[0].update({ color: color }); });
+    }
+
+    function toggleTheme() {
+        const body = document.body;
+        const nt = body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        body.setAttribute('data-theme', nt);
+    }
+
+    async function fetchBlynkData() {
+        const token = "pmYpy0ufjMPrc-Z4cKI2IwPEoqdWU7Dc";
+        try {
+            const [fan, comp] = await Promise.all([
+                fetch(`https://fra1.blynk.cloud/external/api/get?token=${token}&v3`).then(r => r.text()),
+                fetch(`https://fra1.blynk.cloud/external/api/get?token=${token}&v9`).then(r => r.text())
+            ]);
+            return {
+                fan: fan === "1",
+                comp: comp === "1"
+            };
+        } catch (e) {
+            console.error(e);
+            return { fan: false, comp: false };
+        }
+    }
+
+    async function updateLiveSerial() {
+        const token = "pmYpy0ufjMPrc-Z4cKI2IwPEoqdWU7Dc";
+        try {
+            const serial = await fetch(`https://fra1.blynk.cloud/external/api/get?token=${token}&v2`).then(r => r.text());
+            const output = document.getElementById('serial-output');
+            if (output && serial && serial.length > 0 && serial !== lastSerialValue) {
+                lastSerialValue = serial;
+                const timestamp = new Date().toLocaleTimeString('lt-LT');
+                const newLine = document.createElement('div');
+                newLine.innerText = `[${timestamp}] ${serial}`;
+                output.appendChild(newLine);
+                output.scrollTop = output.scrollHeight; // Auto-scroll to bottom
+            }
+        } catch (e) { console.error("Serial fetch error", e); }
+    }
+
+    async function initAnalytics() {
+        const output = document.getElementById('prediction-output');
+        output.innerHTML = '';
+        let playSound = false;
+
+        let weather, forecast;
+        try {
+            const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=55.8&lon=24.0&appid=${WEATHER_KEY}&units=metric&lang=lt`);
+            weather = await weatherRes.json();
+
+            const forecastRes = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=55.8&lon=24.0&appid=${WEATHER_KEY}&units=metric&lang=lt`);
+            forecast = await forecastRes.json();
+        }
+        catch(e) {
+            weather = { main: { temp: 0, humidity: 50 } };
+            forecast = { list: [] };
+        }
+
+        // Find next ventilation window and Solar Risk
+        let nextVentObj = null;
+        let nextVentStr = "Nėra duomenų";
+        let solarRiskStr = "🌞 Saulės įkaitimo rizika: Nėra";
+        let solarRiskColor = "var(--text-muted)";
+
+        if (forecast && forecast.list) {
+            nextVentObj = forecast.list.find(f => f.main.humidity < 80);
+            if (nextVentObj) {
+                const date = new Date(nextVentObj.dt * 1000);
+                const dayName = date.toLocaleDateString('lt-LT', { weekday: 'long' });
+                const time = date.toLocaleTimeString('lt-LT', { hour: '2-digit', minute: '2-digit' });
+                nextVentStr = `${dayName} ${time} (Drėgmė: ${nextVentObj.main.humidity}%, Temp: ${Math.round(nextVentObj.main.temp)}°C)`;
+            } else {
+                nextVentStr = "Artimiausias 5 dienas drėgmė > 80%";
+            }
+
+            // Solar risk: look for sunny warm days
+            const sunnyWarm = forecast.list.find(f => f.main.temp > 18 && f.clouds.all < 30 && new Date(f.dt*1000).getHours() >= 10 && new Date(f.dt*1000).getHours() <= 16);
+            if (sunnyWarm) {
+                const date = new Date(sunnyWarm.dt * 1000);
+                solarRiskStr = `🌞 Rizika pietinei sienai: ${date.toLocaleDateString('lt-LT', {weekday:'short'})} (${Math.round(sunnyWarm.main.temp)}°C, giedra)`;
+                solarRiskColor = "var(--warning)";
+            }
+        }
+
+        let sysData = null;
+        try {
+            const sCh = config.find(c => c.type === "system");
+            if (sCh) sysData = await (await fetch(`https://api.thingspeak.com/channels/${sCh.id}/feeds.json?api_key=${sCh.key}&results=720`)).json();
+        } catch(e) {}
+
+        for (const ch of config) {
+            if (ch.type !== "tower") continue;
+            try {
+                const tsData = await (await fetch(`https://api.thingspeak.com/channels/${ch.id}/feeds.json?api_key=${ch.key}&results=720`)).json();
+                const last = tsData.feeds[tsData.feeds.length-1];
+                let sensorTemps = [];
+
+                // Track historical variations for Sensor Analysis
+                let depthsHist = [[], [], [], [], []];
+                tsData.feeds.forEach(f => {
+                    for(let i=1; i<=5; i++) {
+                        let v = parseFloat(f[`field${i}`]);
+                        if(!isNaN(v) && v !== -127.0 && v !== 85.0) {
+                            depthsHist[i-1].push(v);
+                        }
+                    }
+                });
+
+                let sensorAnalysisHTML = `<div class="sensor-analysis-box">
+                    <div class="sensor-analysis-title">JUTIKLIŲ ANALIZĖ:</div>`;
+
+                let activeSensors = [];
+                // Calculate outdoor temperature amplitude over the 24h period to compare against
+                let outTempHist = [];
+                if (sysData && sysData.feeds) {
+                    outTempHist = sysData.feeds.map(f => parseFloat(f.field1)).filter(v => !isNaN(v) && v !== -127 && v !== 85);
+                }
+                let outMin = outTempHist.length ? Math.min(...outTempHist) : 0;
+                let outMax = outTempHist.length ? Math.max(...outTempHist) : 0;
+                let outAmp = outMax - outMin;
+
+                // First pass: collect variance for all connected sensors
+                for(let i=1; i<=5; i++) {
+                    let dHist = depthsHist[i-1];
+                    let currentV = parseFloat(last[`field${i}`]);
+
+                    if(!isNaN(currentV) && currentV !== -127.0 && currentV !== 85.0) {
+                        sensorTemps.push(currentV);
+
+                        let min = Math.min(...dHist);
+                        let max = Math.max(...dHist);
+                        let diff = max - min;
+
+                        activeSensors.push({ field: i, temp: currentV, diff: diff });
+                    }
+                }
+
+                activeSensors.sort((a, b) => a.field - b.field);
+
+                let airReached = false;
+                let submergedCount = 0;
+
+                // Evaluate each sensor layer from bottom (f1) to top
+                activeSensors.forEach((sensor, index) => {
+                    // Logic for detecting Air vs Grain:
+                    // 1. If 24h variance is > 2.0°C -> highly likely air.
+                    // 2. If variance is > 1.0°C AND it's more than 20% of the outdoor amplitude -> Air.
+                    // 3. Stratification check: if it is > 4°C hotter/colder than the sensor immediately below it -> Air.
+
+                    let isAir = false;
+
+                    if (sensor.diff > 2.0) {
+                        isAir = true;
+                    } else if (outAmp > 0 && sensor.diff > 1.0 && (sensor.diff / outAmp) > 0.20) {
+                        isAir = true;
+                    }
+
+                    // Stratification check against the layer below
+                    if (index > 0) {
+                        let tempBelow = activeSensors[index-1].temp;
+                        if (Math.abs(sensor.temp - tempBelow) > 4.0) {
+                            isAir = true;
+                        }
+                    }
+
+                    if (isAir) {
+                        airReached = true;
+                    }
+
+                    let isCurrentlyAir = airReached || isAir;
+
+                    if (!isCurrentlyAir) {
+                        submergedCount++;
+                    }
+
+                    sensor.isCurrentlyAir = isCurrentlyAir;
+                    sensor.physicalDepth = sensor.field;
+                });
+
+                // Reverse the array so we display Top of silo first (f5), down to Bottom (f1)
+                activeSensors.reverse();
+
+                // EMC Model setup for layer calculation
+                let avgPastHumL = 65, avgFutureHumL = 65;
+                if (sysData && sysData.feeds && forecast && forecast.list) {
+                    let pastHum = sysData.feeds.map(f => parseFloat(f.field2)).filter(n => !isNaN(n));
+                    if(pastHum.length) avgPastHumL = pastHum.reduce((a,b)=>a+b,0)/pastHum.length;
+
+                    let futureHum = forecast.list.slice(0, 16).map(f => f.main.humidity);
+                    if(futureHum.length) avgFutureHumL = futureHum.reduce((a,b)=>a+b,0)/futureHum.length;
+                }
+
+                let envRHL = (avgPastHumL * 0.6) + (avgFutureHumL * 0.4);
+                envRHL = Math.max(1, Math.min(99, envRHL));
+                const C1_L = 2.3007e-5, C2_L = 2.2857, C3_L = 55.815;
+
+                // Render the UI
+                activeSensors.forEach(sensor => {
+                    let typeClass = sensor.isCurrentlyAir ? 'air' : 'grain';
+                    let typeLabel = sensor.isCurrentlyAir ? 'oras' : 'grūdai';
+                    let stateClass = sensor.isCurrentlyAir ? 'variable' : 'stable';
+                    let stateLabel = sensor.isCurrentlyAir ? '⚡' : '↔';
+
+                    let humStr = '<span style="color:var(--text-muted);">--</span>';
+                    if (!sensor.isCurrentlyAir) {
+                        let T_C_L = Math.max(1, sensor.temp);
+                        let emcDecimalL = Math.pow( (-Math.log(1 - (envRHL / 100.0))) / (C1_L * (T_C_L + C3_L)), (1 / C2_L) );
+                        let layerHum = (13.5 * 0.3) + (emcDecimalL * 0.7);
+                        layerHum = Math.min(18.0, Math.max(10.0, layerHum));
+
+                        let humColor = layerHum > 15.0 ? 'var(--danger)' : layerHum > 14.0 ? 'var(--warning)' : 'var(--success)';
+                        humStr = `<span style="color:${humColor}; font-weight:bold; font-size: 0.75rem;">~${layerHum.toFixed(1)}%💧</span>`;
+                    }
+
+                    sensorAnalysisHTML += `
+                        <div class="sa-row">
+                            <div class="sa-name">
+                                <span class="sa-dot ${typeClass}"></span> Gylis ${sensor.physicalDepth} <span class="sa-field">(f${sensor.field})</span>
+                            </div>
+                            <div class="sa-tag ${typeClass}">${typeLabel}</div>
+                            <div class="sa-state ${stateClass}">${stateLabel}</div>
+                            <div style="width: 55px; text-align: right;">${humStr}</div>
+                            <div class="sa-temp">${sensor.temp.toFixed(1)}°C</div>
+                        </div>
+                    `;
+                });
+                sensorAnalysisHTML += `</div>`;
+
+                // Calculate fill percentage based on how many connected sensors are labeled as 'grūdai'
+                if(submergedCount === 0 && sensorTemps[0] > 0) submergedCount = 1;
+                let fillPercent = Math.round((submergedCount / (activeSensors.length || 5)) * 90);
+                let fillTons = (fillPercent / 100) * ch.capacity;
+
+                const currentAvg = sensorTemps.length ? sensorTemps.reduce((a,b)=>a+b,0)/sensorTemps.length : 0;
+                                // Calculate humidity prediction
+                let grainHumHTML = '';
+                let estHum = 13.5;
+                if (sysData && sysData.feeds && forecast && forecast.list) {
+                    let pastHum = sysData.feeds.map(f => parseFloat(f.field2)).filter(n => !isNaN(n));
+                    let avgPastHum = pastHum.length ? pastHum.reduce((a,b)=>a+b,0)/pastHum.length : 65;
+
+                    let futureHum = forecast.list.slice(0, 16).map(f => f.main.humidity); // next ~48h
+                    let avgFutureHum = futureHum.length ? futureHum.reduce((a,b)=>a+b,0)/futureHum.length : 65;
+
+                    // Agronomic EMC (Equilibrium Moisture Content) Calculation using Modified Henderson equation
+                    // Constants for Wheat (Triticum aestivum):
+                    const C1 = 2.3007e-5;
+                    const C2 = 2.2857;
+                    const C3 = 55.815;
+
+                    // Blended RH to simulate current equilibrium environment
+                    let envRH = (avgPastHum * 0.6) + (avgFutureHum * 0.4);
+                    // Prevent math errors by capping RH between 1 and 99%
+                    envRH = Math.max(1, Math.min(99, envRH));
+
+                    // Temp to use: average grain mass temp. If less than 0, clamp to 1 to avoid negative roots
+                    let T_C = Math.max(1, currentAvg);
+
+                    // Modified Henderson Equation:
+                    // EMC = [ -ln(1 - RH) / (C1 * (T + C3)) ] ^ (1/C2)
+                    let emcDecimal = Math.pow( (-Math.log(1 - (envRH / 100.0))) / (C1 * (T_C + C3)), (1 / C2) );
+
+                    // Convert back to percentage
+                    let emcPercent = emcDecimal;
+
+                    // In real silos, grain doesn't reach equilibrium instantly. We blend a baseline with the theoretical EMC
+                    // to avoid wild swings based purely on temporary weather.
+                    estHum = (13.5 * 0.3) + (emcPercent * 0.7);
+
+                    // Final safety clamps
+                    estHum = Math.min(18.0, Math.max(10.0, estHum));
+                    estHum = Math.min(18.0, Math.max(12.0, estHum)); // clamp
+
+                    let humStatusLabel = 'Saugu';
+                    let humColor = 'var(--success)';
+                    let humBg = 'rgba(3,218,198, 0.05)';
+
+                    if (estHum > 15.0) {
+                        humStatusLabel = 'Kritinė drėgmė';
+                        humColor = 'var(--danger)';
+                        humBg = 'rgba(255,85,85, 0.05)';
+                    } else if (estHum > 14.0) {
+                        humStatusLabel = 'Rizika padidėjusi';
+                        humColor = 'var(--warning)';
+                        humBg = 'rgba(255,152,0, 0.05)';
+                    }
+
+                    grainHumHTML = `
+                        <div style="font-weight:bold; font-size:0.8rem; margin-top:10px; padding:10px; border-radius:8px; border: 1px solid ${humColor}; background: ${humBg}; color:${humColor}">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span>💧 AI Drėgmės Spėjimas: <b>~${estHum.toFixed(1)}%</b></span>
+                                <span>${humStatusLabel}</span>
+                            </div>
+                            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px; font-weight:normal;">
+                                EMC Modelis (Santykinė aplinkos drėgmė: ${envRH.toFixed(0)}%)
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const trend = currentAvg - (parseFloat(tsData.feeds[0].field1) || currentAvg);
+                const deltaT = (currentAvg - weather.main.temp).toFixed(1);
+
+                // AI Prediction
+                const historicalAvgs = tsData.feeds.map(f => {
+                    let sT = [];
+                    for(let i=1;i<=5;i++){
+                        let v = parseFloat(f[`field${i}`]);
+                        if(!isNaN(v) && v !== -127.0 && v !== 85.0) sT.push(v);
+                    }
+                    return sT.length ? sT.reduce((a,b)=>a+b,0)/sT.length : null;
+                }).filter(v => v !== null);
+
+                const aiResult = await trainAndPredict(historicalAvgs);
+                const predictedChange = aiResult.prediction - currentAvg;
+
+                // Calculate Cooling Rate per 24h
+                let coolingRate = null;
+                if (tsData.feeds.length > 1) {
+                    const timeSpanMs = new Date(last.created_at) - new Date(tsData.feeds[0].created_at);
+                    const totalHours = timeSpanMs / (1000 * 60 * 60);
+
+                    if (totalHours > 6) {
+                        const avgIntervalHours = (totalHours / (tsData.feeds.length - 1));
+                        coolingRate = (predictedChange / avgIntervalHours) * 24;
+                        if (Math.abs(coolingRate) > 20) coolingRate = null; // Sanity check
+                    }
+                }
+
+                const isCritical = currentAvg > 15 || deltaT > 8;
+                const isWarning = (currentAvg > 12 && currentAvg <= 15) || (deltaT > 5 && deltaT <= 8);
+                if (isCritical) playSound = true;
+
+                let statusMessage = "";
+                if (isCritical) {
+                    statusMessage = `🚨 PAVOJUS: Didelė kondensato rizika viršutiniame sluoksnyje (&Delta;T = ${deltaT}°C).`;
+                } else if (isWarning) {
+                    statusMessage = `⚠️ ĮSPĖJIMAS: Padidėjusi kondensato rizika (&Delta;T = ${deltaT}°C).`;
+                } else {
+                    statusMessage = `✅ SAUGU: Kondensato rizika minimali (&Delta;T = ${deltaT}°C).`;
+                }
+
+
+                // 1. SST (Safe Storage Time)
+                let sstDays = 300 * Math.pow(0.5, (estHum - 12)) * Math.pow(0.5, (currentAvg - 10) / 5);
+                sstDays = Math.max(1, Math.round(sstDays));
+                let sstLabel = sstDays > 60 ? 'Saugu ilgam' : sstDays > 30 ? 'Vidutinis terminas' : 'Rizikingas terminas';
+                let sstColor = sstDays > 60 ? 'var(--success)' : sstDays > 30 ? 'var(--warning)' : 'var(--danger)';
+
+                // 2. Ventilation Efficiency
+                let ventEfficiencyHTML = "";
+                if (nextVentObj) {
+                    let coolingPot = currentAvg - nextVentObj.main.temp;
+                    let effLabel = coolingPot > 5 ? "AUKŠTAS" : coolingPot > 2 ? "VIDUTINIS" : "ŽEMAS";
+                    let effColor = coolingPot > 5 ? "var(--success)" : coolingPot > 2 ? "var(--warning)" : "var(--danger)";
+                    ventEfficiencyHTML = `<br><span style="color:${effColor}; font-size:0.75rem;">Efektyvumas: ${effLabel} (Potencialas: ${coolingPot>0?'-':'+'}${Math.abs(coolingPot).toFixed(1)}°C)</span>`;
+                }
+
+                // 3. Mold / Microtoxin Risk
+                let moldRisk = (estHum > 14.5 && currentAvg > 10);
+                let moldStr = moldRisk ? "⚠️ Palankios sąlygos pelėsiui!" : "✅ Pelėsio rizika maža";
+                let moldColor = moldRisk ? "var(--danger)" : "var(--success)";
+
+                // 5. Stratification (Moisture Migration)
+                let maxDepthTemp = Math.max(...sensorTemps);
+                let minDepthTemp = Math.min(...sensorTemps);
+                let stratDiff = maxDepthTemp - minDepthTemp;
+                let stratRisk = stratDiff > 5.0;
+                let stratStr = stratRisk ? `⚠️ Migracijos rizika (ΔT = ${stratDiff.toFixed(1)}°C tarp sluoksnių)` : `✅ Sluoksniai stabilūs (ΔT = ${stratDiff.toFixed(1)}°C)`;
+                let stratColor = stratRisk ? "var(--danger)" : "var(--text-muted)";
+
+                // 6. Fan ROI Estimation (Fallback/Mock as we don't have historical relay state in TS)
+                // We'll calculate max temperature drop in the last 48h
+                let past48hMax = Math.max(...historicalAvgs);
+                let past48hDrop = past48hMax - currentAvg;
+                let roiStr = past48hDrop > 0.5 ? `Paskutinis atvėsimas: -${past48hDrop.toFixed(1)}°C` : "Reikšmingo vėsimo nefiksuota";
+
+                let newIndicatorsHTML = `
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:10px; font-size:0.7rem; color:var(--text-muted);">
+                        <div style="background:rgba(255,255,255,0.05); padding:5px; border-radius:4px; border-left:2px solid ${sstColor};">
+                            ⏳ <b>SST Laikas:</b><br><span style="color:${sstColor}">~${sstDays} d. (${sstLabel})</span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05); padding:5px; border-radius:4px; border-left:2px solid ${moldColor};">
+                            🦠 <b>Pelėsis/Toksinai:</b><br><span style="color:${moldColor}">${moldStr}</span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05); padding:5px; border-radius:4px; border-left:2px solid ${stratColor};">
+                            📉 <b>Sluoksniavimasis:</b><br><span style="color:${stratColor}">${stratStr}</span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05); padding:5px; border-radius:4px; border-left:2px solid ${solarRiskColor};">
+                            ☀️ <b>Išorinis poveikis:</b><br><span style="color:${solarRiskColor}">${solarRiskStr}</span>
+                        </div>
+                        <div style="grid-column: span 2; background:rgba(255,255,255,0.05); padding:5px; border-radius:4px; border-left:2px solid var(--accent); text-align:center;">
+                            🔄 <b>Vėdinimo ROI:</b> ${roiStr}
+                        </div>
+                    </div>
+                `;
+
+const card = document.createElement('div');
+                card.className = `analysis-card ${isCritical ? 'danger-critical' : isWarning ? 'danger-warning' : 'status-safe'}`;
+
+                card.innerHTML = `
+                    <div class="analysis-card-content">
+                        <h3 class="tower-name">${ch.name}</h3>
+                        <p>Vidutinė masės temp: <b>${currentAvg.toFixed(1)}°C</b></p>
+                        <p>48h Trendas: <b style="color:${trend>0?'#ff5555':'#00f2fe'}">${trend > 0 ? '↗' : '↘'} ${Math.abs(trend).toFixed(2)}°C</b></p>
+                        <p>Prognozė po 3 parų (Linear): <b>${(currentAvg + (trend * 0.6)).toFixed(1)}°C</b></p>
+                        <div style="margin: 8px 0;">🐜 Vabalų veikla: <span style="color:${currentAvg > 15 ? 'var(--danger)' : 'var(--success)'}">${currentAvg > 15 ? '⚠️ Aktyvūs' : '✅ Neaktyvūs'}</span></div>
+
+                        ${sensorAnalysisHTML}
+
+                        <div style="font-weight:bold; font-size:0.8rem; margin-top:10px; padding:10px; border-radius:8px; border: 1px solid ${isCritical ? 'var(--danger)' : isWarning ? 'var(--warning)' : 'var(--success)'}; background: rgba(${isCritical ? '255,85,85' : isWarning ? '255,152,0' : '3,218,198'}, 0.05); color:${isCritical ? 'var(--danger)' : isWarning ? 'var(--warning)' : 'var(--success)'}">${statusMessage}</div>
+
+                        <div style="margin-top: 10px; background: rgba(100, 0, 255, 0.1); border: 1px solid #8a2be2; padding: 10px; border-radius: 8px;">
+                            <h4 style="margin: 0 0 5px 0; color: #c77dff;">🧠 AI Prognozė (Neural Net)</h4>
+                            <p>Prognozuojamas pokytis: <b style="color:${predictedChange>0?'#ff5555':'#00f2fe'}">${predictedChange > 0 ? '+' : ''}${predictedChange.toFixed(2)}°C</b></p>
+                            ${coolingRate !== null ? `<p>Aušimo greitis: ${coolingRate.toFixed(2)}°C/para (est.)</p>` : ''}
+                            <p style="font-size: 0.75rem; color: #aaa;">Mokymosi taškai: ${historicalAvgs.length}</p>
+                        </div>
+
+                        ${grainHumHTML}
+                        ${newIndicatorsHTML}
+                        <div style="margin-top: 10px; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 5px;">
+                            <small>🌬️ Artimiausias vėdinimas (< 80%):<br><b>${nextVentStr}</b>${ventEfficiencyHTML}</small>
+                        </div>
+                    </div>
+                    <div class="silo-visual">
+                        <div class="silo-roof"></div>
+                        <div class="silo-fill" style="height: ${fillPercent}%;"></div>
+                        <div class="silo-text">${fillPercent}%<br>${fillTons.toFixed(0)}t</div>
+                    </div>`;
+                output.appendChild(card);
+            } catch(e) { console.error(e); }
+        }
+
+        if (playSound) playAlertSound();
+
+        const sCh = config.find(c => c.type === "system");
+        try {
+            const sRes = sysData || await (await fetch(`https://api.thingspeak.com/channels/${sCh.id}/feeds.json?api_key=${sCh.key}&results=720`)).json();
+            const sLast = sRes.feeds[sRes.feeds.length-1];
+            const sFirst = sRes.feeds[0];
+
+            // 1. Power Analytics
+            let powerTrendStr = "N/A";
+            let powerColor = "var(--text-muted)";
+            if (sRes.feeds.length > 1) {
+                let vStart = parseFloat(sFirst.field3);
+                let vEnd = parseFloat(sLast.field3);
+                let diff = vEnd - vStart;
+                if (diff > 0.1) {
+                    powerTrendStr = `STABILI (Kraunama, ${vEnd.toFixed(2)}V)`;
+                    powerColor = "var(--success)";
+                } else if (diff < -0.1) {
+                    powerTrendStr = `IŠSIKRAUNA (${vEnd.toFixed(2)}V, nukrito ${Math.abs(diff).toFixed(2)}V)`;
+                    powerColor = "var(--danger)";
+                } else {
+                    powerTrendStr = `STABILI (Tinklo maitinimas, ${vEnd.toFixed(2)}V)`;
+                    powerColor = "var(--success)";
+                }
+            }
+
+            // 2. Wi-Fi Degradation
+            let wifiTrendStr = "N/A";
+            let wifiColor = "var(--text-muted)";
+            if (sRes.feeds.length > 1) {
+                let wStart = parseFloat(sFirst.field6);
+                let wEnd = parseFloat(sLast.field6);
+                let wDiff = wEnd - wStart;
+                if (wDiff < -5) {
+                    wifiTrendStr = `Prastėjantis (nukrito ${Math.abs(wDiff)} dBm)`;
+                    wifiColor = "var(--warning)";
+                } else if (wEnd < -85) {
+                    wifiTrendStr = `Silpnas (${wEnd} dBm)`;
+                    wifiColor = "var(--danger)";
+                } else {
+                    wifiTrendStr = `Stabilus (${wEnd} dBm)`;
+                    wifiColor = "var(--success)";
+                }
+            }
+
+            // 3. Enclosure Health (Microclimate)
+            let cpuTemp = parseFloat(sLast.field5);
+            let extTemp = parseFloat(sLast.field1);
+            let encTrendStr = "N/A";
+            let encColor = "var(--text-muted)";
+            if (!isNaN(cpuTemp) && !isNaN(extTemp)) {
+                let deltaT = cpuTemp - extTemp;
+                if (cpuTemp > 65 || deltaT > 50) {
+                    encTrendStr = `⚠️ PERKAITIMAS (ΔT=${deltaT.toFixed(1)}°C)`;
+                    encColor = "var(--danger)";
+                } else if (cpuTemp > 55) {
+                    encTrendStr = `Padidėjusi temp (ΔT=${deltaT.toFixed(1)}°C)`;
+                    encColor = "var(--warning)";
+                } else {
+                    encTrendStr = `NORMALUS (ΔT=${deltaT.toFixed(1)}°C)`;
+                    encColor = "var(--success)";
+                }
+            }
+
+            // 4. Packet Loss Index
+            let packetLossCount = 0;
+            let lastTime = null;
+            for (let f of sRes.feeds) {
+                let t = new Date(f.created_at).getTime();
+                if (lastTime) {
+                    let diffMs = t - lastTime;
+                    // Expected ~2 min (120000 ms). If > 3.5 min, count as loss
+                    if (diffMs > 210000) {
+                        packetLossCount++;
+                    }
+                }
+                lastTime = t;
+            }
+            let totalExpected = sRes.feeds.length + packetLossCount;
+            let successRate = totalExpected > 0 ? (sRes.feeds.length / totalExpected * 100) : 0;
+            let plColor = successRate > 95 ? "var(--success)" : successRate > 85 ? "var(--warning)" : "var(--danger)";
+            let plStr = `${successRate.toFixed(1)}% (${packetLossCount} trūkiai)`;
+
+            // 5. SHT45 Health
+            let shtTemp = parseFloat(sLast.field1);
+            let shtHum = parseFloat(sLast.field2);
+            let shtStr = (!isNaN(shtTemp) && !isNaN(shtHum) && shtTemp !== -127 && shtHum !== -127) ? "ONLINE" : "OFFLINE / KLAIDA";
+            let shtColor = shtStr === "ONLINE" ? "var(--success)" : "var(--danger)";
+
+            // Blynk Data Integration
+            const blynk = await fetchBlynkData();
+
+            const diag = document.createElement('div');
+            diag.className = 'analysis-card';
+            diag.style.borderLeft = "3px solid var(--accent)";
+            diag.innerHTML = `
+                <div class="analysis-card-content">
+                    <h3 class="tower-name">🛠️ Sistemos Būsena</h3>
+
+                    <div style="display:grid; grid-template-columns: 1fr; gap:8px; font-size:0.8rem;">
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${powerColor};">
+                            ⚡ <b>Maitinimo būklė:</b> <span style="color:${powerColor}; font-weight:bold;">${powerTrendStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">Akumuliatoriaus / tinklo įtampos stebėsena</span>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${wifiColor};">
+                            📡 <b>Wi-Fi Signalo Trendas:</b> <span style="color:${wifiColor}; font-weight:bold;">${wifiTrendStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">Fizinio ryšio kokybė</span>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${encColor};">
+                            🌡️ <b>Dėžutės aušinimas:</b> <span style="color:${encColor}; font-weight:bold;">${encTrendStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">CPU: ${cpuTemp.toFixed(1)}°C | Lauke: ${extTemp.toFixed(1)}°C</span>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${plColor};">
+                            📶 <b>Tinklo stabilumas (pask. 3h):</b> <span style="color:${plColor}; font-weight:bold;">${plStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">Duomenų perdavimo sėkmingumas</span>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; border-left:3px solid ${shtColor};">
+                            💧 <b>SHT45 Jutiklio Būklė:</b> <span style="color:${shtColor}; font-weight:bold;">${shtStr}</span>
+                            <br><span style="font-size:0.7rem; color:var(--text-muted);">Aplinkos drėgmės ir temperatūros daviklis</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 10px;">
+                        <p><b>🎛️ Valdymo Būsena (Relės):</b></p>
+                        <div style="display: flex; gap: 10px;">
+                            <div style="flex: 1; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; text-align: center; border: 1px solid ${blynk.fan ? 'var(--danger)' : 'var(--border)'}; box-shadow: ${blynk.fan ? '0 0 10px rgba(255,85,85,0.3)' : 'none'}">
+                                <div style="font-size: 1.5rem;">${blynk.fan ? '🔴' : '⚪'}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">Ventiliatorius</div>
+                                <div style="font-weight: bold; color: ${blynk.fan ? 'var(--danger)' : 'var(--text-muted)'};">${blynk.fan ? 'VEIKIA' : 'NEVEIKIA'}</div>
+                            </div>
+                            <div style="flex: 1; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; text-align: center; border: 1px solid ${blynk.comp ? 'var(--warning)' : 'var(--border)'}; box-shadow: ${blynk.comp ? '0 0 10px rgba(255,152,0,0.3)' : 'none'}">
+                                <div style="font-size: 1.5rem;">${blynk.comp ? '🔴' : '⚪'}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">Kompensacinis</div>
+                                <div style="font-weight: bold; color: ${blynk.comp ? 'var(--warning)' : 'var(--text-muted)'};">${blynk.comp ? 'VEIKIA' : 'NEVEIKIA'}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 10px;">
+                        <p><b>📟 Serial Duomenys (Valdiklis):</b></p>
+                        <div id="serial-output" style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #00f2fe; height: 150px; overflow-y: auto; white-space: pre-wrap;"></div>
+                    </div>
+                </div>`;
+            output.appendChild(diag);
+            // Initial call to populate if data exists
+            updateLiveSerial();
+        } catch(e) {}
+    }
+
+    async function loadChartData(ch, days) {
+        try {
+            const data = await (await fetch(`https://api.thingspeak.com/channels/${ch.id}/feeds.json?api_key=${ch.key}&days=${days}`)).json();
+            const display = document.getElementById(`display-${ch.id}`);
+            display.innerHTML = '';
+            const lastFeed = data.feeds[data.feeds.length-1];
+            let sensorItems = [];
+
+            if(ch.type === "tower") {
+                for(let i=1; i<=5; i++) {
+                    let v = parseFloat(lastFeed[`field${i}`]);
+                    if(!isNaN(v) && v !== -127.0 && v !== 85.0) sensorItems.push({ id: i, val: v });
+                }
+                sensorItems.sort((a, b) => b.val - a.val);
+            } else {
+                for(let i=1; i<=8; i++) {
+                    let v = parseFloat(lastFeed[`field${i}`]);
+                    if(!isNaN(v) && v !== -127.0 && v !== 85.0) {
+                        sensorItems.push({ id: i, val: v });
+                    }
+                }
+            }
+
+            for (let i = 0; i < sensorItems.length; i++) {
+                const item = sensorItems[i];
+                const sysIdx = item.id - 1; // Field 1 is index 0
+                const label = ch.type === "tower" ? `Gylis ${item.id}` : sysLabels[sysIdx];
+                const unit = ch.type === "tower" ? "°C" : sysUnits[sysIdx];
+                const icon = ch.type === "tower" ? "🌡️" : sysIcons[sysIdx];
+                const pill = document.createElement('div');
+                pill.className = `sensor-pill ${i===0?'active':''}`;
+                pill.onclick = function() {
+                    this.parentElement.querySelectorAll('.sensor-pill').forEach(p=>p.classList.remove('active'));
+                    this.classList.add('active');
+                    drawChart(ch.id, data.feeds, item.id, label);
+                };
+                pill.innerHTML = `<span class="sensor-label">${icon} ${label}</span><span class="sensor-value">${item.val.toFixed(1)}${unit}</span>`;
+                display.appendChild(pill);
+            }
+            // Draw chart for the first item initially
+            const firstSysIdx = sensorItems[0].id - 1;
+            const firstLabel = ch.type === "tower" ? `Gylis ${sensorItems[0].id}` : sysLabels[firstSysIdx];
+            drawChart(ch.id, data.feeds, sensorItems[0].id, firstLabel);
+        } catch(e) {}
+    }
+
+    function drawChart(id, feeds, fIdx, label) {
+        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+
+        // Filter valid data points for the chart to avoid plotting -127 or 85
+        const chartData = [];
+        feeds.forEach(f => {
+            let v = parseFloat(f[`field${fIdx}`]);
+            if (!isNaN(v) && v !== -127.0 && v !== 85.0) {
+                chartData.push([new Date(f.created_at).getTime(), v]);
+            }
+        });
+
+        charts[id] = Highcharts.chart(`chart-${id}`, {
+            chart: { backgroundColor: 'transparent', height: 200, margin: [10, 5, 30, 45] },
+            title: { text: null },
+            xAxis: { type: 'datetime', labels: { style: { color: 'var(--text-muted)', fontSize: '10px' } } },
+            yAxis: { gridLineColor: '#222', title: { text: null }, labels: { style: { color: 'var(--text-muted)' } } },
+            legend: { enabled: false }, credits: { enabled: false },
+            series: [{ name: label, data: chartData, color: accent, lineWidth: 2, marker: { enabled: false } }]
+        });
+    }
+
+    async function initDashboard() {
+        const container = document.getElementById('dashboard');
+        container.innerHTML = '';
+        for (const ch of config) {
+            const card = document.createElement('div');
+            card.className = 'chart-card';
+            card.innerHTML = `<div class="chart-header"><h3 class="chart-title">${ch.name}</h3><div class="btn-group"><button class="btn-opt active" onclick="updateTime('${ch.id}', 1, this)">Para</button><button class="btn-opt" onclick="updateTime('${ch.id}', 7, this)">Savaitė</button><button class="btn-opt" onclick="updateTime('${ch.id}', 30, this)">Mėnuo</button></div></div><div class="temp-display" id="display-${ch.id}"></div><div class="chart-container" id="chart-${ch.id}"></div>`;
+            container.appendChild(card);
+            await loadChartData(ch, 1);
+        }
+        initAnalytics();
+    }
+
+    async function updateTime(id, d, btn) {
+        btn.parentElement.querySelectorAll('.btn-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        await loadChartData(config.find(c => c.id === id), d);
+    }
+
+    setInterval(initDashboard, 120000);
+    setInterval(updateLiveSerial, 3000); // Live Serial Update every 3s
+    initDashboard();
+</script>
+</body>
