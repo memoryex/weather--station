@@ -1166,8 +1166,9 @@ function renderVizPlaceholder(id, name, type) {
         }
     };
 
-    // Load saved proxy
-    window.ADAX_PROXY = localStorage.getItem('adax_proxy') || '';
+    // Load saved proxy (default to localhost proxy if empty)
+    const DEFAULT_PROXY = 'http://localhost:8081/?url=';
+    window.ADAX_PROXY = localStorage.getItem('adax_proxy') || DEFAULT_PROXY;
     const ps = document.getElementById('proxySetting');
     if(ps) ps.value = window.ADAX_PROXY;
 
@@ -1206,8 +1207,8 @@ function renderVizPlaceholder(id, name, type) {
 
         const adaxPromises = adaxLines.map(async (L, idx) => {
             console.log("Fetching ADAX line:", L.name);
-            // Sequential delay: 300ms between each ADAX request
-            await new Promise(r => setTimeout(r, idx * 300));
+            // Sequential delay: 1000ms between each ADAX request to reduce load on internal API
+            await new Promise(r => setTimeout(r, idx * 1000));
 
             try {
                 const data = await getAdaxData(L.lid);
