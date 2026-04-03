@@ -2,84 +2,149 @@ import http.server
 import urllib.request
 import urllib.parse
 import sys
+import threading
+import time
+import json
+import socket
 
 # ADAX Proxy Server
 # This script helps to bypass browser security restrictions (CORS and Mixed Content)
 # when the dashboard is running on HTTPS but needs to access ADAX API on a local HTTP IP.
+#
+# NEW: Background fetching and data aggregation for all ADAX lines (1, 2, 3, 4, 6, 7)
 
 PORT = 8081
+ADAX_LIDS = [1, 2, 3, 4, 6, 7]
+ADAX_BASE_URL = "http://10.12.24.51:8088/api/index.php"
+
+# Thread-safe global cache
+cache_lock = threading.Lock()
+adax_cache = {
+    "last_update": None,
+    "lines": {lid: {"data": None, "error": "Laukiama duomenų...", "timestamp": None} for lid in ADAX_LIDS}
+}
+
+def fetch_adax_data(lid):
+    url = f"{ADAX_BASE_URL}?lid={lid}&group=1"
+    try:
+        req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'Mozilla/5.0 ADAX-Proxy-Background')
+        with urllib.request.urlopen(req, timeout=15) as response:
+            content = response.read().decode('utf-8', errors='ignore')
+
+            # Heuristic JSON parsing (similar to frontend logic)
+            # Try to find the outmost valid JSON array
+            start = content.find('[')
+            end = content.lastIndexOf(']') if hasattr(content, 'lastIndexOf') else content.rfind(']')
+
+            if start != -1 and end > start:
+                json_str = content[start:end+1]
+                try:
+                    data = json.loads(json_str)
+                    return data, None
+                except json.JSONDecodeError:
+                    return None, "JSON parse error"
+            return None, "No valid JSON found in response"
+    except socket.timeout:
+        return None, "Timeout (15s)"
+    except Exception as e:
+        return None, str(e)
+
+def background_fetcher():
+    print(f"Background fetcher started. Targeting LIDs: {ADAX_LIDS}")
+    while True:
+        for lid in ADAX_LIDS:
+            # print(f"Background fetching LID {lid}...")
+            data, error = fetch_adax_data(lid)
+
+            with cache_lock:
+                adax_cache["lines"][lid]["data"] = data
+                adax_cache["lines"][lid]["error"] = error
+                adax_cache["lines"][lid]["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+            # Small delay between lines to avoid overwhelming the target server
+            time.sleep(2)
+
+        with cache_lock:
+            adax_cache["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            # print(f"ADAX cache updated at {adax_cache['last_update']}")
+
+        # Wait 60 seconds before next full cycle
+        time.sleep(60)
 
 class ProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        # Improved URL extraction: Get everything after "?url="
-        # This handles cases where target_url has its own unencoded query parameters
-        path = self.path
-        if "?url=" not in path:
+        if self.path == "/adax/all":
+            self.send_aggregated_data()
+            return
+
+        if "?url=" not in self.path:
             self.send_response(400)
             self.end_headers()
-            self.wfile.write(b"Missing 'url' parameter. Usage: http://localhost:8081/?url=TARGET_URL")
+            self.wfile.write(b"Missing 'url' parameter. Usage: http://localhost:8081/?url=TARGET_URL or /adax/all")
             return
 
         # Extract everything after the first occurrence of ?url=
-        target_url = path.split("?url=", 1)[1]
-        # Unquote once just in case the browser encoded the whole thing
+        target_url = self.path.split("?url=", 1)[1]
         target_url = urllib.parse.unquote(target_url)
 
-        print(f"[{self.date_time_string()}] Proxying to: {target_url}")
+        # print(f"[{self.date_time_string()}] Proxying to: {target_url}")
 
         try:
-            # 2. Fetch the target data
             req = urllib.request.Request(target_url)
-            # Some servers might require a User-Agent
             req.add_header('User-Agent', 'Mozilla/5.0 ADAX-Proxy')
 
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=15) as response:
                 content = response.read()
-
-                # 3. Send response back with CORS headers
-                try:
-                    self.send_response(200)
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-                    self.send_header('Access-Control-Allow-Headers', '*')
-
-                    # Try to preserve Content-Type if possible, otherwise default to json
-                    ctype = response.info().get_content_type() or 'application/json'
-                    self.send_header('Content-Type', ctype)
-
-                    self.end_headers()
-                    self.wfile.write(content)
-                except (ConnectionAbortedError, BrokenPipeError):
-                    # Client closed connection prematurely, ignore gracefully
-                    print(f"[{self.date_time_string()}] Client aborted connection.")
-
+                self.send_response(200)
+                self.send_cors_headers()
+                ctype = response.info().get_content_type() or 'application/json'
+                self.send_header('Content-Type', ctype)
+                self.end_headers()
+                self.wfile.write(content)
         except Exception as e:
-            print(f"Error proxying request: {e}")
+            # print(f"Error proxying request: {e}")
             self.send_response(500)
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(str(e).encode())
 
-    # Handle preflight CORS requests (automatically sent by browsers)
-    def do_OPTIONS(self):
+    def send_aggregated_data(self):
+        with cache_lock:
+            response_json = json.dumps(adax_cache)
+
         self.send_response(200)
+        self.send_cors_headers()
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(response_json.encode())
+
+    def send_cors_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', '*')
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_cors_headers()
         self.end_headers()
 
-    # Enable logging for debugging
-    # def log_message(self, format, *args):
-    #     return
+    def log_message(self, format, *args):
+        # Quiet mode for proxy logs
+        return
 
 if __name__ == "__main__":
+    # Start background fetcher thread
+    fetcher_thread = threading.Thread(target=background_fetcher, daemon=True)
+    fetcher_thread.start()
+
     try:
-        # Binding to 127.0.0.1 for security - accessibility limited to local machine
         server = http.server.HTTPServer(('127.0.0.1', PORT), ProxyHandler)
         print("========================================")
-        print(f" ADAX Proxy Server started on port {PORT}")
+        print(f" ADAX Proxy + Aggregator started on port {PORT}")
         print("========================================")
-        print(f"Dashboard setting: http://localhost:{PORT}/?url=")
+        print(f"Aggregated endpoint: http://localhost:{PORT}/adax/all")
+        print(f"Legacy proxy: http://localhost:{PORT}/?url=")
         print("\nKeep this window open while using the ADAX lines.")
         print("Press Ctrl+C to stop.")
         server.serve_forever()

@@ -875,6 +875,26 @@ async function getAdaxData(lid) {
     }
 }
 
+async function getAllAdaxAggregated() {
+    if (typeof window.ADAX_PROXY === 'undefined') window.ADAX_PROXY = '';
+    let PROXY_URL = window.ADAX_PROXY;
+
+    if (!PROXY_URL) return null;
+
+    // Aggregated endpoint is /adax/all on the proxy base
+    const baseProxy = PROXY_URL.split('?')[0];
+    const url = baseProxy.endsWith('/') ? baseProxy + 'adax/all' : baseProxy + '/adax/all';
+
+    try {
+        const r = await fetchWithTimeout(url, { timeout: 5000 });
+        if (!r.ok) return null;
+        return await r.json();
+    } catch(e) {
+        console.error("Error fetching aggregated ADAX data:", e);
+        return null;
+    }
+}
+
 function buildAdaxSegments(data, from, to, tz) {
     const segs = [];
     if (!data) return segs;
@@ -1201,37 +1221,35 @@ function renderVizPlaceholder(id, name, type) {
         const now = Date.now();
         const rowData = [];
 
-        // ADAX logic: Sequential fetch with delay to avoid overwhelming internal API
+        // ADAX logic: Fetch aggregated data from proxy
         const adaxLines = LINE_MAP.filter(L => L.apiType === "ADAX");
         const tsLines = LINE_MAP.filter(L => L.apiType !== "ADAX");
 
-        const adaxPromises = adaxLines.map(async (L, idx) => {
-            console.log("Fetching ADAX line:", L.name);
-            // Sequential delay: 1000ms between each ADAX request to reduce load on internal API
-            await new Promise(r => setTimeout(r, idx * 1000));
+        const adaxAggregated = await getAllAdaxAggregated();
 
+        const adaxPromises = adaxLines.map(async (L) => {
             try {
-                const data = await getAdaxData(L.lid);
-                console.log(`ADAX ${L.name} parsed data:`, data);
-                if (!data) throw "No data";
+                if (!adaxAggregated) throw "Proxy nepasiekiamas";
+                const cachedLine = adaxAggregated.lines[L.lid];
+                if (!cachedLine) throw "Nėra duomenų";
+                if (cachedLine.error) throw cachedLine.error;
+
+                const data = cachedLine.data;
+                if (!data) throw "Nėra duomenų";
 
                 let allRecords = [];
                 let totalUnits = 0;
 
                 if (Array.isArray(data)) {
-                    // Case 1: Flat Array
                     allRecords = data;
-                    // Find max PusgaminioNr in whole array
                     allRecords.forEach(r => {
                         let p = parseInt(r.PusgaminioNr) || 0;
                         if (p > totalUnits) totalUnits = p;
                     });
                 } else if (typeof data === 'object' && data !== null) {
-                    // Case 2: Grouped by product (as seen in var_dump)
                     for (let prod in data) {
                         if (Array.isArray(data[prod]) && data[prod].length > 0) {
                             allRecords.push(...data[prod]);
-                            // Sum up production for each unique product category
                             let maxP = 0;
                             data[prod].forEach(r => {
                                 let p = parseInt(r.PusgaminioNr) || 0;
@@ -1241,9 +1259,8 @@ function renderVizPlaceholder(id, name, type) {
                         }
                     }
                 }
-                if (allRecords.length === 0) throw "Empty data";
+                if (allRecords.length === 0) throw "Tušti duomenys";
 
-                // Sort by TestavimoLaikas
                 allRecords.sort((a, b) => {
                     const da = a.TestavimoLaikas ? new Date(a.TestavimoLaikas.replace(' ', 'T')) : 0;
                     const db = b.TestavimoLaikas ? new Date(b.TestavimoLaikas.replace(' ', 'T')) : 0;
@@ -1251,7 +1268,6 @@ function renderVizPlaceholder(id, name, type) {
                 });
 
                 const latest = allRecords[allRecords.length - 1];
-
                 const countValNum = totalUnits;
                 const countValStr = countValNum.toString();
                 const barcodeVal = (latest && latest.Produktas) ? latest.Produktas.trim() : "-";
@@ -1283,7 +1299,6 @@ function renderVizPlaceholder(id, name, type) {
                     spTxt = "Nėra naujų duomenų >24h";
                     spClass = "bad";
                 } else if (allRecords.length >= 2) {
-                    // For speed, take last 10 records or all if less, to average out
                     const sample = allRecords.slice(-10);
                     const r1 = sample[sample.length - 1];
                     const r0 = sample[0];
@@ -1292,7 +1307,6 @@ function renderVizPlaceholder(id, name, type) {
 
                     const dHours = (t1 - t0) / 3600000;
                     if (dHours > 0) {
-                        // Number of units in this time window is (sample.length - 1)
                         speedVal = (sample.length - 1) / dHours;
                         spTxt = speedVal.toFixed(2);
                         gapTxt = formatDuration((t1 - t0) / (sample.length - 1));
@@ -1302,30 +1316,12 @@ function renderVizPlaceholder(id, name, type) {
                     }
                 }
 
-                    const tools = `<button onclick="testAdax(${L.lid})" style="font-size:10px; padding:2px 5px;">Testas</button>`;
-                    return { L, countValStr, countValNum, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, tools };
+                const tools = `<button onclick="testAdax(${L.lid})" style="font-size:10px; padding:2px 5px;">Testas</button>`;
+                return { L, countValStr, countValNum, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, tools };
             } catch(e) {
                 console.error("ADAX error", L.name, e);
-                // Provide detailed error feedback to help diagnose CORS/Mixed Content/Network issues
-                let errStatus = "KLAIDA";
-                const errStr = e.toString();
-                if (errStr.includes("Empty data") || errStr.includes("No data")) {
-                    errStatus = "Nėra duomenų";
-                } else if (errStr.includes("timeout") || errStr.includes("AbortError")) {
-                    errStatus = "Timeout (15s)";
-                } else if (errStr.includes("Failed to fetch")) {
-                    errStatus = (window.location.protocol === 'https:') ? "Proxy Error (Mixed Content)" : "Network Error";
-                } else if (errStr.includes("JSON") || errStr.includes("SyntaxError") || errStr.includes("euristinės")) {
-                    errStatus = "JSON Error";
-                } else if (errStr.includes("HTTP")) {
-                    errStatus = errStr;
-                }
-
-                // Log to the chart's debug log if it exists
-                if (typeof debugLog === 'function') debugLog(`ADAX ${L.name} Error: ${errStr}`);
-
-                    const tools = `<button onclick="testAdax(${L.lid})" style="font-size:10px; padding:2px 5px;">Testas</button>`;
-                    return { L, countValStr: "-", countValNum: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: errStatus, statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false, tools };
+                const tools = `<button onclick="testAdax(${L.lid})" style="font-size:10px; padding:2px 5px;">Testas</button>`;
+                return { L, countValStr: "-", countValNum: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: e.toString(), statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false, tools };
             }
         });
 
@@ -1850,10 +1846,16 @@ function renderVizPlaceholder(id, name, type) {
             const isRaw = document.getElementById('chartCumulative')?.checked ?? false;
 
             // Parallel fetch for chart speed
+            const adaxAggregated = await getAllAdaxAggregated();
             const promises = useLines.map(async (L) => {
                 if (L.apiType === "ADAX") {
                     try {
-                        const data = await getAdaxData(L.lid);
+                        let data = null;
+                        if (adaxAggregated && adaxAggregated.lines[L.lid] && adaxAggregated.lines[L.lid].data) {
+                            data = adaxAggregated.lines[L.lid].data;
+                        } else {
+                            data = await getAdaxData(L.lid);
+                        }
                         if (!data) return [];
                         const grouped = Array.isArray(data) ? { "all": data } : data;
 
@@ -2376,10 +2378,16 @@ function renderVizPlaceholder(id, name, type) {
             // Serial fetch for report to avoid rate limits if list is huge,
             // but parallel is faster if we trust ThingSpeak handling.
             // Staying safe with serial for report generation as it was.
+            const adaxAggregated = await getAllAdaxAggregated();
             for(const L of useLines){
                 if (L.apiType === "ADAX") {
                     st.textContent = `${L.name}: kraunam duomenis...`;
-                    const data = await getAdaxData(L.lid);
+                    let data = null;
+                    if (adaxAggregated && adaxAggregated.lines[L.lid] && adaxAggregated.lines[L.lid].data) {
+                        data = adaxAggregated.lines[L.lid].data;
+                    } else {
+                        data = await getAdaxData(L.lid);
+                    }
                     if (!data) continue;
                     const segs = buildAdaxSegments(data, from, to, tz);
                     segs.forEach(s => {
@@ -2923,11 +2931,19 @@ function renderVizPlaceholder(id, name, type) {
 
             let totalSegs = [];
 
+            const adaxAggregated = await getAllAdaxAggregated();
+
             for (const L of LINES) {
                 st.textContent = `Analizuojama linija: ${L.name}...`;
                 if (L.apiType === "ADAX") {
                     try {
-                        const data = await getAdaxData(L.lid);
+                        let data = null;
+                        if (adaxAggregated && adaxAggregated.lines[L.lid] && adaxAggregated.lines[L.lid].data) {
+                            data = adaxAggregated.lines[L.lid].data;
+                        } else {
+                            data = await getAdaxData(L.lid);
+                        }
+
                         if (!data) continue;
                         const segs = buildAdaxSegments(data, from, now, tz);
                         segs.forEach(s => s.line = L.name);
