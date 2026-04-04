@@ -4,17 +4,16 @@
 /**
  * DFRobot ESP32-S3 AI Camera v1.1 (DFR1154) - Robust Diagnostic Test
  *
- * If you see 'Camera init failed with error 0x106' despite PSRAM being detected,
- * it indicates that the camera library is having trouble with JPEG encoding.
+ * IF YOU SEE 'ERROR 0x106' despite PSRAM being detected, it indicates
+ * a configuration mismatch in the library's JPEG/PSRAM integration.
  *
- * This sketch defaults to PIXFORMAT_RGB565 to confirm sensor connectivity first.
- *
- * Arduino IDE Settings:
+ * FINAL ARDUINO IDE SETTINGS (For N16R8 module):
  * - Board: "DFRobot FireBeetle 2 ESP32-S3"
  * - USB CDC On Boot: "Enabled"
- * - Flash Size: "16MB"
+ * - Flash Size: "16MB (128Mb)"
+ * - Flash Mode: "QIO 80MHz" (Do NOT use OPI Flash)
  * - Partition Scheme: "16M Flash (3MB APP/9.9MB FATFS)"
- * - PSRAM: "OPI PSRAM"
+ * - PSRAM: "OPI PSRAM" (This board uses OPI PSRAM but QIO Flash)
  * - Flash Frequency: 80MHz
  */
 
@@ -38,8 +37,8 @@
 #define PCLK_GPIO_NUM     5
 
 // LED Indicators
-const int onboardLED = 3;  // Onboard LED GPIO
-const int irLED = 47;      // Infrared illumination LED GPIO
+const int onboardLED = 3;
+const int irLED = 47;
 
 void setup() {
   Serial.begin(115200);
@@ -63,7 +62,7 @@ void setup() {
     Serial.println("PSRAM detected successfully!");
     Serial.printf("Total PSRAM: %u bytes\n", ESP.getPsramSize());
   } else {
-    Serial.println("WARNING: PSRAM NOT DETECTED! Check 'OPI PSRAM' setting.");
+    Serial.println("WARNING: PSRAM NOT DETECTED! Ensure 'OPI PSRAM' is selected.");
   }
 
   camera_config_t config;
@@ -86,27 +85,23 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
 
-  config.xclk_freq_hz = 20000000; // Reset to standard frequency
+  config.xclk_freq_hz = 20000000;
 
   /**
    * ROBUST INITIALIZATION:
-   * We use PIXFORMAT_RGB565 and a small frame size first.
-   * This format is supported by almost all sensors and doesn't require
-   * the JPEG encoder that often causes 0x106 on misconfigured S3 targets.
+   * Uses PIXFORMAT_RGB565 first to confirm sensor connectivity.
    */
   config.frame_size = FRAMESIZE_QVGA;
-  config.pixel_format = PIXFORMAT_RGB565; // Confirming raw sensor data first
+  config.pixel_format = PIXFORMAT_RGB565;
   config.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
   config.fb_count = 1;
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
-  // Camera init
   Serial.println("Initializing camera with RGB565 (Robust Mode)...");
   esp_err_t err = esp_camera_init(&config);
 
   if (err != ESP_OK) {
     Serial.printf("Robust Init failed with error 0x%x\n", err);
-    // Blink onboard LED fast on error
     while(true) {
       digitalWrite(onboardLED, !digitalRead(onboardLED));
       delay(100);
@@ -118,7 +113,7 @@ void setup() {
     s->set_vflip(s, 1);
     s->set_brightness(s, 1);
     s->set_saturation(s, -2);
-    Serial.println("OV3660 Camera detected and initialized via RGB565.");
+    Serial.println("OV3660 Camera detected and initialized.");
   }
 
   Serial.println("Camera Ready! Sensor communication confirmed.");
