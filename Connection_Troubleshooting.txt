@@ -1,0 +1,29 @@
+### DFRobot ESP32-S3 AI Camera v1.1 - Connection & Driver Troubleshooting ###
+
+If you encounter "OSError(22, 'A device which does not exist was specified.')"
+or the Serial Port disappears/cannot be configured:
+
+--- RECOVERY: MANUAL BOOTLOADER MODE ---
+The ESP32-S3 uses internal USB-Serial. If your code crashes or reconfigures
+the USB port, it will "disappear" from your computer.
+
+1. Connect the ESP32-S3 AI Cam via USB-C.
+2. Locate the BOOT and RESET buttons on the board.
+3. PRESS AND HOLD the BOOT button.
+4. PRESS AND RELEASE the RESET button (while still holding BOOT).
+5. RELEASE the BOOT button.
+6. Check your Arduino IDE: A new COM/Serial port should appear (often
+   labeled "ESP32S3 Dev Module" or similar).
+7. Try uploading the 'PSRAM_Verify.ino' sketch now.
+
+--- ARDUINO IDE SETTINGS (STABILITY) ---
+If the port keeps disappearing after upload:
+1. Ensure 'USB CDC On Boot' is set to "ENABLED".
+2. If using "ESP32S3 Dev Module" board, try setting 'Flash Mode' to "DIO"
+   instead of "QIO" (only if QIO fails to boot).
+3. If using "DFRobot FireBeetle 2 ESP32-S3", ensure 'Flash Mode' is "QIO".
+
+--- HARDWARE CHECKS ---
+1. Try a different USB-C cable (some are "Charge-only").
+2. Connect directly to your computer (bypass USB hubs).
+3. Check the board for a small Red LED (Power indicator).
