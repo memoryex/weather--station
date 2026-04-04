@@ -2,18 +2,20 @@
 #include <WiFi.h>
 
 /**
- * DFRobot ESP32-S3 AI Camera v1.1 (DFR1154) Diagnostic Test Code
+ * DFRobot ESP32-S3 AI Camera v1.1 (DFR1154) - Robust Diagnostic Test
  *
- * ERROR 0x106 (ESP_ERR_NOT_SUPPORTED) Troubleshooting:
- * 1. Ensure PSRAM is enabled in Arduino IDE: Tools -> PSRAM -> "OPI PSRAM".
- * 2. This code includes a diagnostic check for PSRAM.
+ * If you see 'Camera init failed with error 0x106' despite PSRAM being detected,
+ * it indicates that the camera library is having trouble with JPEG encoding.
+ *
+ * This sketch defaults to PIXFORMAT_RGB565 to confirm sensor connectivity first.
  *
  * Arduino IDE Settings:
  * - Board: "DFRobot FireBeetle 2 ESP32-S3"
  * - USB CDC On Boot: "Enabled"
  * - Flash Size: "16MB"
  * - Partition Scheme: "16M Flash (3MB APP/9.9MB FATFS)"
- * - PSRAM: "OPI PSRAM" (VERY IMPORTANT)
+ * - PSRAM: "OPI PSRAM"
+ * - Flash Frequency: 80MHz
  */
 
 // Camera Pin Definitions (DFRobot FireBeetle 2 ESP32-S3)
@@ -43,7 +45,7 @@ void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
-  Serial.println("--- DFRobot ESP32-S3 AI Camera v1.1 Diagnostic ---");
+  Serial.println("--- DFRobot ESP32-S3 AI Camera v1.1 Robust Diagnostic ---");
 
   // Initialize LEDs
   pinMode(onboardLED, OUTPUT);
@@ -60,10 +62,8 @@ void setup() {
   if (psramFound()) {
     Serial.println("PSRAM detected successfully!");
     Serial.printf("Total PSRAM: %u bytes\n", ESP.getPsramSize());
-    Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
   } else {
-    Serial.println("WARNING: PSRAM NOT DETECTED!");
-    Serial.println("Check IDE Settings: Tools -> PSRAM -> 'OPI PSRAM'");
+    Serial.println("WARNING: PSRAM NOT DETECTED! Check 'OPI PSRAM' setting.");
   }
 
   camera_config_t config;
@@ -86,32 +86,26 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
 
-  // Use lower frequency for stability during testing
-  config.xclk_freq_hz = 10000000;
+  config.xclk_freq_hz = 20000000; // Reset to standard frequency
 
-  // Check PSRAM for format selection
-  if (psramFound()) {
-    config.frame_size = FRAMESIZE_QVGA;
-    config.pixel_format = PIXFORMAT_JPEG;
-    config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.jpeg_quality = 12;
-    config.fb_count = 2;
-  } else {
-    // Fallback if PSRAM is missing - uses Internal RAM
-    Serial.println("Falling back to Internal RAM mode (No JPEG support)...");
-    config.frame_size = FRAMESIZE_QQVGA;
-    config.pixel_format = PIXFORMAT_RGB565; // RGB565 instead of JPEG
-    config.fb_location = CAMERA_FB_IN_DRAM;
-    config.fb_count = 1;
-  }
+  /**
+   * ROBUST INITIALIZATION:
+   * We use PIXFORMAT_RGB565 and a small frame size first.
+   * This format is supported by almost all sensors and doesn't require
+   * the JPEG encoder that often causes 0x106 on misconfigured S3 targets.
+   */
+  config.frame_size = FRAMESIZE_QVGA;
+  config.pixel_format = PIXFORMAT_RGB565; // Confirming raw sensor data first
+  config.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
+  config.fb_count = 1;
+  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
   // Camera init
+  Serial.println("Initializing camera with RGB565 (Robust Mode)...");
   esp_err_t err = esp_camera_init(&config);
+
   if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x\n", err);
-    if (err == 0x106) {
-        Serial.println("Hint: Error 0x106 is usually due to missing PSRAM.");
-    }
+    Serial.printf("Robust Init failed with error 0x%x\n", err);
     // Blink onboard LED fast on error
     while(true) {
       digitalWrite(onboardLED, !digitalRead(onboardLED));
@@ -121,29 +115,28 @@ void setup() {
 
   sensor_t *s = esp_camera_sensor_get();
   if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);        // Flip vertically
-    s->set_brightness(s, 1);   // Increase brightness
-    s->set_saturation(s, -2);  // Lower saturation
-    Serial.println("OV3660 Camera detected and initialized.");
+    s->set_vflip(s, 1);
+    s->set_brightness(s, 1);
+    s->set_saturation(s, -2);
+    Serial.println("OV3660 Camera detected and initialized via RGB565.");
   }
 
-  Serial.println("Camera Ready!");
+  Serial.println("Camera Ready! Sensor communication confirmed.");
 }
 
 void loop() {
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
-    Serial.println("Camera capture failed");
+    Serial.println("Frame capture failed");
   } else {
-    Serial.printf("Frame captured: %u bytes\n", (unsigned int)fb->len);
+    Serial.printf("Frame captured: %u bytes (Resolution: %dx%d)\n",
+                   (unsigned int)fb->len, fb->width, fb->height);
     esp_camera_fb_return(fb);
 
-    // Blink LEDs on successful capture
+    // Indicator blink
     digitalWrite(onboardLED, HIGH);
-    digitalWrite(irLED, HIGH);
     delay(50);
     digitalWrite(onboardLED, LOW);
-    digitalWrite(irLED, LOW);
   }
 
   delay(3000);
