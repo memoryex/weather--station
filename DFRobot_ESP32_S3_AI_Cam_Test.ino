@@ -2,17 +2,18 @@
 #include <WiFi.h>
 
 /**
- * DFRobot ESP32-S3 AI Camera v1.1 (DFR1154) Test Code
+ * DFRobot ESP32-S3 AI Camera v1.1 (DFR1154) Diagnostic Test Code
  *
- * Hardware version 1.1 uses 3.3V output for Gravity interface.
- * For v1.1 and above, AXP313A power management library is NOT required.
+ * ERROR 0x106 (ESP_ERR_NOT_SUPPORTED) Troubleshooting:
+ * 1. Ensure PSRAM is enabled in Arduino IDE: Tools -> PSRAM -> "OPI PSRAM".
+ * 2. This code includes a diagnostic check for PSRAM.
  *
  * Arduino IDE Settings:
  * - Board: "DFRobot FireBeetle 2 ESP32-S3"
  * - USB CDC On Boot: "Enabled"
  * - Flash Size: "16MB"
  * - Partition Scheme: "16M Flash (3MB APP/9.9MB FATFS)"
- * - PSRAM: "OPI PSRAM"
+ * - PSRAM: "OPI PSRAM" (VERY IMPORTANT)
  */
 
 // Camera Pin Definitions (DFRobot FireBeetle 2 ESP32-S3)
@@ -42,7 +43,7 @@ void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
-  Serial.println("--- DFRobot ESP32-S3 AI Camera v1.1 Test ---");
+  Serial.println("--- DFRobot ESP32-S3 AI Camera v1.1 Diagnostic ---");
 
   // Initialize LEDs
   pinMode(onboardLED, OUTPUT);
@@ -54,6 +55,16 @@ void setup() {
   delay(500);
   digitalWrite(onboardLED, LOW);
   digitalWrite(irLED, LOW);
+
+  // PSRAM Diagnostic
+  if (psramFound()) {
+    Serial.println("PSRAM detected successfully!");
+    Serial.printf("Total PSRAM: %u bytes\n", ESP.getPsramSize());
+    Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
+  } else {
+    Serial.println("WARNING: PSRAM NOT DETECTED!");
+    Serial.println("Check IDE Settings: Tools -> PSRAM -> 'OPI PSRAM'");
+  }
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -74,18 +85,33 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_QVGA;
-  config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-  config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
-  config.fb_count = 1;
+
+  // Use lower frequency for stability during testing
+  config.xclk_freq_hz = 10000000;
+
+  // Check PSRAM for format selection
+  if (psramFound()) {
+    config.frame_size = FRAMESIZE_QVGA;
+    config.pixel_format = PIXFORMAT_JPEG;
+    config.fb_location = CAMERA_FB_IN_PSRAM;
+    config.jpeg_quality = 12;
+    config.fb_count = 2;
+  } else {
+    // Fallback if PSRAM is missing - uses Internal RAM
+    Serial.println("Falling back to Internal RAM mode (No JPEG support)...");
+    config.frame_size = FRAMESIZE_QQVGA;
+    config.pixel_format = PIXFORMAT_RGB565; // RGB565 instead of JPEG
+    config.fb_location = CAMERA_FB_IN_DRAM;
+    config.fb_count = 1;
+  }
 
   // Camera init
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
     Serial.printf("Camera init failed with error 0x%x\n", err);
+    if (err == 0x106) {
+        Serial.println("Hint: Error 0x106 is usually due to missing PSRAM.");
+    }
     // Blink onboard LED fast on error
     while(true) {
       digitalWrite(onboardLED, !digitalRead(onboardLED));
@@ -94,7 +120,6 @@ void setup() {
   }
 
   sensor_t *s = esp_camera_sensor_get();
-  // OV3660 specific settings
   if (s->id.PID == OV3660_PID) {
     s->set_vflip(s, 1);        // Flip vertically
     s->set_brightness(s, 1);   // Increase brightness
@@ -106,7 +131,6 @@ void setup() {
 }
 
 void loop() {
-  // Capture a frame to verify camera is working
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
     Serial.println("Camera capture failed");
@@ -117,10 +141,10 @@ void loop() {
     // Blink LEDs on successful capture
     digitalWrite(onboardLED, HIGH);
     digitalWrite(irLED, HIGH);
-    delay(100);
+    delay(50);
     digitalWrite(onboardLED, LOW);
     digitalWrite(irLED, LOW);
   }
 
-  delay(2000); // Wait 2 seconds between captures
+  delay(3000);
 }
