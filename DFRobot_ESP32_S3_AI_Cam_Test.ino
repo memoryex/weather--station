@@ -60,8 +60,13 @@ void setup() {
   if (psramFound()) {
     Serial.println("PSRAM detected successfully!");
     Serial.printf("Total PSRAM: %u bytes\n", ESP.getPsramSize());
+    Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
   } else {
-    Serial.println("WARNING: PSRAM NOT DETECTED! Ensure 'OPI PSRAM' is selected.");
+    Serial.println("CRITICAL FAILURE: PSRAM NOT DETECTED!");
+    Serial.println("The camera (OV3660) will likely fail with error 0x106 without PSRAM.");
+    Serial.println("REQUIRED IDE SETTINGS:");
+    Serial.println("- PSRAM: 'OPI PSRAM'");
+    Serial.println("- Flash Mode: 'QIO 80MHz' (CRITICAL: Do not use OPI Flash)");
   }
 
   camera_config_t config;
