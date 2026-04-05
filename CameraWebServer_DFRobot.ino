@@ -38,8 +38,8 @@
 #define IR_LED_GPIO_NUM  47
 
 // --- WiFi Credentials ---
-const char *ssid = "Bijunu_g";
-const char *password = "memoryexx";
+const char *ssid = "YOUR_SSID";
+const char *password = "YOUR_PASSWORD";
 
 void startCameraServer();
 
