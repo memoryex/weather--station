@@ -122,9 +122,14 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
 
-  // startCameraServer(); // Note: Requires including the 'app_httpd.cpp' logic
-  Serial.println("Note: To use the full Web Server, you must add the 'app_httpd.cpp' file");
-  Serial.println("from the official ESP32 CameraWebServer example to this project.");
+  /**
+   * IMPORTANT: To use the full Web Server, you must add the 'app_httpd.cpp' file
+   * from the official ESP32 CameraWebServer example to this project.
+   *
+   * For now, we only print the IP address to verify connectivity.
+   */
+  Serial.println("Note: Web Server function (startCameraServer) is commented out.");
+  // startCameraServer();
 }
 
 void loop() {
