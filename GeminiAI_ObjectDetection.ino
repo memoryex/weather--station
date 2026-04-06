@@ -49,7 +49,7 @@ const char* FIREBASE_URL = "https://esp32-s3-ai-cam-default-rtdb.firebaseio.com/
 
 // NTP Time
 const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 19800;  // for IST (UTC +5:30) for India. You can set as per your location
+const long gmtOffset_sec = 7200;  // For Lithuania (UTC +2). Use 10800 for Summer Time (EEST).
 const int daylightOffset_sec = 0;
 
 // ======= BASE64 ENCODING =======
@@ -152,6 +152,18 @@ void detectObjects() {
 
     int httpCode = http.POST(payload);
     Serial.printf("[Gemini] HTTP Code: %d\n", httpCode);
+
+    if (httpCode == 429) {
+        Serial.println("[!] Gemini API Error: Too Many Requests. You've hit the rate limit for the free tier.");
+        http.end();
+        return;
+    }
+
+    if (httpCode == 403) {
+        Serial.println("[!] Gemini API Error: Access Forbidden. This usually means your API quota is exceeded or the key is restricted.");
+        http.end();
+        return;
+    }
 
     if (httpCode > 0) {
         String response = http.getString();
@@ -267,7 +279,7 @@ void setup() {
     xTaskCreate([](void*) {
         while (1) {
             detectObjects();
-            delay(20000);  // every 20 sec
+            delay(60000);  // every 60 sec to conserve free tier quota
         }
     }, "ObjectDetectionTask", 8192, NULL, 1, NULL);
 }
