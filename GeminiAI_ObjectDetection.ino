@@ -35,14 +35,14 @@
 // ======= CONFIGURATION =======
 
 // WiFi Credentials
-const char* WIFI_SSID = "YOUR_SSID";
-const char* WIFI_PASS = "YOUR_PASS";
+const char* WIFI_SSID = "Bijunu_g";
+const char* WIFI_PASS = "memoryexx";
 
 // Gemini AI API Key
-const char* GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";
+const char* GEMINI_API_KEY = "AIzaSyDncx7EvrtOG_44xPoCwOkOHmtaITPP_6A";
 
 // Firebase URL (Set if using Firebase)
-const char* FIREBASE_URL = "YOUR_FIREBASE_URL";
+const char* FIREBASE_URL = "https://esp32-s3-ai-cam-default-rtdb.firebaseio.com/data.json";
 
 // Enable Firebase integration
 #define ENABLE_FIREBASE true  // Set to false to disable Firebase
@@ -151,18 +151,32 @@ void detectObjects() {
     payload += "]}]}";
 
     int httpCode = http.POST(payload);
+    Serial.printf("[Gemini] HTTP Code: %d\n", httpCode);
+
     if (httpCode > 0) {
         String response = http.getString();
         Serial.println("[Gemini] Response: " + response);
 
-        DynamicJsonDocument doc(4096);
+        DynamicJsonDocument doc(16384);
         DeserializationError error = deserializeJson(doc, response);
         if (error) {
             Serial.println("[-] JSON Parse Error: " + String(error.c_str()));
             return;
         }
 
+        if (!doc.containsKey("candidates") || doc["candidates"].size() == 0) {
+            Serial.println("[!] No candidates in Gemini response");
+            return;
+        }
+
         const char* aiText = doc["candidates"][0]["content"]["parts"][0]["text"];
+        const char* finishReason = doc["candidates"][0]["finishReason"];
+
+        if (!aiText) {
+            Serial.printf("[!] Gemini response text is NULL. Finish Reason: %s\n", finishReason ? finishReason : "Unknown");
+            return;
+        }
+
         String objectDescription = String(aiText);
         objectDescription.trim();
         objectDescription.replace("\"", "'"); // Replace double quotes with single quotes
@@ -170,7 +184,7 @@ void detectObjects() {
         objectDescription.replace("\r", " ");
 
         if (objectDescription.length() == 0) {
-            Serial.println("[!] No description received from Gemini");
+            Serial.println("[!] Gemini returned an empty description");
             return;
         }
 
