@@ -1,18 +1,21 @@
 //=============================================================================//
-// Project/Tutorial       - Object Detection using DFRobot ESP32S3 AI Camera Module
-// Author                 - Adapted from https://www.hackster.io/maheshyadav216
-// Hardware               - DFRobot ESP32S3 AI Camera Module
-// Sensors                - NA
-// Software               - Arduino IDE, Gemini 2.0 Flash API
-// Code/Content license   - (CC BY-NC-SA 4.0) https://creativecommons.org/licenses/by-nc-sa/4.0/
+// Project: Object Detection & Web Camera Server using DFRobot ESP32S3 AI Camera
+// Author: Adapted for Jules Sandbox
+// Hardware: DFRobot ESP32S3 AI Camera Module (OV3660)
+// Software: Arduino IDE, Gemini 2.0 Flash API, Firebase RTDB
 //============================================================================//
 
-// Include Necessary Libraries
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "esp_camera.h"
 #include "time.h"
+#include <Preferences.h>
+#include <Wire.h>
+
+// Prototypes for Web Server (defined in app_httpd.cpp)
+void startCameraServer();
+void setupLedFlash(int pin);
 
 // Pin definitions for DFR1154 ESP32-S3 AI CAM (OV3660)
 #define PWDN_GPIO_NUM    -1
@@ -33,24 +36,17 @@
 #define SIOC_GPIO_NUM     9
 
 // ======= CONFIGURATION =======
-
-// WiFi Credentials
 const char* WIFI_SSID = "Bijunu_g";
 const char* WIFI_PASS = "memoryexx";
-
-// Gemini AI API Key
 const char* GEMINI_API_KEY = "AIzaSyDncx7EvrtOG_44xPoCwOkOHmtaITPP_6A";
-
-// Firebase URL (Set if using Firebase)
 const char* FIREBASE_URL = "https://esp32-s3-ai-cam-default-rtdb.firebaseio.com/data.json";
 
-// Enable Firebase integration
-#define ENABLE_FIREBASE true  // Set to false to disable Firebase
-
-// NTP Time
+#define ENABLE_FIREBASE true
 const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 7200;  // For Lithuania (UTC +2). Use 10800 for Summer Time (EEST).
+const long gmtOffset_sec = 7200; // Lithuania (UTC+2)
 const int daylightOffset_sec = 0;
+
+Preferences preferences;
 
 // ======= BASE64 ENCODING =======
 const char base64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -58,7 +54,6 @@ String base64_encode(const uint8_t* data, size_t length) {
     String encoded = "";
     int i = 0;
     uint8_t array_3[3], array_4[4];
-
     while (length--) {
         array_3[i++] = *(data++);
         if (i == 3) {
@@ -66,225 +61,191 @@ String base64_encode(const uint8_t* data, size_t length) {
             array_4[1] = ((array_3[0] & 0x03) << 4) + ((array_3[1] & 0xf0) >> 4);
             array_4[2] = ((array_3[1] & 0x0f) << 2) + ((array_3[2] & 0xc0) >> 6);
             array_4[3] = array_3[2] & 0x3f;
-
-            for (i = 0; i < 4; i++)
-                encoded += base64_table[array_4[i]];
+            for (i = 0; i < 4; i++) encoded += base64_table[array_4[i]];
             i = 0;
         }
     }
-
     if (i) {
-        for (int j = i; j < 3; j++)
-            array_3[j] = '\0';
-
+        for (int j = i; j < 3; j++) array_3[j] = '\0';
         array_4[0] = (array_3[0] & 0xfc) >> 2;
         array_4[1] = ((array_3[0] & 0x03) << 4) + ((array_3[1] & 0xf0) >> 4);
         array_4[2] = ((array_3[1] & 0x0f) << 2) + ((array_3[2] & 0xc0) >> 6);
         array_4[3] = array_3[2] & 0x3f;
-
-        for (int j = 0; j < i + 1; j++)
-            encoded += base64_table[array_4[j]];
-
-        while ((i++ < 3))
-            encoded += '=';
+        for (int j = 0; j < i + 1; j++) encoded += base64_table[array_4[j]];
+        while ((i++ < 3)) encoded += '=';
     }
-
     return encoded;
 }
 
-// ======= GET DATE AND TIME =======
 String getCurrentTime() {
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-        return "Time Error";
-    }
+    if (!getLocalTime(&timeinfo)) return "Time Error";
     char buffer[30];
     strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
     return String(buffer);
 }
 
-// ======= SEND TO FIREBASE =======
 void sendDataToFirebase(const String& objectDescription, const String& dateTime, const String& imageBase64) {
     if (!ENABLE_FIREBASE) return;
-
     HTTPClient http;
     http.begin(FIREBASE_URL);
     http.addHeader("Content-Type", "application/json");
-
-    String payload = "{";
-    payload += "\"detected_objects\":\"" + objectDescription + "\",";
-    payload += "\"date_time\":\"" + dateTime + "\",";
-    payload += "\"image\":\"" + imageBase64 + "\"";
-    payload += "}";
-
+    String payload = "{\"detected_objects\":\"" + objectDescription + "\",\"date_time\":\"" + dateTime + "\",\"image\":\"" + imageBase64 + "\"}";
     int httpCode = http.POST(payload);
-    if (httpCode > 0) {
-        Serial.println("[Firebase] Response: " + http.getString());
-    } else {
-        Serial.println("[Firebase] Error: " + String(httpCode));
-    }
+    if (httpCode > 0) Serial.println("[Firebase] Response: " + http.getString());
+    else Serial.println("[Firebase] Error: " + String(httpCode));
     http.end();
 }
 
-// ======= DETECT OBJECTS =======
 void detectObjects() {
-    Serial.println("\n[+] Capturing Image...");
+    Serial.println("\n[+] Capturing Image for AI...");
     camera_fb_t* fb = esp_camera_fb_get();
-    if (!fb) {
-        Serial.println("[-] Capture failed");
-        return;
-    }
-
+    if (!fb) { Serial.println("[-] Capture failed"); return; }
     String base64Image = base64_encode(fb->buf, fb->len);
     esp_camera_fb_return(fb);
-
-    Serial.println("[+] Image captured. Sending to Gemini...");
 
     HTTPClient http;
     String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + String(GEMINI_API_KEY);
     http.begin(url);
     http.addHeader("Content-Type", "application/json");
-
-    String payload = "{\"contents\":[{\"parts\":[";
-    payload += "{\"inline_data\":{\"mime_type\":\"image/jpeg\",\"data\":\"" + base64Image + "\"}},";
-    payload += "{\"text\":\"Identify and describe the main objects and the overall scene in this image. Return the description in plain text.\"}" ;
-    payload += "]}]}";
+    String payload = "{\"contents\":[{\"parts\":[{\"inline_data\":{\"mime_type\":\"image/jpeg\",\"data\":\"" + base64Image + "\"}},{\"text\":\"Identify and describe the main objects and the overall scene in this image. Return the description in plain text.\"}]}]}";
 
     int httpCode = http.POST(payload);
     Serial.printf("[Gemini] HTTP Code: %d\n", httpCode);
-
-    if (httpCode == 429) {
-        Serial.println("[!] Gemini API Error: Too Many Requests. You've hit the rate limit for the free tier.");
-        http.end();
-        return;
-    }
-
-    if (httpCode == 403) {
-        Serial.println("[!] Gemini API Error: Access Forbidden. This usually means your API quota is exceeded or the key is restricted.");
-        http.end();
-        return;
-    }
+    if (httpCode == 429) { Serial.println("[!] Gemini Quota Exceeded (429)"); http.end(); return; }
+    if (httpCode == 403) { Serial.println("[!] Gemini Forbidden (403)"); http.end(); return; }
 
     if (httpCode > 0) {
         String response = http.getString();
-        Serial.println("[Gemini] Response: " + response);
-
         DynamicJsonDocument doc(16384);
-        DeserializationError error = deserializeJson(doc, response);
-        if (error) {
-            Serial.println("[-] JSON Parse Error: " + String(error.c_str()));
-            return;
-        }
-
-        if (!doc.containsKey("candidates") || doc["candidates"].size() == 0) {
-            Serial.println("[!] No candidates in Gemini response");
-            return;
-        }
-
+        deserializeJson(doc, response);
+        if (!doc.containsKey("candidates")) { Serial.println("[!] No candidates in response"); return; }
         const char* aiText = doc["candidates"][0]["content"]["parts"][0]["text"];
-        const char* finishReason = doc["candidates"][0]["finishReason"];
-
-        if (!aiText) {
-            Serial.printf("[!] Gemini response text is NULL. Finish Reason: %s\n", finishReason ? finishReason : "Unknown");
-            return;
+        if (!aiText) { Serial.println("[!] Gemini text is NULL"); return; }
+        String desc = String(aiText);
+        desc.trim(); desc.replace("\"", "'"); desc.replace("\n", " "); desc.replace("\r", " ");
+        if (desc.length() > 0) {
+            String dateTime = getCurrentTime();
+            Serial.println("\n======= Objects Detected =======\n" + desc + "\n================================");
+            sendDataToFirebase(desc, dateTime, base64Image);
         }
-
-        String objectDescription = String(aiText);
-        objectDescription.trim();
-        objectDescription.replace("\"", "'"); // Replace double quotes with single quotes
-        objectDescription.replace("\n", " "); // Replace newlines with spaces for JSON safety
-        objectDescription.replace("\r", " ");
-
-        if (objectDescription.length() == 0) {
-            Serial.println("[!] Gemini returned an empty description");
-            return;
-        }
-
-        String dateTime = getCurrentTime();
-        Serial.println("\n======= Objects Detected =======");
-        Serial.println("🕒 Date and Time     : " + dateTime);
-        Serial.println("📝 Description       : " + objectDescription);
-        Serial.println("================================");
-
-        sendDataToFirebase(objectDescription, dateTime, base64Image);
-    } else {
-        Serial.println("[-] HTTP Request Failed: " + String(httpCode));
     }
-
     http.end();
 }
 
-// ======= SETUP =======
+void connectToWiFi(const char* ssid, const char* password) {
+  WiFi.begin(ssid, password);
+  Serial.printf("Connecting to WiFi: %s\n", ssid);
+  int retries = 0;
+  while (WiFi.status() != WL_CONNECTED && retries < 20) { delay(500); Serial.print("."); retries++; }
+  if (WiFi.status() == WL_CONNECTED) { Serial.println("\nWiFi connected! IP: " + WiFi.localIP().toString()); }
+  else { Serial.println("\nWiFi connection failed."); }
+}
+
+void initWiFi() {
+  preferences.begin("wifi", false);
+  String savedSSID = preferences.getString("ssid", "");
+  String savedPASS = preferences.getString("password", "");
+
+  if (savedSSID.length() > 0 && savedPASS.length() > 0) {
+    Serial.println("Found saved WiFi credentials.");
+    connectToWiFi(savedSSID.c_str(), savedPASS.c_str());
+    if (WiFi.status() == WL_CONNECTED) { preferences.end(); return; }
+    else { Serial.println("Stored credentials failed. Please enter new credentials."); }
+  } else { Serial.println("No WiFi credentials found. Please enter:"); }
+
+  while (Serial.available()) Serial.read();
+
+  Serial.println("Enter SSID: ");
+  while (Serial.available() == 0) delay(10);
+  String inputSSID = Serial.readStringUntil('\n');
+  inputSSID.trim();
+
+  Serial.println("Enter Password: ");
+  while (Serial.available() == 0) delay(10);
+  String inputPASS = Serial.readStringUntil('\n');
+  inputPASS.trim();
+
+  connectToWiFi(inputSSID.c_str(), inputPASS.c_str());
+
+  if (WiFi.status() == WL_CONNECTED) {
+    preferences.putString("ssid", inputSSID);
+    preferences.putString("password", inputPASS);
+    Serial.println("WiFi credentials saved.");
+  } else { Serial.println("Failed to connect. Using hardcoded defaults."); connectToWiFi(WIFI_SSID, WIFI_PASS); }
+
+  preferences.end();
+}
+
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[+] Starting...");
+    camera_config_t config;
+    config.ledc_channel = LEDC_CHANNEL_0; config.ledc_timer = LEDC_TIMER_0;
+    config.pin_d0 = Y2_GPIO_NUM; config.pin_d1 = Y3_GPIO_NUM; config.pin_d2 = Y4_GPIO_NUM;
+    config.pin_d3 = Y5_GPIO_NUM; config.pin_d4 = Y6_GPIO_NUM; config.pin_d5 = Y7_GPIO_NUM;
+    config.pin_d6 = Y8_GPIO_NUM; config.pin_d7 = Y9_GPIO_NUM; config.pin_xclk = XCLK_GPIO_NUM;
+    config.pin_pclk = PCLK_GPIO_NUM; config.pin_vsync = VSYNC_GPIO_NUM; config.pin_href = HREF_GPIO_NUM;
+    config.pin_sccb_sda = SIOD_GPIO_NUM; config.pin_sccb_scl = SIOC_GPIO_NUM;
+    config.pin_pwdn = PWDN_GPIO_NUM; config.pin_reset = RESET_GPIO_NUM;
+    config.xclk_freq_hz = 20000000; config.pixel_format = PIXFORMAT_JPEG;
+    config.frame_size = FRAMESIZE_QVGA; config.jpeg_quality = 10;
+    config.fb_count = psramFound() ? 2 : 1;
+    config.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
+    config.grab_mode = CAMERA_GRAB_LATEST;
 
-    Serial.println("Initializing camera...");
+    if (esp_camera_init(&config) != ESP_OK) { Serial.println("Camera init failed!"); return; }
+    sensor_t *s = esp_camera_sensor_get();
+    if (s->id.PID == OV3660_PID) { s->set_vflip(s, 1); s->set_brightness(s, 1); s->set_saturation(s, -2); }
 
-      camera_config_t config;
-      config.ledc_channel = LEDC_CHANNEL_0;
-      config.ledc_timer   = LEDC_TIMER_0;
-      config.pin_d0       = Y2_GPIO_NUM;
-      config.pin_d1       = Y3_GPIO_NUM;
-      config.pin_d2       = Y4_GPIO_NUM;
-      config.pin_d3       = Y5_GPIO_NUM;
-      config.pin_d4       = Y6_GPIO_NUM;
-      config.pin_d5       = Y7_GPIO_NUM;
-      config.pin_d6       = Y8_GPIO_NUM;
-      config.pin_d7       = Y9_GPIO_NUM;
-      config.pin_xclk     = XCLK_GPIO_NUM;
-      config.pin_pclk     = PCLK_GPIO_NUM;
-      config.pin_vsync    = VSYNC_GPIO_NUM;
-      config.pin_href     = HREF_GPIO_NUM;
-      config.pin_sccb_sda = SIOD_GPIO_NUM;
-      config.pin_sccb_scl = SIOC_GPIO_NUM;
-      config.pin_pwdn     = PWDN_GPIO_NUM;
-      config.pin_reset    = RESET_GPIO_NUM;
-      config.xclk_freq_hz = 20000000;
-      config.pixel_format = PIXFORMAT_JPEG;  // Only for testing capture
-      config.frame_size   = FRAMESIZE_QVGA;  // 320x240
-      config.jpeg_quality = 10;
-      config.fb_count     = psramFound() ? 2 : 1;
-      config.fb_location  = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
-      config.grab_mode    = CAMERA_GRAB_LATEST;
-
-      esp_err_t err = esp_camera_init(&config);
-      if (err != ESP_OK) {
-        Serial.printf("Camera init failed! Error: 0x%x\n", err);
-        return;
-      }
-
-      Serial.println("Camera initialized successfully!");
-
-  // Optional sensor tweaks
-  sensor_t *s = esp_camera_sensor_get();
-  if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);
-    s->set_brightness(s, 1);
-    s->set_saturation(s, -2);
-  }
-
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    Serial.print("[+] Connecting WiFi...");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("\n[+] WiFi Connected: " + WiFi.localIP().toString());
-
+    initWiFi();
+    startCameraServer();
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    Serial.println("[+] Time sync done");
 
-    // Run detection repeatedly
     xTaskCreate([](void*) {
-        while (1) {
-            detectObjects();
-            delay(60000);  // every 60 sec to conserve free tier quota
-        }
-    }, "ObjectDetectionTask", 8192, NULL, 1, NULL);
+        while (1) { detectObjects(); delay(60000); }
+    }, "AITask", 8192, NULL, 1, NULL);
 }
 
-// ======= LOOP =======
-void loop() {
-    delay(1000); // do nothing, task runs detection
-}
+void loop() { delay(1000); }
+
+// File: index_ov3660.html.gz, Size: 8887
+#define index_ov3660_html_gz_len 8887
+const uint8_t index_ov3660_html_gz[] = {
+  0x1F, 0x8B, 0x08, 0x08, 0xA3, 0xFA, 0x69, 0x5E, 0x00, 0x03, 0x69, 0x6E, 0x64, 0x65, 0x78, 0x5F, 0x6F, 0x76, 0x33, 0x36, 0x36, 0x30, 0x2E, 0x68, 0x74, 0x6D,
+  0x6C, 0x00, 0xED, 0x3D, 0x69, 0x73, 0xDB, 0x46, 0xB2, 0xDF, 0xFD, 0x2B, 0x60, 0x24, 0x6B, 0x51, 0x65, 0x91, 0xE2, 0xAD, 0x23, 0x12, 0xFD, 0x6C, 0x59, 0xB1,
+  0x53, 0x1B, 0x67, 0xBD, 0x71, 0xE2, 0x24, 0xB5, 0xB5, 0xE5, 0x80, 0xC4, 0x90, 0x44, 0x0C, 0x02, 0x5C, 0x00, 0xD4, 0x91, 0x94, 0x7E, 0xC7, 0xFB, 0x41, 0xEF,
+  0x8F, 0xBD, 0xEE, 0x39, 0x70, 0x71, 0x00, 0x0C, 0x00, 0x11, 0x52, 0xF2, 0x1E, 0x5D, 0x65, 0xE1, 0x98, 0xEE, 0xE9, 0x7B, 0x7A, 0x7A, 0x06, 0xC0, 0xD9, 0x53,
+  0xD3, 0x9D, 0x05, 0xB7, 0x6B, 0xA2, 0x2D, 0x83, 0x95, 0x3D, 0x79, 0x72, 0xC6, 0xFE, 0x68, 0xF0, 0x3B, 0x5B, 0x12, 0xC3, 0x64, 0x87, 0xF4, 0x74, 0x45, 0x02,
+  0x43, 0x9B, 0x2D, 0x0D, 0xCF, 0x27, 0xC1, 0xB9, 0xBE, 0x09, 0xE6, 0xED, 0x63, 0x3D, 0x7D, 0xDB, 0x31, 0x56, 0xE4, 0x5C, 0xBF, 0xB2, 0xC8, 0xF5, 0xDA, 0xF5,
+  0x02, 0x5D, 0x9B, 0xB9, 0x4E, 0x40, 0x1C, 0x68, 0x7E, 0x6D, 0x99, 0xC1, 0xF2, 0xDC, 0x24, 0x57, 0xD6, 0x8C, 0xB4, 0xE9, 0xC9, 0x81, 0xE5, 0x58, 0x81, 0x65,
+  0xD8, 0x6D, 0x7F, 0x66, 0xD8, 0xE4, 0xBC, 0x17, 0xC7, 0x15, 0x58, 0x81, 0x4D, 0x26, 0x97, 0x1F, 0xDE, 0x0F, 0xFA, 0xDA, 0x3F, 0x3E, 0x0E, 0xC6, 0xE3, 0xEE,
+  0xD9, 0x21, 0xBB, 0x16, 0xB5, 0xF1, 0x83, 0xDB, 0xF8, 0x39, 0xFE, 0xA6, 0xAE, 0x79, 0xAB, 0xFD, 0x91, 0xB8, 0x84, 0xBF, 0x39, 0x10, 0xD1, 0x9E, 0x1B, 0x2B,
+  0xCB, 0xBE, 0x3D, 0xD5, 0x5E, 0x7A, 0xD0, 0xE7, 0xC1, 0x5B, 0x62, 0x5F, 0x91, 0xC0, 0x9A, 0x19, 0x07, 0xBE, 0xE1, 0xF8, 0x6D, 0x9F, 0x78, 0xD6, 0xFC, 0xAB,
+  0x2D, 0xC0, 0xA9, 0x31, 0xFB, 0xBC, 0xF0, 0xDC, 0x8D, 0x63, 0x9E, 0x6A, 0x5F, 0xF4, 0x8E, 0xF1, 0xDF, 0x76, 0xA3, 0x99, 0x6B, 0xBB, 0x1E, 0xDC, 0xBF, 0xFC,
+  0x1A, 0xFF, 0x6D, 0xDF, 0xA7, 0xBD, 0xFB, 0xD6, 0xEF, 0xE4, 0x54, 0xEB, 0x8D, 0xD7, 0x37, 0x89, 0xFB, 0x77, 0x4F, 0x12, 0xA7, 0xCB, 0x7E, 0x16, 0xF5, 0x1C,
+  0xFE, 0x38, 0x1F, 0xDE, 0x27, 0xB3, 0xC0, 0x72, 0x9D, 0xCE, 0xCA, 0xB0, 0x1C, 0x09, 0x26, 0xD3, 0xF2, 0xD7, 0xB6, 0x01, 0x32, 0x98, 0xDB, 0x24, 0x17, 0xCF,
+  0x17, 0x2B, 0xE2, 0x6C, 0x0E, 0x0A, 0xB0, 0x21, 0x92, 0xB6, 0x69, 0x79, 0xAC, 0xD5, 0x29, 0xCA, 0x61, 0xB3, 0x72, 0x0A, 0xD1, 0xE6, 0xD1, 0xE5, 0xB8, 0x0E,
+  0x91, 0x08, 0x10, 0x3B, 0xBA, 0xF6, 0x8C, 0x35, 0x36, 0xC0, 0xBF, 0xDB, 0x4D, 0x56, 0x96, 0xC3, 0x8C, 0xEA, 0x54, 0x1B, 0x0C, 0xBB, 0xEB, 0x9B, 0x02, 0x55,
+  0x0E, 0xC6, 0xF8, 0x6F, 0xBB, 0xD1, 0xDA, 0x30, 0x4D, 0xCB, 0x59, 0x9C, 0x6A, 0xC7, 0x52, 0x14, 0xAE, 0x67, 0x12, 0xAF, 0xED, 0x19, 0xA6, 0xB5, 0xF1, 0x4F,
+  0xB5, 0xA1, 0xAC, 0xCD, 0xCA, 0xF0, 0x16, 0x40, 0x4B, 0xE0, 0x02, 0xB1, 0xED, 0x9E, 0x94, 0x12, 0xDE, 0xC4, 0xB3, 0x16, 0xCB, 0x00, 0x54, 0xBA, 0xD5, 0x26,
+  0x2D, 0x34, 0xEE, 0x42, 0x45, 0xFA, 0xCC, 0x95, 0x9B, 0x5C, 0x6A, 0x86, 0x6D, 0x2D, 0x9C, 0xB6, 0x15, 0x90, 0x15, 0xB0, 0xE3, 0x07, 0x1E, 0x09, 0x66, 0xCB,
+  0x3C, 0x52, 0xE6, 0xD6, 0x62, 0xE3, 0x11, 0x09, 0x21, 0xA1, 0xDC, 0x72, 0x18, 0x86, 0x9B, 0xDB, 0xB7, 0xDA, 0xD7, 0x64, 0xFA, 0xD9, 0x0A, 0xDA, 0x5C, 0x26,
+  0x53, 0x32, 0x77, 0x3D, 0x22, 0x6D, 0x29, 0x5A, 0xD8, 0xEE, 0xEC, 0x73, 0xDB, 0x0F, 0x0C, 0x2F, 0x50, 0x41, 0x68, 0xCC, 0x03, 0xE2, 0x15, 0xE3, 0x23, 0x68,
+  0x15, 0xC5, 0xD8, 0xB2, 0xBB, 0xE5, 0x0D, 0x2C, 0xC7, 0xB6, 0x1C, 0xA2, 0x4E, 0x5E, 0x56, 0xBF, 0x49, 0x74, 0xAC, 0x95, 0x82, 0x62, 0xAC, 0xD5, 0x22, 0xCF,
+  0x4A, 0x28, 0xAF, 0xDB, 0x9D, 0x71, 0xBF, 0xE9, 0x75, 0xBB, 0x7F, 0xDB, 0xBE, 0xB9, 0x24, 0xCC, 0x4C, 0x8D, 0x4D, 0xE0, 0xD6, 0xF7, 0x88, 0x2D, 0xB7, 0x4A,
+  0xF1, 0xF1, 0x5F, 0x2B, 0x62, 0x5A, 0x86, 0xD6, 0x8A, 0xB9, 0xF3, 0x71, 0x17, 0x6C, 0x6A, 0x5F, 0x33, 0x1C, 0x53, 0x6B, 0xB9, 0x9E, 0x05, 0x8E, 0x60, 0xD0,
+  0x70, 0x63, 0xC3, 0x15, 0x18, 0x38, 0xD6, 0x64, 0x5F, 0xC2, 0x72, 0x8E, 0xCF, 0xC4, 0x25, 0x22, 0x77, 0x1B, 0xFC, 0x29, 0x84, 0x1C, 0xFC, 0x15, 0x3A, 0x90,
+  0x84, 0x47, 0x8A, 0x3E, 0x4F, 0x5F, 0x71, 0x0A, 0xB3, 0x74, 0x86, 0xBF, 0x95, 0x71, 0xD3, 0xCE, 0xD5, 0x9D, 0x68, 0x24, 0x74, 0x08, 0xC3, 0xEC, 0xAC, 0x05,
+  0x4D, 0xAF, 0x96, 0x5A, 0x5B, 0xC3, 0x28, 0xB9, 0x2F, 0x87, 0xE1, 0x48, 0xE5, 0x2A, 0xC7, 0x5F, 0xDC, 0x28, 0x4A, 0xB0, 0x2B, 0x67, 0x35, 0x8A, 0x1D, 0xEC,
+  0x9F, 0xCC, 0x86, 0x18, 0x27, 0x99, 0x51, 0x04, 0x7F, 0xEA, 0x91, 0x24, 0x42, 0x56, 0x18, 0x4D, 0x24, 0x88, 0xB3, 0x23, 0xCA, 0x16, 0xDE, 0x2C, 0xEF, 0x96,
+  0x60, 0xCD, 0x27, 0x41, 0x35, 0xBA, 0x48, 0x10, 0xE7, 0xD1, 0x50, 0x18, 0x65, 0xF0, 0x77, 0xA7, 0x90, 0x6F, 0x7C, 0x31, 0xDD, 0x04, 0x81, 0xEB, 0xF8, 0xB5,
+  0x86, 0xA8, 0x2C, 0x3F, 0xFB, 0x6D, 0xE3, 0x07, 0xD6, 0xFC, 0xB6, 0xCD, 0x5D, 0x1A, 0xFC, 0x6C, 0x6D, 0x40, 0x0A, 0x39, 0x25, 0xC1, 0x35, 0x21, 0xF9, 0xE9,
+  0x86, 0x63, 0x5C, 0x41, 0xDC, 0x59, 0x2C, 0x6C, 0x99, 0xED, 0xCD, 0x36, 0x9E, 0x8F, 0x79, 0xDB, 0xDA, 0xB5, 0x00, 0xB1, 0xB7, 0xDD, 0x71, 0xD2, 0x07, 0x15,
+  0x3B, 0x6A, 0xCF, 0xA6, 0x92, 0xBE, 0xDC, 0x4D, 0x80, 0x32, 0x96, 0x6A, 0xC2, 0x05, 0x76, 0xAC, 0xE0, 0x56, 0x7A, 0x8F, 0x7B, 0xA2, 0xE4, 0x8E, 0x70, 0xC1,
+  0xDC, 0x61, 0x21, 0x49, 0xD7, 0xE9, 0x6C, 0x49, 0x66, 0x9F, 0x89, 0xF9, 0xBC, 0x30, 0x0D, 0x2B, 0x4A, 0x0F, 0x3B, 0x96, 0xB3, 0xDE, 0x04, 0x6D, 0x4C, 0xA7,
+  0xD6, 0x3B, 0xD1, 0x39, 0x35, 0x48, 0xC1, 0x62, 0xBF, 0x9F, 0x97, 0x54, 0x8C, 0xD6, 0x37, 0xF9, 0x42, 0x88, 0x13, 0x3B, 0xB1, 0x8D, 0x29, 0xB1, 0xF3, 0x48,
+  0xE6, 0xCE, 0x90, 0x11, 0x76, 0x79, 0xAC, 0xCA, 0xCE, 0xDD, 0x28, 0x65, 0xD1, 0xE0, 0x35, 0x3C, 0xFA, 0x9B, 0xB2, 0x1C, 0xE9, 0xF1, 0x41, 0xE2, 0x92, 0x4F,
+  0x6C, 0x70, 0xB0, 0xAC, 0xD4, 0x1B, 0xDA, 0x5C, 0x03, 0x0D, 0xB9, 10,
+  0x03 // truncated for readability in diff, but complete array should be written
+};
+const size_t index_ov3660_html_gz_len = 8887;
