@@ -65,6 +65,6 @@ const uint8_t index_ov3660_html_gz[] = {
   0x1A, 0xE7, 0x91, 0x96, 0x59, 0x05, 0xDC, 10, 0x03
 };
 
-const size_t index_ov3660_html_gz_len = 8887;
+const size_t index_ov3660_html_gz_len = sizeof(index_ov3660_html_gz);
 
 #endif
