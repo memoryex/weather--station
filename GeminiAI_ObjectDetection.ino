@@ -257,7 +257,7 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 static esp_err_t index_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_set_header(req, "Content-Encoding", "gzip");
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     return httpd_resp_send(req, (const char *)index_ov3660_html_gz, index_ov3660_html_gz_len);
 }
 
@@ -294,7 +294,7 @@ static esp_err_t status_handler(httpd_req_t *req) {
     *p++ = '}';
     *p++ = 0;
     httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_header(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     return httpd_resp_send(req, json_response, strlen(json_response));
 }
 
@@ -338,7 +338,7 @@ static esp_err_t cmd_handler(httpd_req_t *req) {
         }
         free(buf);
     }
-    httpd_resp_set_header(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     return httpd_resp_send(req, NULL, 0);
 }
 
@@ -346,8 +346,8 @@ static esp_err_t capture_handler(httpd_req_t *req) {
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) { httpd_resp_send_500(req); return ESP_FAIL; }
     httpd_resp_set_type(req, "image/jpeg");
-    httpd_resp_set_header(req, "Content-Disposition", "inline; filename=capture.jpg");
-    httpd_resp_set_header(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
     esp_camera_fb_return(fb);
     return res;
@@ -358,7 +358,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     esp_err_t res = ESP_OK;
     char part_buf[64];
     httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
-    httpd_resp_set_header(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     while (true) {
         fb = esp_camera_fb_get();
         if (!fb) { res = ESP_FAIL; }
