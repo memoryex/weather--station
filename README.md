@@ -1,25 +1,19 @@
-# ESP32-S3 AI Object Detection & Web Management
+# ESP32-S3 AI Object Detection with Gemini 2.0
 
-Šis projektas transformuoja **DFRobot ESP32-S3 AI Camera** modulį į išmanią objektų atpažinimo sistemą su integruotu įgarsinimu ir nuotoliniu valdymu.
+Šis projektas naudoja **DFRobot ESP32-S3 AI Camera (v1.1)** modulį kartu su **Gemini 2.0 Flash API**, kad atpažintų objektus (žmones, automobilius) ir siųstų informaciją į **Firestore RTDB**.
 
-## 🚀 Funkcijos
-- **AI Objektų Atpažinimas**: Naudoja *Gemini 1.5 Flash API* analizuoti vaizdus kas 60 sekundžių. Sistema atpažįsta žmones, automobilius ir kitus objektus.
-- **Lietuviškas Įgarsinimas (TTS)**: Atpažinti objektai įgarsinami aiškia lietuvių kalba per integruotą garsiakalbį.
-- **Web Valdymo Pultas**: Per įrenginio IP adresą pasiekiamas puslapis, leidžiantis tiesiogiai stebėti vaizdą ir derinti kameros parametrus (ryškumą, kontrastą, pasukimą ir kt.).
-- **Debesų Sinchronizacija**: Visi aptikimai (aprašymas, laikas, nuotrauka Base64 formatu) automatiškai siunčiami į *Firestore Realtime Database*.
-- **Išmanus WiFi Valdymas**: Įsimena tinklo nustatymus, o nepavykus prisijungti – leidžia įvesti naujus duomenis per Serial Monitor.
+## Funkcijos
+- **Objektų atpažinimas:** Atpažįsta žmones (SIGNAL:1) ir automobilius (SIGNAL:2) naudojant Gemini AI.
+- **Valdymo pultas:** Valdymo sąsaja per naršyklę (Port 80) ir MJPEG vaizdo srautas (Port 81).
+- **Periferija:** Naudoja LTR-308 šviesos sensorių, MAX98357A garsiakalbį (I2S) ir Flash LED.
+- **Lietuviškas palaikymas:** AI aprašymai ir atsakymai pateikiami lietuvių kalba.
 
-## 🛠 Įranga
-- **Modulis**: DFRobot DFR1154 ESP32-S3 AI CAM (v1.1).
-- **Sensorius**: OV3660 (3MP kamera).
-- **Audio**: MAX98357 I2S stiprintuvas su garsiakalbiu.
-- **Papildomai**: Integruotas LED blykstė ir šviesos sensorius.
+## Failų Struktūra
+- `GeminiAI_ObjectDetection.ino`: Pagrindinis programos kodas (WiFi, AI logika, Serveris, I2S).
+- `camera_index.h`: Naršyklės sąsajos HTML kodas (suglaudintas GZIP formatu).
 
-## 💻 Galimybės ir Valdymas
-Per Serial Monitor galima valdyti sistemą šiomis komandomis:
-- `start`: Pradėti automatinį AI stebėjimą.
-- `stop`: Sustabdyti AI stebėjimą (lieka tik web serveris).
-- `test`: Atlikti pilną įrangos savidiagnostiką (LED, garsiakalbis, kamera).
-- `list`: Patikrinti Gemini API prieinamus modelius.
-
-Projektas sukurtas efektyviam stebėjimui, užtikrinant stabilų vaizdo srautą (MJPEG) ir greitą AI reakciją.
+## Naudojimas
+1. Įkelkite abu failus į Arduino IDE.
+2. Pasirinkite plokštę: `DFRobot FireBeetle 2 ESP32-S3`.
+3. Nustatymai: USB CDC "Enabled", PSRAM "OPI PSRAM", Flash "16MB".
+4. Serijiniame monituje įrašykite `start`, kad pradėtumėte AI analizę.
