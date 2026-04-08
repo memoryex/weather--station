@@ -68,7 +68,6 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 // ======= UTILITIES =======
 const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
 String base64_encode(const uint8_t* data, size_t length) {
     String encoded = "";
     int i = 0; uint8_t array_3[3], array_4[4];
@@ -132,7 +131,8 @@ void sendDataToFirebase(const String& desc, const String& dateTime, const String
     fields["image"]["stringValue"] = imageBase64;
     fields["signal"]["integerValue"] = String(signal);
     String payload; serializeJson(doc, payload);
-    http.POST(payload); http.end();
+    int httpCode = http.POST(payload);
+    http.end();
 }
 
 int parseSignal(String text) {
@@ -159,10 +159,11 @@ void initI2S() {
         .bck_io_num = I2S_BCLK, .ws_io_num = I2S_LRCK,
         .data_out_num = I2S_DATA, .data_in_num = I2S_PIN_NO_CHANGE
     };
-    i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
-    i2s_set_pin(I2S_NUM_0, &pin_config);
-    i2s_zero_dma_buffer(I2S_NUM_0);
-    i2s_stop(I2S_NUM_0);
+    if (i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL) == ESP_OK) {
+        i2s_set_pin(I2S_NUM_0, &pin_config);
+        i2s_zero_dma_buffer(I2S_NUM_0);
+        i2s_stop(I2S_NUM_0);
+    }
 }
 
 void speakText(String text) {
@@ -238,97 +239,6 @@ static esp_err_t index_handler(httpd_req_t *req) {
     return httpd_resp_send(req, (const char *)index_ov3660_html_gz, index_ov3660_html_gz_len);
 }
 
-static esp_err_t status_handler(httpd_req_t *req) {
-    static char json_response[1024];
-    sensor_t *s = esp_camera_sensor_get();
-    char *p = json_response;
-    *p++ = '{';
-    p += sprintf(p, "\"framesize\":%u,", s->status.framesize);
-    p += sprintf(p, "\"quality\":%u,", s->status.quality);
-    p += sprintf(p, "\"brightness\":%d,", s->status.brightness);
-    p += sprintf(p, "\"contrast\":%d,", s->status.contrast);
-    p += sprintf(p, "\"saturation\":%d,", s->status.saturation);
-    p += sprintf(p, "\"sharpness\":%d,", s->status.sharpness);
-    p += sprintf(p, "\"special_effect\":%u,", s->status.special_effect);
-    p += sprintf(p, "\"wb_mode\":%u,", s->status.wb_mode);
-    p += sprintf(p, "\"awb\":%u,", s->status.awb);
-    p += sprintf(p, "\"awb_gain\":%u,", s->status.awb_gain);
-    p += sprintf(p, "\"aec\":%u,", s->status.aec);
-    p += sprintf(p, "\"aec2\":%u,", s->status.aec2);
-    p += sprintf(p, "\"ae_level\":%d,", s->status.ae_level);
-    p += sprintf(p, "\"aec_value\":%u,", s->status.aec_value);
-    p += sprintf(p, "\"agc\":%u,", s->status.agc);
-    p += sprintf(p, "\"agc_gain\":%u,", s->status.agc_gain);
-    p += sprintf(p, "\"gainceiling\":%u,", s->status.gainceiling);
-    p += sprintf(p, "\"bpc\":%u,", s->status.bpc);
-    p += sprintf(p, "\"wpc\":%u,", s->status.wpc);
-    p += sprintf(p, "\"raw_gma\":%u,", s->status.raw_gma);
-    p += sprintf(p, "\"lenc\":%u,", s->status.lenc);
-    p += sprintf(p, "\"vflip\":%u,", s->status.vflip);
-    p += sprintf(p, "\"hmirror\":%u,", s->status.hmirror);
-    p += sprintf(p, "\"dcw\":%u,", s->status.dcw);
-    p += sprintf(p, "\"colorbar\":%u", s->status.colorbar);
-    *p++ = '}';
-    *p++ = 0;
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-    return httpd_resp_send(req, json_response, strlen(json_response));
-}
-
-static esp_err_t cmd_handler(httpd_req_t *req) {
-    char *buf = NULL;
-    size_t buf_len = httpd_req_get_url_query_len(req) + 1;
-    if (buf_len > 1) {
-        buf = (char *)malloc(buf_len);
-        if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-            char var[32], val[32];
-            if (httpd_query_key_value(buf, "var", var, sizeof(var)) == ESP_OK &&
-                httpd_query_key_value(buf, "val", val, sizeof(val)) == ESP_OK) {
-                int value = atoi(val);
-                sensor_t *s = esp_camera_sensor_get();
-                if (!strcmp(var, "framesize")) s->set_framesize(s, (framesize_t)value);
-                else if (!strcmp(var, "quality")) s->set_quality(s, value);
-                else if (!strcmp(var, "contrast")) s->set_contrast(s, value);
-                else if (!strcmp(var, "brightness")) s->set_brightness(s, value);
-                else if (!strcmp(var, "saturation")) s->set_saturation(s, value);
-                else if (!strcmp(var, "gainceiling")) s->set_gainceiling(s, (gainceiling_t)value);
-                else if (!strcmp(var, "colorbar")) s->set_colorbar(s, value);
-                else if (!strcmp(var, "awb")) s->set_whitebal(s, value);
-                else if (!strcmp(var, "agc")) s->set_gain_ctrl(s, value);
-                else if (!strcmp(var, "aec")) s->set_exposure_ctrl(s, value);
-                else if (!strcmp(var, "hmirror")) s->set_hmirror(s, value);
-                else if (!strcmp(var, "vflip")) s->set_vflip(s, value);
-                else if (!strcmp(var, "awb_gain")) s->set_awb_gain(s, value);
-                else if (!strcmp(var, "agc_gain")) s->set_agc_gain(s, value);
-                else if (!strcmp(var, "aec_value")) s->set_aec_value(s, value);
-                else if (!strcmp(var, "aec2")) s->set_aec2(s, value);
-                else if (!strcmp(var, "dcw")) s->set_dcw(s, value);
-                else if (!strcmp(var, "bpc")) s->set_bpc(s, value);
-                else if (!strcmp(var, "wpc")) s->set_wpc(s, value);
-                else if (!strcmp(var, "raw_gma")) s->set_raw_gma(s, value);
-                else if (!strcmp(var, "lenc")) s->set_lenc(s, value);
-                else if (!strcmp(var, "special_effect")) s->set_special_effect(s, value);
-                else if (!strcmp(var, "wb_mode")) s->set_wb_mode(s, value);
-                else if (!strcmp(var, "ae_level")) s->set_ae_level(s, value);
-            }
-        }
-        free(buf);
-    }
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-    return httpd_resp_send(req, NULL, 0);
-}
-
-static esp_err_t capture_handler(httpd_req_t *req) {
-    camera_fb_t *fb = esp_camera_fb_get();
-    if (!fb) { httpd_resp_send_500(req); return ESP_FAIL; }
-    httpd_resp_set_type(req, "image/jpeg");
-    httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-    esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
-    esp_camera_fb_return(fb);
-    return res;
-}
-
 static esp_err_t stream_handler(httpd_req_t *req) {
     camera_fb_t *fb = NULL; char part_buf[64];
     httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
@@ -348,14 +258,8 @@ void startServer() {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80; config.ctrl_port = 32768;
     httpd_uri_t index_uri = { .uri = "/", .method = HTTP_GET, .handler = index_handler };
-    httpd_uri_t status_uri = { .uri = "/status", .method = HTTP_GET, .handler = status_handler };
-    httpd_uri_t cmd_uri = { .uri = "/control", .method = HTTP_GET, .handler = cmd_handler };
-    httpd_uri_t capture_uri = { .uri = "/capture", .method = HTTP_GET, .handler = capture_handler };
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
-        httpd_register_uri_handler(camera_httpd, &status_uri);
-        httpd_register_uri_handler(camera_httpd, &cmd_uri);
-        httpd_register_uri_handler(camera_httpd, &capture_uri);
     }
     config.server_port = 81; config.ctrl_port = 32769;
     httpd_uri_t stream_uri = { .uri = "/stream", .method = HTTP_GET, .handler = stream_handler };
@@ -366,8 +270,12 @@ void startServer() {
 
 // ======= SYSTEM =======
 void setup() {
-    Serial.begin(115200); pinMode(MIC_LED_PIN, OUTPUT);
+    delay(2000); // Wait for Power Stability
+    Serial.begin(115200);
+    Serial.println("\n[System] Booting...");
+    pinMode(MIC_LED_PIN, OUTPUT);
     Wire.begin(SIOD_GPIO_NUM, SIOC_GPIO_NUM);
+
     camera_config_t cfg;
     cfg.ledc_channel = LEDC_CHANNEL_0; cfg.ledc_timer = LEDC_TIMER_0;
     cfg.pin_d0 = Y2_GPIO_NUM; cfg.pin_d1 = Y3_GPIO_NUM; cfg.pin_d2 = Y4_GPIO_NUM;
@@ -379,15 +287,22 @@ void setup() {
     cfg.xclk_freq_hz = 20000000; cfg.pixel_format = PIXFORMAT_JPEG;
     cfg.frame_size = FRAMESIZE_QVGA; cfg.jpeg_quality = 12; cfg.fb_count = 2;
     cfg.fb_location = CAMERA_FB_IN_PSRAM; cfg.grab_mode = CAMERA_GRAB_LATEST;
+
     if (esp_camera_init(&cfg) == ESP_OK) {
+        Serial.println("[Camera] Initialized.");
         sensor_t *s = esp_camera_sensor_get();
         if (s->id.PID == OV3660_PID) { s->set_vflip(s, 1); s->set_brightness(s, 1); }
+    } else {
+        Serial.println("[Camera] FAILED.");
     }
+
     initI2S();
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+    Serial.println("\n[WiFi] Connected.");
     startServer();
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
     xTaskCreate([](void*) {
         while (1) { if (isStarted) detectObjects(); delay(60000); }
     }, "AI", 8192, NULL, 1, NULL);
@@ -396,8 +311,8 @@ void setup() {
 void loop() {
     if (Serial.available()) {
         String in = Serial.readStringUntil('\n'); in.trim();
-        if (in.equalsIgnoreCase("start")) isStarted = true;
-        else if (in.equalsIgnoreCase("stop")) isStarted = false;
+        if (in.equalsIgnoreCase("start")) { isStarted = true; Serial.println("AI STARTED"); }
+        else if (in.equalsIgnoreCase("stop")) { isStarted = false; Serial.println("AI STOPPED"); }
         else if (in.equalsIgnoreCase("test")) {
             Serial.printf("Lux: %u\n", readLux());
             digitalWrite(MIC_LED_PIN, HIGH); delay(500); digitalWrite(MIC_LED_PIN, LOW);
