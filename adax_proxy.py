@@ -28,7 +28,7 @@ import re
 
 def parse_php_var_dump(content):
     # Pattern to find the array(5) blocks which represent individual records
-    record_pattern = re.compile(r'array\(5\)\s*\{([^}]+)\}', re.DOTALL)
+    record_pattern = re.compile(r'array\(\d+\)\s*\{([^}]+)\}', re.DOTALL)
 
     # Patterns for fields within a record
     field_patterns = {

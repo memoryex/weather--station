@@ -836,7 +836,7 @@ async function getAdaxData(lid) {
                 try {
                     const results = [];
                     // Simple JS implementation of the PHP var_dump parser
-                    const recordRegex = /array\(5\)\s*\{([^}]+)\}/g;
+                    const recordRegex = /array\(\d+\)\s*\{([^}]+)\}/g;
                     const fieldPatterns = {
                         "Produktas": /\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"/,
                         "Linija": /\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"/,
@@ -856,7 +856,7 @@ async function getAdaxData(lid) {
                             }
                         }
                         if (Object.keys(recordData).length > 0) {
-                            results.append ? results.append(recordData) : results.push(recordData);
+                            results.push(recordData);
                         }
                     }
                     if (results.length > 0) return results;
