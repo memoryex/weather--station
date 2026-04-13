@@ -102,22 +102,31 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
                 self.send_header('Content-Type', ctype)
                 self.end_headers()
                 self.wfile.write(content)
+        except (ConnectionAbortedError, BrokenPipeError):
+            # Client closed the connection prematurely, ignore
+            pass
         except Exception as e:
             # print(f"Error proxying request: {e}")
-            self.send_response(500)
-            self.send_cors_headers()
-            self.end_headers()
-            self.wfile.write(str(e).encode())
+            try:
+                self.send_response(500)
+                self.send_cors_headers()
+                self.end_headers()
+                self.wfile.write(str(e).encode())
+            except (ConnectionAbortedError, BrokenPipeError):
+                pass
 
     def send_aggregated_data(self):
-        with cache_lock:
-            response_json = json.dumps(adax_cache)
+        try:
+            with cache_lock:
+                response_json = json.dumps(adax_cache)
 
-        self.send_response(200)
-        self.send_cors_headers()
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(response_json.encode())
+            self.send_response(200)
+            self.send_cors_headers()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(response_json.encode())
+        except (ConnectionAbortedError, BrokenPipeError):
+            pass
 
     def send_cors_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -133,13 +142,21 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         # Quiet mode for proxy logs
         return
 
+class AdaxProxyServer(http.server.HTTPServer):
+    def handle_error(self, request, client_address):
+        # Suppress ConnectionAbortedError tracebacks in console
+        exc_type, exc_value, _ = sys.exc_info()
+        if exc_type in [ConnectionAbortedError, BrokenPipeError]:
+            return
+        super().handle_error(request, client_address)
+
 if __name__ == "__main__":
     # Start background fetcher thread
     fetcher_thread = threading.Thread(target=background_fetcher, daemon=True)
     fetcher_thread.start()
 
     try:
-        server = http.server.HTTPServer(('127.0.0.1', PORT), ProxyHandler)
+        server = AdaxProxyServer(('127.0.0.1', PORT), ProxyHandler)
         print("========================================")
         print(f" ADAX Proxy + Aggregator started on port {PORT}")
         print("========================================")
