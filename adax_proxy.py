@@ -24,6 +24,34 @@ adax_cache = {
     "lines": {lid: {"data": None, "error": "Laukiama duomenų...", "timestamp": None} for lid in ADAX_LIDS}
 }
 
+import re
+
+def parse_php_var_dump(content):
+    # Pattern to find the array(5) blocks which represent individual records
+    record_pattern = re.compile(r'array\(5\)\s*\{([^}]+)\}', re.DOTALL)
+
+    # Patterns for fields within a record
+    field_patterns = {
+        "Produktas": re.compile(r'\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"'),
+        "Linija": re.compile(r'\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"'),
+        "PusgaminioNr": re.compile(r'\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"'),
+        "TestavimoLaikas": re.compile(r'\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"'),
+        "NuskanavimoLaikas": re.compile(r'\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"')
+    }
+
+    results = []
+    for record_match in record_pattern.finditer(content):
+        record_text = record_match.group(1)
+        record_data = {}
+        for field, pattern in field_patterns.items():
+            field_match = pattern.search(record_text)
+            if field_match:
+                record_data[field] = field_match.group(1).strip()
+
+        if record_data:
+            results.append(record_data)
+    return results
+
 def fetch_adax_data(lid):
     url = f"{ADAX_BASE_URL}?lid={lid}&group=1"
     try:
@@ -32,10 +60,9 @@ def fetch_adax_data(lid):
         with urllib.request.urlopen(req, timeout=15) as response:
             content = response.read().decode('utf-8', errors='ignore')
 
-            # Heuristic JSON parsing (similar to frontend logic)
-            # Try to find the outmost valid JSON array
+            # 1. Try standard JSON parsing
             start = content.find('[')
-            end = content.lastIndexOf(']') if hasattr(content, 'lastIndexOf') else content.rfind(']')
+            end = content.rfind(']')
 
             if start != -1 and end > start:
                 json_str = content[start:end+1]
@@ -43,8 +70,15 @@ def fetch_adax_data(lid):
                     data = json.loads(json_str)
                     return data, None
                 except json.JSONDecodeError:
-                    return None, "JSON parse error"
-            return None, "No valid JSON found in response"
+                    pass
+
+            # 2. Try PHP var_dump parsing
+            if "array(" in content:
+                data = parse_php_var_dump(content)
+                if data:
+                    return data, None
+
+            return None, "No valid JSON or var_dump found in response"
     except socket.timeout:
         return None, "Timeout (15s)"
     except Exception as e:

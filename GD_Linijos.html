@@ -829,12 +829,43 @@ async function getAdaxData(lid) {
             return JSON.parse(text);
         } catch(e) {
             // Case 2: PHP var_dump or warnings mixed with JSON
-            console.warn(`ADAX API lid=${lid} direct JSON parse failed, trying heuristic.`, text.substring(0, 200));
+            console.warn(`ADAX API lid=${lid} direct JSON parse failed, trying heuristics and PHP var_dump parser.`, text.substring(0, 200));
 
-            // Heuristic: Find the OUTMOST valid JSON structure (array or object)
-            // We search for the first and last pair, then verify with JSON.parse.
+            // Priority 1: Check if it's a PHP var_dump (as seen in screenshots)
+            if (text.includes("array(")) {
+                try {
+                    const results = [];
+                    // Simple JS implementation of the PHP var_dump parser
+                    const recordRegex = /array\(5\)\s*\{([^}]+)\}/g;
+                    const fieldPatterns = {
+                        "Produktas": /\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"/,
+                        "Linija": /\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"/,
+                        "PusgaminioNr": /\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"/,
+                        "TestavimoLaikas": /\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"/,
+                        "NuskanavimoLaikas": /\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"/
+                    };
 
-            // Priority 1: Arrays (common for lists)
+                    let match;
+                    while ((match = recordRegex.exec(text)) !== null) {
+                        const recordText = match[1];
+                        const recordData = {};
+                        for (const field in fieldPatterns) {
+                            const fieldMatch = recordText.match(fieldPatterns[field]);
+                            if (fieldMatch) {
+                                recordData[field] = fieldMatch[1].trim();
+                            }
+                        }
+                        if (Object.keys(recordData).length > 0) {
+                            results.append ? results.append(recordData) : results.push(recordData);
+                        }
+                    }
+                    if (results.length > 0) return results;
+                } catch (err) {
+                    console.error("PHP var_dump parser error:", err);
+                }
+            }
+
+            // Priority 2: Heuristic: Find the OUTMOST valid JSON structure (array or object)
             let startB = text.indexOf('[');
             let endB = text.lastIndexOf(']');
             if (startB !== -1 && endB > startB) {
@@ -843,7 +874,6 @@ async function getAdaxData(lid) {
                 } catch(err) {}
             }
 
-            // Priority 2: Objects (common for keyed data)
             let startBr = text.indexOf('{');
             let endBr = text.lastIndexOf('}');
             if (startBr !== -1 && endBr > startBr) {
@@ -852,22 +882,7 @@ async function getAdaxData(lid) {
                 } catch(err) {}
             }
 
-            // Fallback: search backwards for smaller valid blocks if outmost fails
-            let lastBracket = text.lastIndexOf(']');
-            if (lastBracket !== -1) {
-                let balance = 0;
-                for (let i = lastBracket; i >= 0; i--) {
-                    if (text[i] === ']') balance++;
-                    else if (text[i] === '[') balance--;
-                    if (balance === 0) {
-                        try {
-                            return JSON.parse(text.substring(i, lastBracket + 1));
-                        } catch (err) {}
-                    }
-                }
-            }
-
-            throw "Nerasta JSON atsakyme po euristinės paieškos";
+            throw "Nerasta JSON arba var_dump atsakyme";
         }
     } catch(e) {
         console.error(`ADAX API Fetch error for lid=${lid}:`, e);
