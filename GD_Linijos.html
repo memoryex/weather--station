@@ -2,7 +2,7 @@
 <html lang="lt">
 <head>
 <meta charset="UTF-8" />
-<title>GD Linijos – Ataskaita ir Statusas</title>
+<title>GD ir ADAX linijos – Ataskaita ir Statusas</title>
 <style>
   /* --- VARIABLES & THEME --- */
   :root {
@@ -211,7 +211,7 @@
 
 <!-- TAB NAVIGATION -->
 <div class="tab-nav">
-  <button class="tab-btn active" onclick="openTab('status')">GD linijų statusas</button>
+  <button class="tab-btn active" onclick="openTab('status')">GD ir ADAX linijų statusas</button>
   <button class="tab-btn" onclick="openTab('visual')">Vizualizacija</button>
   <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
   <button class="tab-btn" onclick="openTab('ai')">Įžvalgos(beta)</button>
@@ -220,7 +220,7 @@
 
 <!-- ========================= TAB: STATUSAS ========================= -->
 <div id="tab-status" class="tab-pane active">
-  <h1>GD linijų būsena</h1>
+  <h1>GD ir ADAX linijų būsena</h1>
 
   <div id="summaryBox">Bendras pagamintas kiekis: …</div>
   <div id="timerBox">Kitas atnaujinimas po: …</div>
@@ -235,25 +235,6 @@
       </select>
     </div>
     <div id="statusMapInfo" class="msg"></div>
-    <button class="action-btn" onclick="toggleAdaxSettings()" style="background:#666; padding:6px 12px;">⚙️ ADAX Nustatymai</button>
-
-    <div id="adaxDiagnostic" class="msg" style="color:#ffa726; display:none; border:1px solid #ffa726; padding:15px; border-radius:8px; margin:15px auto; width:95%; max-width:800px; background:rgba(255,167,38,0.05);">
-        <div style="font-weight:bold; margin-bottom:10px;">⚠️ ADAX Ryšio Diagnostika</div>
-        ADAX duomenys gali būti blokuojami dėl naršyklės saugumo ribojimų (CORS arba Mixed Content), nes dashboardas veikia per HTTPS, o API per HTTP. <br/>
-        <b>Sprendimas:</b>
-        <ol style="text-align:left; margin:5px 0 0 20px;">
-            <li>Atsisiųskite ir paleiskite <code>adax_proxy.py</code> (Python).</li>
-            <li>Nustatymų laukelyje žemiau įveskite: <code>http://localhost:8081/?url=</code></li>
-        </ol>
-        <div style="margin-top:15px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <label>ADAX Proxy URL:</label>
-            <input id="proxySetting" type="text" class="report-input" style="width:300px;" placeholder="http://localhost:8081/?url=">
-            <button class="action-btn" onclick="saveProxy()">Išsaugoti</button>
-            <button class="action-btn" onclick="resetProxy()" style="background:#6c757d;">Reset</button>
-            <button class="action-btn" onclick="testProxy()" style="background:#28a745;">Testuoti Proxy</button>
-        </div>
-        <div id="proxyTestResult" style="margin-top:8px; font-size:12px; min-height:14px;"></div>
-    </div>
   </div>
 
   <table>
@@ -261,14 +242,13 @@
     <tr>
       <th>Linija</th>
       <th>Pagaminta vnt.</th>
-      <th>Gaminys</th>
+      <th>Užsakymo nr.</th>
       <th>Gaminio pavadinimas</th>
       <th>Gaminio testavimo pradžia</th>
       <th>Paskutinis užfiksavimas</th>
       <th>Linijos būsena</th>
       <th>Tarpas tarp testų</th>
       <th>Greitis (vnt/val.)</th>
-      <th>Įrankiai</th>
     </tr>
     </thead>
     <tbody id="data"></tbody>
@@ -412,7 +392,7 @@
 
 <!-- ========================= TAB: ATASKAITA ========================= -->
 <div id="tab-report" class="tab-pane">
-  <h1>GD linijų – Istorijos ataskaita</h1>
+  <h1>GD ir ADAX linijų – Istorijos ataskaita</h1>
   <div class="wrap">
     <div class="card">
       <div class="report-grid">
@@ -683,7 +663,7 @@ function toggleTheme(e) {
 const pad2 = n => String(n).padStart(2,'0');
 
 async function fetchWithTimeout(resource, options = {}) {
-  const { timeout = 5000 } = options;
+  const { timeout = 15000 } = options;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
@@ -692,6 +672,11 @@ async function fetchWithTimeout(resource, options = {}) {
       signal: controller.signal
     });
     return response;
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      console.warn(`Fetch to ${resource} timed out after ${timeout}ms`);
+    }
+    throw e;
   } finally {
     clearTimeout(id);
   }
@@ -927,68 +912,91 @@ function buildAdaxSegments(data, from, to, tz) {
     const fTs = from instanceof Date ? from.getTime() : (new Date(from)).getTime();
     const tTs = to instanceof Date ? to.getTime() : (new Date(to)).getTime();
 
-    // Map any flat array to a grouped-like structure to reuse logic
-    const groupedData = Array.isArray(data) ? { "all": data } : data;
-
-    for (let prodCode in groupedData) {
-        const records = groupedData[prodCode];
-        if (!Array.isArray(records)) continue;
-
-        const filtered = records.map(normalizeAdaxRecord).filter(r => {
-            if (!r.TestavimoLaikas || typeof r.TestavimoLaikas !== 'string') return false;
-            const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
-            return t >= fTs && t <= tTs;
-        });
-
-        if (filtered.length === 0) continue;
-
-        filtered.sort((a, b) => (parseInt(a.PusgaminioNr) || 0) - (parseInt(b.PusgaminioNr) || 0));
-
-        let batchStartI = 0;
-        for (let i = 1; i < filtered.length; i++) {
-            const curN = parseInt(filtered[i].PusgaminioNr) || 0;
-            const prevN = parseInt(filtered[i-1].PusgaminioNr) || 0;
-            if (curN < prevN) {
-                processBatch(filtered.slice(batchStartI, i));
-                batchStartI = i;
+    // Flatten all records from grouped or array structure
+    let allRecords = [];
+    if (Array.isArray(data)) {
+        allRecords = data.map(normalizeAdaxRecord);
+    } else if (typeof data === 'object' && data !== null) {
+        for (let prod in data) {
+            if (Array.isArray(data[prod])) {
+                allRecords.push(...data[prod].map(normalizeAdaxRecord));
             }
         }
-        processBatch(filtered.slice(batchStartI));
+    }
 
-        function processBatch(batch) {
-            if (batch.length === 0) return;
-            batch.sort((a, b) => {
-                const da = (a.TestavimoLaikas && typeof a.TestavimoLaikas === 'string') ? new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
-                const db = (b.TestavimoLaikas && typeof b.TestavimoLaikas === 'string') ? new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
-                return da - db;
-            });
+    // Filter by time window and sort chronologically
+    const filtered = allRecords.filter(r => {
+        if (!r.TestavimoLaikas || typeof r.TestavimoLaikas !== 'string') return false;
+        // Exclude test codes
+        if (r.Produktas === '222222' || r.Produktas === '333333') return false;
+        // Robust date parsing for "YYYY-MM-DD HH:MM:SS"
+        const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
+        return t >= fTs && t <= tTs;
+    }).sort((a, b) => {
+        const da = new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime();
+        const db = new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime();
+        return da - db;
+    });
 
-            const r0 = batch[0];
-            const rN = batch[batch.length - 1];
-            const sTs = (r0.NuskanavimoLaikas && typeof r0.NuskanavimoLaikas === 'string') ? new Date(r0.NuskanavimoLaikas.replace(' ', 'T')).getTime() : 0;
-            const eTs = (rN.TestavimoLaikas && typeof rN.TestavimoLaikas === 'string') ? new Date(rN.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+    if (filtered.length === 0) return segs;
 
-            if (sTs === 0 || eTs === 0) return;
+    let batchStartI = 0;
+    for (let i = 1; i < filtered.length; i++) {
+        const curr = filtered[i];
+        const prev = filtered[i-1];
 
-            const units = (parseInt(rN.PusgaminioNr) || 0) - (parseInt(r0.PusgaminioNr) || 0) + 1;
-            const barcode = rN.Produktas.trim();
-            const code = normalizeCode(barcode);
-            const product = PRODUCT_MAP.get(code) || "";
-            const durationMs = eTs - sTs;
-            const avg = (durationMs > 0) ? (units / (durationMs / 3600000)) : 0;
+        const curN = parseInt(curr.PusgaminioNr) || 0;
+        const prevN = parseInt(prev.PusgaminioNr) || 0;
+        const curProd = (curr.Produktas || "").trim();
+        const prevProd = (prev.Produktas || "").trim();
 
-            segs.push({
-                barcode, product, units, avg, startTs: sTs, endTs: eTs,
-                startLT: toLTString(new Date(sTs).toISOString(), tz),
-                endLT: toLTString(new Date(eTs).toISOString(), tz),
-                barcodeTime: toLTString(new Date(sTs).toISOString(), tz),
-                duration: formatDuration(durationMs),
-                start: toLTString(new Date(sTs).toISOString(), tz),
-                end: toLTString(new Date(eTs).toISOString(), tz)
-            });
+        // Batch end conditions: Product changes OR counter resets
+        if (curProd !== prevProd || curN < prevN) {
+            processBatch(filtered.slice(batchStartI, i));
+            batchStartI = i;
         }
     }
-    return segs.sort((a,b) => a.startTs - b.startTs);
+    processBatch(filtered.slice(batchStartI));
+
+    function processBatch(batch) {
+        if (batch.length === 0) return;
+
+        const r0 = batch[0];
+        const rN = batch[batch.length - 1];
+
+        // Use TestavimoLaikas for end, and NuskanavimoLaikas or TestavimoLaikas for start
+        let eTs = new Date(rN.TestavimoLaikas.replace(' ', 'T')).getTime();
+        let sTs = (r0.NuskanavimoLaikas && typeof r0.NuskanavimoLaikas === 'string')
+            ? new Date(r0.NuskanavimoLaikas.replace(' ', 'T')).getTime()
+            : new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
+
+        if (isNaN(sTs)) sTs = new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
+        if (isNaN(eTs) || isNaN(sTs)) return;
+
+        const units = (parseInt(rN.PusgaminioNr) || 0) - (parseInt(r0.PusgaminioNr) || 0) + 1;
+        if (units <= 0) return;
+
+        const barcode = (rN.Produktas || "Unknown").trim();
+        const code = normalizeCode(barcode);
+        const product = PRODUCT_MAP.get(code) || "";
+        const durationMs = eTs - sTs;
+        const avg = (durationMs > 0) ? (units / (durationMs / 3600000)) : 0;
+
+        const startIso = new Date(sTs).toISOString();
+        const endIso = new Date(eTs).toISOString();
+
+        segs.push({
+            barcode, product, units, avg,
+            startTs: sTs, endTs: eTs,
+            startLT: toLTString(startIso, tz),
+            endLT: toLTString(endIso, tz),
+            barcodeTime: toLTString(startIso, tz),
+            duration: formatDuration(durationMs),
+            start: toLTString(startIso, tz),
+            end: toLTString(endIso, tz)
+        });
+    }
+    return segs;
 }
 
 /* ===================== SHARED FILE LOADER ===================== */
@@ -1155,95 +1163,10 @@ function renderVizPlaceholder(id, name, type) {
         return null;
     }
 
-    window.toggleAdaxSettings = function() {
-        const el = document.getElementById('adaxDiagnostic');
-        if (el) el.style.display = (el.style.display === 'none') ? 'block' : 'none';
-    };
-
-    window.resetProxy = function() {
-        const def = 'http://localhost:8081/?url=';
-        document.getElementById('proxySetting').value = def;
-        saveProxy();
-    };
-
-    window.saveProxy = function() {
-        let val = document.getElementById('proxySetting').value.trim();
-
-        // Aggressive cleanup: if user pasted the whole target URL, extract base proxy
-        if (val.includes('10.12.24.51')) {
-            val = val.split('http://10.12.24.51')[0];
-        }
-
-        // Ensure base proxy ends correctly
-        if (val && !val.includes('?url=')) {
-            val = val.split('?')[0] + '?url=';
-        }
-
-        // Ensure no leftover target params in the proxy setting itself
-        val = val.replace(/([?&])lid=\d+(&|$)/, '$1').replace(/([?&])group=\d+(&|$)/, '$1');
-        if (val.endsWith('?') || val.endsWith('&')) val += 'url=';
-        if (val.includes('url=') && !val.endsWith('=')) val = val.split('url=')[0] + 'url=';
-
-        document.getElementById('proxySetting').value = val;
-        localStorage.setItem('adax_proxy', val);
-        window.ADAX_PROXY = val;
-        const res = document.getElementById('proxyTestResult');
-        if(res) {
-            res.innerText = "Išsaugota. Atnaujinama...";
-            res.style.color = "#00d67a";
-        }
-        window.refresh();
-    };
-
-    window.testProxy = async function() {
-        const val = document.getElementById('proxySetting').value.trim();
-        const res = document.getElementById('proxyTestResult');
-        if(!val) {
-            res.innerText = "Klaida: Proxy URL tuščias";
-            res.style.color = "#ff5252";
-            return;
-        }
-        res.innerText = "Tikrinama...";
-        res.style.color = "#ffa726";
-
-        try {
-            const testUrl = val + encodeURIComponent("http://10.12.24.51:8088/api/index.php?lid=1&group=1");
-            const r = await fetchWithTimeout(testUrl, { timeout: 3000 });
-            if (r.ok) {
-                res.innerText = "SĖKMĖ: Proxy veikia ir pasiekia ADAX API.";
-                res.style.color = "#00d67a";
-            } else {
-                res.innerText = `Klaida: Proxy pasiekiamas, bet API grąžino ${r.status}`;
-                res.style.color = "#ff5252";
-            }
-        } catch(e) {
-            res.innerText = "Klaida: Proxy nepasiekiamas arba blokuojamas. Įsitikinkite, kad adax_proxy.py paleistas.";
-            res.style.color = "#ff5252";
-        }
-    };
-
     // Load saved proxy (default to localhost proxy if empty)
     const DEFAULT_PROXY = 'http://localhost:8081/?url=';
     window.ADAX_PROXY = localStorage.getItem('adax_proxy') || DEFAULT_PROXY;
-    const ps = document.getElementById('proxySetting');
-    if(ps) ps.value = window.ADAX_PROXY;
 
-    window.testAdax = async function(lid) {
-        const PROXY_URL = window.ADAX_PROXY || '';
-        const targetUrl = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
-        // Encode only if using proxy, otherwise browser handles simple URL
-        const url = PROXY_URL ? PROXY_URL + encodeURIComponent(targetUrl) : targetUrl;
-
-        console.log(`Testing ADAX lid=${lid}, final URL:`, url);
-
-        try {
-                const r = await fetchWithTimeout(url, { timeout: 5000 });
-                const text = await r.text();
-                alert(`ADAX lid=${lid} atsakymas:\nURL: ${url}\nStatus: ${r.status}\nTurinys: ${text.substring(0, 500)}`);
-            } catch(e) {
-                alert(`ADAX lid=${lid} klaida:\nURL: ${url}\n${e.toString()}`);
-            }
-        };
 
     // Expose refresh globally so file loader can call it
     window.refresh = async function() {
@@ -1285,6 +1208,9 @@ function renderVizPlaceholder(id, name, type) {
                         }
                     }
                 }
+                // Filter out test codes
+                allRecords = allRecords.filter(r => r.Produktas !== '222222' && r.Produktas !== '333333');
+
                 if (allRecords.length === 0) throw "Tušti duomenys";
 
                 allRecords.sort((a, b) => {
@@ -1324,8 +1250,8 @@ function renderVizPlaceholder(id, name, type) {
                     if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
                 }
 
-                const tStart = (firstInBatch && firstInBatch.NuskanavimoLaikas && typeof firstInBatch.NuskanavimoLaikas === 'string')
-                    ? toLT(firstInBatch.NuskanavimoLaikas.replace(' ', 'T')) : "-";
+                const tStart = (firstInBatch && firstInBatch.TestavimoLaikas && typeof firstInBatch.TestavimoLaikas === 'string')
+                    ? toLT(firstInBatch.TestavimoLaikas.replace(' ', 'T')) : "-";
                 const tLast = (latest && latest.TestavimoLaikas && typeof latest.TestavimoLaikas === 'string')
                     ? toLT(latest.TestavimoLaikas.replace(' ', 'T')) : "-";
                 const latestIso = latest ? latest.TestavimoLaikas : null;
@@ -1364,12 +1290,10 @@ function renderVizPlaceholder(id, name, type) {
                     }
                 }
 
-                const tools = `<button onclick="testAdax(${L.lid})" style="font-size:10px; padding:2px 5px;">Testas</button>`;
-                return { L, countValStr, countValNum, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, tools };
+                return { L, countValStr, countValNum, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active };
             } catch(e) {
                 console.error("ADAX error", L.name, e);
-                const tools = `<button onclick="testAdax(${L.lid})" style="font-size:10px; padding:2px 5px;">Testas</button>`;
-                return { L, countValStr: "-", countValNum: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: e.toString(), statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false, tools };
+                return { L, countValStr: "-", countValNum: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: e.toString(), statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false };
             }
         });
 
@@ -1469,8 +1393,7 @@ function renderVizPlaceholder(id, name, type) {
                     spTxt,
                     spClass,
                     speedVal,
-                    active,
-                    tools: ""
+                    active
                 };
 
             } catch(e) {
@@ -1508,19 +1431,41 @@ function renderVizPlaceholder(id, name, type) {
 
         // Render HTML
         let html = "";
+        let adaxSeparatorDone = false;
         validResults.forEach(r => {
+            // Add separator before first ADAX line if using default sort
+            if (sortBy === 'default' && r.L.apiType === 'ADAX' && !adaxSeparatorDone) {
+                html += `
+                <tr style="background: var(--bg-panel); color: var(--text-header); border-top: 4px solid #ff5252;">
+                    <th style="font-size:16px;">Linija</th>
+                    <th style="font-size:16px;">Pagaminta vnt.</th>
+                    <th style="font-size:16px;">Užsakymo nr.</th>
+                    <th style="font-size:16px;">Gaminio pavadinimas</th>
+                    <th style="font-size:16px;">Gaminio testavimo pradžia</th>
+                    <th style="font-size:16px;">Paskutinis užfiksavimas</th>
+                    <th style="font-size:16px;">Linijos būsena</th>
+                    <th style="font-size:16px;">Tarpas tarp testų</th>
+                    <th style="font-size:16px;">Greitis (vnt/val.)</th>
+                </tr>
+                `;
+                adaxSeparatorDone = true;
+            }
+
+            const barcodeDisplay = (r.L.apiType === 'ADAX')
+                ? `<div style="font-size: 10px; color: #ff5252; margin-bottom: -5px;">užsakymo nr.</div>${r.barcodeVal}`
+                : r.barcodeVal;
+
             html += `
             <tr>
                 <td>${r.L.name}</td>
                 <td class="good">${r.countValStr}</td>
-                <td class="bar">${r.barcodeVal}</td>
+                <td class="bar">${barcodeDisplay}</td>
                 <td>${r.productName}</td>
                 <td class="time">${r.tStart}</td>
                 <td class="time">${r.tLast}</td>
                 <td class="${r.statusCls}">${r.status}</td>
                 <td class="time">${r.gapTxt}</td>
                 <td class="${r.spClass}">${r.spTxt}</td>
-                <td>${r.tools}</td>
             </tr>
             `;
 
@@ -1807,7 +1752,7 @@ function renderVizPlaceholder(id, name, type) {
 
         ws.columns = [
             { header:'Linija', key:'line', width:14 },
-            { header:'Gaminys', key:'barcode', width:14 },
+            { header:'Užsakymo nr.', key:'barcode', width:14 },
             { header:'Gaminio pavadinimas', key:'product', width:24 },
             { header:'Barkodo laikas', key:'barcodeTime', width:20, style:{numFmt:'yyyy-mm-dd hh:mm:ss'} },
             { header:'Testavimo pradžia', key:'start', width:20, style:{numFmt:'yyyy-mm-dd hh:mm:ss'} },
@@ -1849,14 +1794,14 @@ function renderVizPlaceholder(id, name, type) {
     }
 
     // --- CHART LOGIC START ---
-    function debugLog(msg) {
+    window.debugLog = function(msg) {
         const el = document.getElementById('debugLog');
         if(el) {
             el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
             el.scrollTop = el.scrollHeight;
         }
         console.log(msg);
-    }
+    };
 
     async function updateChartOnly() {
         const btn = document.getElementById('updateChartBtn');
@@ -1910,9 +1855,11 @@ function renderVizPlaceholder(id, name, type) {
                         if (isRaw) {
                             let pts = [];
                             for (let prod in grouped) {
+                                if (prod === '222222' || prod === '333333') continue;
                                 if (Array.isArray(grouped[prod])) {
                                     grouped[prod].map(normalizeAdaxRecord).forEach(r => {
                                         if (!r.TestavimoLaikas) return;
+                                        if (r.Produktas === '222222' || r.Produktas === '333333') return;
                                         const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
                                         if (t >= from.getTime() && t <= to.getTime()) {
                                             pts.push({ line: L.name, startTs: t, val: parseInt(r.PusgaminioNr) || 0 });
@@ -2431,14 +2378,24 @@ function renderVizPlaceholder(id, name, type) {
             for(const L of useLines){
                 if (L.apiType === "ADAX") {
                     st.textContent = `${L.name}: kraunam duomenis...`;
+                    debugLog(`${L.name}: Pradedamas ADAX duomenų siuntimas...`);
                     let data = null;
                     if (adaxAggregated && adaxAggregated.lines[L.lid] && adaxAggregated.lines[L.lid].data) {
                         data = adaxAggregated.lines[L.lid].data;
+                        debugLog(`${L.name}: Naudojami agreguoti duomenys.`);
                     } else {
                         data = await getAdaxData(L.lid);
+                        debugLog(`${L.name}: Duomenys gauti tiesiogiai iš API.`);
                     }
-                    if (!data) continue;
+
+                    if (!data) {
+                        debugLog(`${L.name}: Duomenų gauti nepavyko.`);
+                        continue;
+                    }
+
                     const segs = buildAdaxSegments(data, from, to, tz);
+                    debugLog(`${L.name}: Sukurta segmentų: ${segs.length}`);
+
                     segs.forEach(s => {
                         out.push({
                             line: L.name, barcode: s.barcode, product: s.product, barcodeTime: s.barcodeTime,
@@ -2675,6 +2632,9 @@ function renderVizPlaceholder(id, name, type) {
 
         sorted.forEach(seg => {
             if (!seg.startTs || !seg.endTs || seg.units <= 0) return;
+
+            // Exclude ADAX test codes
+            if (seg.barcode === '222222' || seg.barcode === '333333') return;
 
             // CHECK PROGRESS to avoid duplicates
             // We ignore segments that finished before or at the already learned timestamp

@@ -163,7 +163,12 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         target_url = self.path.split("?url=", 1)[1]
         target_url = urllib.parse.unquote(target_url)
 
-        # print(f"[{self.date_time_string()}] Proxying to: {target_url}")
+        # Security check: only allow authorized ADAX host
+        if not target_url.startswith("http://10.12.24.51:8088/"):
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b"403 Forbidden: Unauthorized proxy target.")
+            return
 
         try:
             req = urllib.request.Request(target_url)
