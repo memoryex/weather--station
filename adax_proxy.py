@@ -49,36 +49,77 @@ def parse_php_var_dump(content):
                 record_data[field] = field_match.group(1).strip()
 
         if record_data:
-            results.append(record_data)
+            results.append(normalize_adax_record(record_data))
     return results
+
+def normalize_adax_record(r):
+    # Map alternative field names to standard ones
+    # "TotalPusgaminiai" -> "PusgaminioNr"
+    # "GamybosPabaiga" -> "TestavimoLaikas"
+    # "GamybosPradzia" -> "NuskanavimoLaikas"
+
+    if "TotalPusgaminiai" in r and "PusgaminioNr" not in r:
+        r["PusgaminioNr"] = r["TotalPusgaminiai"]
+    if "GamybosPabaiga" in r and "TestavimoLaikas" not in r:
+        r["TestavimoLaikas"] = r["GamybosPabaiga"]
+    if "GamybosPradzia" in r and "NuskanavimoLaikas" not in r:
+        r["NuskanavimoLaikas"] = r["GamybosPradzia"]
+
+    return r
 
 def fetch_adax_data(lid):
     url = f"{ADAX_BASE_URL}?lid={lid}&group=1"
     try:
         req = urllib.request.Request(url)
         req.add_header('User-Agent', 'Mozilla/5.0 ADAX-Proxy-Background')
+        req.add_header('Accept-Encoding', 'identity')
         with urllib.request.urlopen(req, timeout=15) as response:
             content = response.read().decode('utf-8', errors='ignore')
 
-            # 1. Try standard JSON parsing
-            start = content.find('[')
-            end = content.rfind(']')
+            # 1. Try direct JSON parsing first
+            try:
+                data = json.loads(content)
+                if isinstance(data, list):
+                    data = [normalize_adax_record(r) for r in data]
+                elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+                    # Handle {"data": [...]} wrapper
+                    data = [normalize_adax_record(r) for r in data["data"]]
+                return data, None
+            except json.JSONDecodeError:
+                pass
 
-            if start != -1 and end > start:
-                json_str = content[start:end+1]
+            # 2. Try to find the largest JSON block (heuristics)
+            best_data = None
+            start_arr = content.find('[')
+            end_arr = content.rfind(']')
+            if start_arr != -1 and end_arr > start_arr:
                 try:
-                    data = json.loads(json_str)
-                    return data, None
+                    cand = json.loads(content[start_arr:end_arr+1])
+                    if isinstance(cand, list):
+                        best_data = [normalize_adax_record(r) for r in cand]
                 except json.JSONDecodeError:
                     pass
 
-            # 2. Try PHP var_dump parsing
+            start_obj = content.find('{')
+            end_obj = content.rfind('}')
+            if start_obj != -1 and end_obj > start_obj:
+                try:
+                    obj_data = json.loads(content[start_obj:end_obj+1])
+                    if not best_data or (end_obj - start_obj > end_arr - start_arr):
+                        best_data = obj_data
+                except json.JSONDecodeError:
+                    pass
+
+            if best_data:
+                return best_data, None
+
+            # 3. Try PHP var_dump parsing
             if "array(" in content:
                 data = parse_php_var_dump(content)
                 if data:
                     return data, None
 
-            return None, "No valid JSON or var_dump found in response"
+            return None, f"No valid JSON or var_dump found. Content snippet: {content[:200]}..."
     except socket.timeout:
         return None, "Timeout (15s)"
     except Exception as e:

@@ -804,6 +804,13 @@ function normalizeCode(v){
   return digits.replace(/^0+/, '') || '0';
 }
 
+function normalizeAdaxRecord(r) {
+    if (r.TotalPusgaminiai && !r.PusgaminioNr) r.PusgaminioNr = r.TotalPusgaminiai;
+    if (r.GamybosPabaiga && !r.TestavimoLaikas) r.TestavimoLaikas = r.GamybosPabaiga;
+    if (r.GamybosPradzia && !r.NuskanavimoLaikas) r.NuskanavimoLaikas = r.GamybosPradzia;
+    return r;
+}
+
 async function getAdaxData(lid) {
     // If you have CORS or Mixed Content (HTTP on HTTPS) issues,
     // you can set this to use the provided adax_proxy.py, e.g., 'http://localhost:8081/?url='
@@ -826,7 +833,10 @@ async function getAdaxData(lid) {
         if (!text || text.trim() === "") throw "Tuščias atsakymas";
         try {
             // Case 1: Simple JSON
-            return JSON.parse(text);
+            let data = JSON.parse(text);
+            if (Array.isArray(data)) return data.map(normalizeAdaxRecord);
+            if (data && data.data && Array.isArray(data.data)) return data.data.map(normalizeAdaxRecord);
+            return data;
         } catch(e) {
             // Case 2: PHP var_dump or warnings mixed with JSON
             console.warn(`ADAX API lid=${lid} direct JSON parse failed, trying heuristics and PHP var_dump parser.`, text.substring(0, 200));
@@ -856,7 +866,7 @@ async function getAdaxData(lid) {
                             }
                         }
                         if (Object.keys(recordData).length > 0) {
-                            results.push(recordData);
+                            results.push(normalizeAdaxRecord(recordData));
                         }
                     }
                     if (results.length > 0) return results;
@@ -870,7 +880,8 @@ async function getAdaxData(lid) {
             let endB = text.lastIndexOf(']');
             if (startB !== -1 && endB > startB) {
                 try {
-                    return JSON.parse(text.substring(startB, endB + 1));
+                    let cand = JSON.parse(text.substring(startB, endB + 1));
+                    if (Array.isArray(cand)) return cand.map(normalizeAdaxRecord);
                 } catch(err) {}
             }
 
@@ -923,7 +934,8 @@ function buildAdaxSegments(data, from, to, tz) {
         const records = groupedData[prodCode];
         if (!Array.isArray(records)) continue;
 
-        const filtered = records.filter(r => {
+        const filtered = records.map(normalizeAdaxRecord).filter(r => {
+            if (!r.TestavimoLaikas || typeof r.TestavimoLaikas !== 'string') return false;
             const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
             return t >= fTs && t <= tTs;
         });
@@ -934,7 +946,9 @@ function buildAdaxSegments(data, from, to, tz) {
 
         let batchStartI = 0;
         for (let i = 1; i < filtered.length; i++) {
-            if (parseInt(filtered[i].PusgaminioNr) < parseInt(filtered[i-1].PusgaminioNr)) {
+            const curN = parseInt(filtered[i].PusgaminioNr) || 0;
+            const prevN = parseInt(filtered[i-1].PusgaminioNr) || 0;
+            if (curN < prevN) {
                 processBatch(filtered.slice(batchStartI, i));
                 batchStartI = i;
             }
@@ -943,13 +957,20 @@ function buildAdaxSegments(data, from, to, tz) {
 
         function processBatch(batch) {
             if (batch.length === 0) return;
-            batch.sort((a, b) => new Date(a.TestavimoLaikas.replace(' ', 'T')) - new Date(b.TestavimoLaikas.replace(' ', 'T')));
+            batch.sort((a, b) => {
+                const da = (a.TestavimoLaikas && typeof a.TestavimoLaikas === 'string') ? new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+                const db = (b.TestavimoLaikas && typeof b.TestavimoLaikas === 'string') ? new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+                return da - db;
+            });
 
             const r0 = batch[0];
             const rN = batch[batch.length - 1];
-            const sTs = new Date(r0.NuskanavimoLaikas.replace(' ', 'T')).getTime();
-            const eTs = new Date(rN.TestavimoLaikas.replace(' ', 'T')).getTime();
-            const units = parseInt(rN.PusgaminioNr) - parseInt(r0.PusgaminioNr) + 1;
+            const sTs = (r0.NuskanavimoLaikas && typeof r0.NuskanavimoLaikas === 'string') ? new Date(r0.NuskanavimoLaikas.replace(' ', 'T')).getTime() : 0;
+            const eTs = (rN.TestavimoLaikas && typeof rN.TestavimoLaikas === 'string') ? new Date(rN.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+
+            if (sTs === 0 || eTs === 0) return;
+
+            const units = (parseInt(rN.PusgaminioNr) || 0) - (parseInt(r0.PusgaminioNr) || 0) + 1;
             const barcode = rN.Produktas.trim();
             const code = normalizeCode(barcode);
             const product = PRODUCT_MAP.get(code) || "";
@@ -1256,36 +1277,46 @@ function renderVizPlaceholder(id, name, type) {
                 let totalUnits = 0;
 
                 if (Array.isArray(data)) {
-                    allRecords = data;
-                    allRecords.forEach(r => {
-                        let p = parseInt(r.PusgaminioNr) || 0;
-                        if (p > totalUnits) totalUnits = p;
-                    });
+                    allRecords = data.map(normalizeAdaxRecord);
                 } else if (typeof data === 'object' && data !== null) {
                     for (let prod in data) {
                         if (Array.isArray(data[prod]) && data[prod].length > 0) {
-                            allRecords.push(...data[prod]);
-                            let maxP = 0;
-                            data[prod].forEach(r => {
-                                let p = parseInt(r.PusgaminioNr) || 0;
-                                if (p > maxP) maxP = p;
-                            });
-                            totalUnits += maxP;
+                            allRecords.push(...data[prod].map(normalizeAdaxRecord));
                         }
                     }
                 }
                 if (allRecords.length === 0) throw "Tušti duomenys";
 
                 allRecords.sort((a, b) => {
-                    const da = a.TestavimoLaikas ? new Date(a.TestavimoLaikas.replace(' ', 'T')) : 0;
-                    const db = b.TestavimoLaikas ? new Date(b.TestavimoLaikas.replace(' ', 'T')) : 0;
+                    const da = (a.TestavimoLaikas && typeof a.TestavimoLaikas === 'string') ? new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+                    const db = (b.TestavimoLaikas && typeof b.TestavimoLaikas === 'string') ? new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
                     return da - db;
                 });
 
                 const latest = allRecords[allRecords.length - 1];
-                const countValNum = totalUnits;
+                const latestProduct = (latest && latest.Produktas) ? latest.Produktas.trim() : null;
+
+                // Identify the current product batch count
+                let currentBatchRecords = [];
+                if (latestProduct) {
+                    for (let i = allRecords.length - 1; i >= 0; i--) {
+                        const r = allRecords[i];
+                        if (r.Produktas && r.Produktas.trim() === latestProduct) {
+                            currentBatchRecords.unshift(r);
+                            if (i > 0) {
+                                const prev = allRecords[i-1];
+                                if (prev.Produktas && prev.Produktas.trim() === latestProduct) {
+                                    if ((parseInt(r.PusgaminioNr) || 0) < (parseInt(prev.PusgaminioNr) || 0)) break;
+                                } else break;
+                            }
+                        } else break;
+                    }
+                }
+
+                const firstInBatch = currentBatchRecords[0];
+                const countValNum = latest ? (parseInt(latest.PusgaminioNr) || 0) : 0;
                 const countValStr = countValNum.toString();
-                const barcodeVal = (latest && latest.Produktas) ? latest.Produktas.trim() : "-";
+                const barcodeVal = latestProduct || "-";
 
                 let productName = "—";
                 if (barcodeVal !== "-") {
@@ -1293,14 +1324,16 @@ function renderVizPlaceholder(id, name, type) {
                     if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
                 }
 
-                const tStart = latest ? toLT(latest.NuskanavimoLaikas?.replace(' ', 'T')) : "-";
-                const tLast = latest ? toLT(latest.TestavimoLaikas?.replace(' ', 'T')) : "-";
+                const tStart = (firstInBatch && firstInBatch.NuskanavimoLaikas && typeof firstInBatch.NuskanavimoLaikas === 'string')
+                    ? toLT(firstInBatch.NuskanavimoLaikas.replace(' ', 'T')) : "-";
+                const tLast = (latest && latest.TestavimoLaikas && typeof latest.TestavimoLaikas === 'string')
+                    ? toLT(latest.TestavimoLaikas.replace(' ', 'T')) : "-";
                 const latestIso = latest ? latest.TestavimoLaikas : null;
 
                 let status="NEAKTYVI", statusCls="status-offline";
                 let active = false;
                 let msSinceLast = 0;
-                if (latestIso) {
+                if (latestIso && typeof latestIso === 'string') {
                     msSinceLast = now - new Date(latestIso.replace(' ', 'T')).getTime();
                     if (msSinceLast/60000 <= OFFLINE_MINUTES) {
                         status="AKTYVI"; statusCls="status-online";
@@ -1317,10 +1350,10 @@ function renderVizPlaceholder(id, name, type) {
                     const sample = allRecords.slice(-10);
                     const r1 = sample[sample.length - 1];
                     const r0 = sample[0];
-                    const t1 = new Date(r1.TestavimoLaikas.replace(' ', 'T')).getTime();
-                    const t0 = new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    const t1 = (r1.TestavimoLaikas && typeof r1.TestavimoLaikas === 'string') ? new Date(r1.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+                    const t0 = (r0.TestavimoLaikas && typeof r0.TestavimoLaikas === 'string') ? new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
 
-                    const dHours = (t1 - t0) / 3600000;
+                    const dHours = (t1 > 0 && t0 > 0) ? (t1 - t0) / 3600000 : 0;
                     if (dHours > 0) {
                         speedVal = (sample.length - 1) / dHours;
                         spTxt = speedVal.toFixed(2);
@@ -1878,7 +1911,8 @@ function renderVizPlaceholder(id, name, type) {
                             let pts = [];
                             for (let prod in grouped) {
                                 if (Array.isArray(grouped[prod])) {
-                                    grouped[prod].forEach(r => {
+                                    grouped[prod].map(normalizeAdaxRecord).forEach(r => {
+                                        if (!r.TestavimoLaikas) return;
                                         const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
                                         if (t >= from.getTime() && t <= to.getTime()) {
                                             pts.push({ line: L.name, startTs: t, val: parseInt(r.PusgaminioNr) || 0 });
