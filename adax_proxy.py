@@ -32,11 +32,13 @@ def parse_php_var_dump(content):
 
     # Patterns for fields within a record
     field_patterns = {
-        "Produktas": re.compile(r'\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"'),
-        "Linija": re.compile(r'\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"'),
-        "PusgaminioNr": re.compile(r'\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"'),
-        "TestavimoLaikas": re.compile(r'\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"'),
-        "NuskanavimoLaikas": re.compile(r'\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"')
+        "Produktas": re.compile(r'\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "Linija": re.compile(r'\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "PusgaminioNr": re.compile(r'\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "TestavimoLaikas": re.compile(r'\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "NuskanavimoLaikas": re.compile(r'\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "ItemID": re.compile(r'\["ItemID"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "Pavadinimas": re.compile(r'\["Pavadinimas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE)
     }
 
     results = []
@@ -64,6 +66,8 @@ def normalize_adax_record(r):
         r["TestavimoLaikas"] = r["GamybosPabaiga"]
     if "GamybosPradzia" in r and "NuskanavimoLaikas" not in r:
         r["NuskanavimoLaikas"] = r["GamybosPradzia"]
+    if "ItemId" in r and "ItemID" not in r:
+        r["ItemID"] = r["ItemId"]
 
     return r
 
