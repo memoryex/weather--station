@@ -755,6 +755,43 @@ function toIsoLocal(date){
 }
 function parseISO(iso){ return new Date(iso); }
 
+async function fetchFieldWindow(channel, field, readKey, startStr, endStr, tz){
+    const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
+    const qs=new URLSearchParams({ api_key:readKey, results:'8000', start:startStr, end:endStr, timezone:tz });
+    const r = await fetchWithTimeout(`${base}?${qs.toString()}`, { timeout: 15000 });
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+}
+
+async function fetchWholePeriodNumeric(channel, field, readKey, tz, from, to, chunkDays=90){
+    const feeds=[]; let curStart=new Date(from.getTime());
+    while(curStart<to){
+        const curEnd=new Date(Math.min(to.getTime(), curStart.getTime()+chunkDays*24*3600*1000));
+        const js=await fetchFieldWindow(channel,field,readKey,toIsoLocal(curStart),toIsoLocal(curEnd),tz);
+        if(js?.feeds?.length) feeds.push(...js.feeds);
+        curStart=new Date(curEnd.getTime()+1000);
+    }
+    const out=[];
+    for(const f of feeds){
+        const v=parseFloat(f[`field${field}`]);
+        if(isFinite(v)) out.push({t:parseISO(f.created_at).getTime(), v, at:f.created_at});
+    }
+    out.sort((a,b)=>a.t-b.t);
+    const ded=[]; let lt=-1, lv;
+    for(const x of out){ if(x.t!==lt || x.v!==lv){ ded.push(x); lt=x.t; lv=x.v; } }
+    return ded;
+}
+
+function sumPositiveDeltas(counts){
+    if(!counts.length) return {units:0,lastT:null};
+    let units=0;
+    for(let i=1;i<counts.length;i++){
+        const diff=counts[i].v - counts[i-1].v;
+        if(diff>0) units+=diff;
+    }
+    return {units,lastT:counts[counts.length-1].t};
+}
+
 // Robust date formatter
 function toLT(iso) {
   if (!iso) return "-";
@@ -1183,8 +1220,19 @@ function renderVizPlaceholder(id, name, type) {
 
         if(tbody) tbody.innerHTML = "<tr><td class='loading' colspan='10'>Kraunama (gali užtrukti)…</td></tr>";
 
-        let totalCount = 0;
+        let totalDailyCount = 0;
         const now = Date.now();
+        const tz = "Europe/Vilnius";
+
+        // Define Daily Window: 06:00 to 23:00
+        const d0 = new Date(now);
+        d0.setHours(6, 0, 0, 0);
+        const dayStart = d0;
+        const d1 = new Date(now);
+        d1.setHours(23, 0, 0, 0);
+        const dayEnd = d1;
+        const calcEnd = new Date(Math.min(now, dayEnd.getTime()));
+
         const rowData = [];
 
         // ADAX logic: Fetch aggregated data from proxy
@@ -1248,6 +1296,11 @@ function renderVizPlaceholder(id, name, type) {
 
                 const firstInBatch = currentBatchRecords[0];
                 const countValNum = latest ? (parseInt(latest.PusgaminioNr) || 0) : 0;
+
+                // Calculate Daily production for ADAX
+                const dailySegs = buildAdaxSegments(data, dayStart, calcEnd, tz);
+                const dailyUnits = dailySegs.reduce((sum, s) => sum + s.units, 0);
+
                 const countValStr = countValNum.toString();
                 const barcodeVal = latestProduct || "-";
 
@@ -1299,10 +1352,10 @@ function renderVizPlaceholder(id, name, type) {
                     }
                 }
 
-                return { L, countValStr, countValNum, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active };
+                return { L, countValStr, countValNum, dailyUnits, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active };
             } catch(e) {
                 console.error("ADAX error", L.name, e);
-                return { L, countValStr: "-", countValNum: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: e.toString(), statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false };
+                return { L, countValStr: "-", countValNum: 0, dailyUnits: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: e.toString(), statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false };
             }
         });
 
@@ -1315,10 +1368,12 @@ function renderVizPlaceholder(id, name, type) {
                     getFieldLast(L.channel, L.fieldCount, key),
                     // Only fetch barcode if configured
                     (L.fieldBarcode ? getFieldLast(L.channel, L.fieldBarcode, key) : Promise.resolve(null)),
-                    getFieldHistory(L.channel, L.fieldCount, key, 50)
+                    getFieldHistory(L.channel, L.fieldCount, key, 50),
+                    fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, dayStart, calcEnd, 1)
                 ];
 
-                const [countData, barcodeData, history] = await Promise.all(promises);
+                const [countData, barcodeData, history, dailyHistory] = await Promise.all(promises);
+                const dailyUnits = sumPositiveDeltas(dailyHistory).units;
 
                 const countValRaw = countData?.[`field${L.fieldCount}`];
                 const countValStr = countValRaw ?? "-";
@@ -1392,6 +1447,7 @@ function renderVizPlaceholder(id, name, type) {
                     L,
                     countValStr,
                     countValNum: hasCount ? countValNum : 0,
+                    dailyUnits,
                     barcodeVal,
                     productName,
                     tStart,
@@ -1424,9 +1480,9 @@ function renderVizPlaceholder(id, name, type) {
         // Filter out failed fetches
         const validResults = results.filter(r => r !== null);
 
-        // Calculate Total
+        // Calculate Total Daily Production
         validResults.forEach(r => {
-            totalCount += r.countValNum;
+            totalDailyCount += r.dailyUnits;
         });
 
         // SORTING LOGIC
@@ -1537,9 +1593,10 @@ function renderVizPlaceholder(id, name, type) {
         });
 
         if(tbody) tbody.innerHTML = html;
-        const totalStr = new Intl.NumberFormat("lt-LT",{maximumFractionDigits:0}).format(totalCount);
+        const totalStr = new Intl.NumberFormat("lt-LT",{maximumFractionDigits:0}).format(totalDailyCount);
         const sb = document.getElementById("summaryBox");
-        if(sb) sb.innerText = `Bendras pagamintas kiekis: ${totalStr} vnt.`;
+        const timeRangeStr = "06:00–23:00";
+        if(sb) sb.innerText = `Pagaminta šiandien (${timeRangeStr}): ${totalStr} vnt.`;
     };
 
     // Re-trigger refresh when sorting changes
@@ -1582,14 +1639,6 @@ function renderVizPlaceholder(id, name, type) {
         }
     };
 
-    async function fetchFieldWindow(channel, field, readKey, startStr, endStr, tz){
-        const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
-        const qs=new URLSearchParams({ api_key:readKey, results:'8000', start:startStr, end:endStr, timezone:tz });
-        const r = await fetchWithTimeout(`${base}?${qs.toString()}`, { timeout: 15000 });
-        if(!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-    }
-
     // Helper: fetch the last barcode entry BEFORE 'timeObj'
     async function fetchStartBarcode(channel, field, key, timeObj, tz) {
         const endIso = toIsoLocal(timeObj);
@@ -1617,25 +1666,6 @@ function renderVizPlaceholder(id, name, type) {
         return null;
     }
 
-    async function fetchWholePeriodNumeric(channel, field, readKey, tz, from, to, chunkDays=90){
-        const feeds=[]; let curStart=new Date(from.getTime());
-        while(curStart<to){
-            const curEnd=new Date(Math.min(to.getTime(), curStart.getTime()+chunkDays*24*3600*1000));
-            const js=await fetchFieldWindow(channel,field,readKey,toIsoLocal(curStart),toIsoLocal(curEnd),tz);
-            if(js?.feeds?.length) feeds.push(...js.feeds);
-            curStart=new Date(curEnd.getTime()+1000);
-        }
-        const out=[];
-        for(const f of feeds){
-            const v=parseFloat(f[`field${field}`]);
-            if(isFinite(v)) out.push({t:parseISO(f.created_at).getTime(), v, at:f.created_at});
-        }
-        out.sort((a,b)=>a.t-b.t);
-        const ded=[]; let lt=-1, lv;
-        for(const x of out){ if(x.t!==lt || x.v!==lv){ ded.push(x); lt=x.t; lv=x.v; } }
-        return ded;
-    }
-
     async function fetchWholePeriodText(channel, field, readKey, tz, from, to, chunkDays=90){
         const feeds=[]; let curStart=new Date(from.getTime());
         while(curStart<to){
@@ -1653,16 +1683,6 @@ function renderVizPlaceholder(id, name, type) {
         const ded=[]; let lt=-1, lv="";
         for(const x of out){ if(x.t!==lt || x.val!==lv){ ded.push(x); lt=x.t; lv=x.val; } }
         return ded;
-    }
-
-    function sumPositiveDeltas(counts){
-        if(!counts.length) return {units:0,lastT:null};
-        let units=0;
-        for(let i=1;i<counts.length;i++){
-            const diff=counts[i].v - counts[i-1].v;
-            if(diff>0) units+=diff;
-        }
-        return {units,lastT:counts[counts.length-1].t};
     }
 
     function buildSegments(barcodes, counts, tz){
