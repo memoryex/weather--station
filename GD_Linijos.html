@@ -201,30 +201,39 @@
   @keyframes spin-slow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   .ai-icon-spin { animation: spin-slow 10s linear infinite; }
 
-  /* ADAX Arrow Animation */
+      /* ADAX Arrow Animation */
   @keyframes adax-move {
-    0% { transform: translateY(-20px); opacity: 0; }
+    0% { transform: translateY(-40px); opacity: 0; }
     20% { opacity: 1; }
     80% { opacity: 1; }
-    100% { transform: translateY(180px); opacity: 0; }
+    100% { transform: translateY(160px); opacity: 0; }
   }
   .adax-arrows-container {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none;
     overflow: hidden;
-    display: none; /* Hidden by default, shown when active */
+    display: none;
+    z-index: 1;
   }
   .adax-arrow {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 24px;
-    color: rgba(13, 110, 253, 0.4);
+    font-size: 32px;
+    font-weight: bold;
     animation: adax-move 3s linear infinite;
+    text-shadow: 0 0 10px rgba(0,0,0,0.5);
   }
-  .adax-arrow:nth-child(2) { animation-delay: 1s; }
-  .adax-arrow:nth-child(3) { animation-delay: 2s; }
+  .adax-arrow.green { color: #00d67a; }
+  .adax-arrow.orange { color: #ffa726; }
+  .adax-arrow.red-x {
+    color: #ff5252;
+    animation: none;
+    transform: translate(-50%, 50px);
+    font-size: 60px;
+    opacity: 0.8;
+  }
 </style>
 <!-- XLSX (SheetJS) + ExcelJS + FileSaver – viskas iš CDN -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1132,9 +1141,10 @@ function renderVizPlaceholder(id, name, type) {
     <div class="viz-box ${boxClass}" id="box-${name}">
       ${type === 'adax' ? `
       <div class="adax-arrows-container" id="arrows-${name}">
-        <div class="adax-arrow">↓</div>
-        <div class="adax-arrow">↓</div>
-        <div class="adax-arrow">↓</div>
+        <div class="adax-arrow">🠗</div>
+        <div class="adax-arrow">🠗</div>
+        <div class="adax-arrow">🠗</div>
+        <div id="speed-label-${name}" style="position:absolute; bottom:5px; left:50%; transform:translateX(-50%); font-size:10px; font-weight:bold; color:var(--text-main); white-space:nowrap;"></div>
       </div>` : ''}
        <div class="viz-indicators">
 
@@ -1629,20 +1639,35 @@ function renderVizPlaceholder(id, name, type) {
                    }
                 }
 
-                // Update ADAX animations
+                                                // Update ADAX animations
                 if (r.L.apiType === 'ADAX') {
                     const arrowsCont = document.getElementById(`arrows-${r.L.name}`);
+                    const speedLab = document.getElementById(`speed-label-${r.L.name}`);
                     if (arrowsCont) {
+                        arrowsCont.style.display = 'block';
+                        const arrows = arrowsCont.querySelectorAll('.adax-arrow');
+
                         if (r.active && r.moveIntensity > 0) {
-                            arrowsCont.style.display = 'block';
-                            const duration = Math.max(0.5, Math.min(10, 30 / r.moveIntensity));
-                            const arrows = arrowsCont.querySelectorAll('.adax-arrow');
+                            const isFast = r.moveIntensity >= 4.0;
+                            const colorClass = isFast ? 'green' : 'orange';
+                            const duration = Math.max(0.8, Math.min(10, 20 / r.moveIntensity));
+
                             arrows.forEach((arr, idx) => {
+                                arr.className = 'adax-arrow ' + colorClass;
+                                arr.innerText = '🠗';
                                 arr.style.animationDuration = `${duration}s`;
                                 arr.style.animationDelay = `${(duration / 3) * idx}s`;
                             });
+                            if(speedLab) speedLab.innerText = r.moveIntensity.toFixed(1) + ' m/min.';
                         } else {
-                            arrowsCont.style.display = 'none';
+                            // Inactive - Red X
+                            arrows.forEach((arr, idx) => {
+                                arr.className = 'adax-arrow red-x';
+                                arr.innerText = idx === 0 ? '✖' : '';
+                                arr.style.animationDuration = '';
+                                arr.style.animationDelay = '';
+                            });
+                            if(speedLab) speedLab.innerText = '';
                         }
                     }
                 }
@@ -1960,7 +1985,14 @@ function renderVizPlaceholder(id, name, type) {
                 let inner = `<b>${lineName}</b>`;
                 gaps.forEach(g => {
                     const reason = getInsightText(g.duration, g.start);
-                    if (reason) inner += `<div style="font-size:13px; color:var(--text-muted);">${toLT(g.start).slice(11,16)} - ${toLT(g.end).slice(11,16)} (${Math.round(g.duration)} min): ${reason}</div>`;
+                    if (reason) {
+                        const icon = getInsightIcon(reason);
+                        inner += `<div style="font-size:13px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                                    <span>• ${toLT(g.start).slice(11,16)} - ${toLT(g.end).slice(11,16)} (${Math.round(g.duration)} min):</span>
+                                    <span style="font-size:16px;">${icon}</span>
+                                    <span>${reason}</span>
+                                  </div>`;
+                    }
                 });
                 lineDiv.innerHTML = inner; content.appendChild(lineDiv);
             }
@@ -2008,65 +2040,199 @@ function renderVizPlaceholder(id, name, type) {
     setTimeout(updateChartOnly, 500);
 })();
 
-(function InitAI(){
+(function InitAI() {
     const aiModel = window.aiModel;
     function updateUI() {
         const st = document.getElementById('aiStatus');
-        let total = 0; Object.values(aiModel.products).forEach(lines => Object.values(lines).forEach(d => total += d.count));
-        if (st) st.textContent = `DI statusas: Sukaupta ${total} segmentų. Atnaujinta: ${aiModel.lastUpdated||"Niekada"}`;
-        renderProductTable(); renderBreakChart();
+        let total = 0;
+        Object.values(aiModel.products).forEach(lines => {
+            Object.values(lines).forEach(d => total += d.count);
+        });
+        if (st) st.textContent = `DI statusas: Sukaupta ${total} segmentų. Atnaujinta: ${aiModel.lastUpdated ? new Date(aiModel.lastUpdated).toLocaleString('lt-LT') : "Niekada"}`;
+        renderProductTable();
+        renderBreakChart();
     }
-    function saveModel() { aiModel.lastUpdated = new Date().toISOString(); localStorage.setItem(AI_MODEL_KEY, JSON.stringify(aiModel)); updateUI(); }
-    function clearModel() { aiModel.products={}; aiModel.breaks={}; aiModel.lineProgress={}; aiModel.lastUpdated=null; localStorage.removeItem(AI_MODEL_KEY); updateUI(); }
+    function saveModel() {
+        aiModel.lastUpdated = new Date().toISOString();
+        localStorage.setItem(AI_MODEL_KEY, JSON.stringify(aiModel));
+        updateUI();
+    }
+    function clearModel() {
+        aiModel.products = {}; aiModel.breaks = {}; aiModel.lineProgress = {}; aiModel.lastUpdated = null;
+        localStorage.removeItem(AI_MODEL_KEY);
+        updateUI();
+    }
     function learnFromData(segments) {
-        segments.sort((a,b)=>(a.startTs||0)-(b.startTs||0)).forEach(seg => {
-            if (!seg.startTs || !seg.endTs || seg.units <= 0 || seg.endTs <= (aiModel.lineProgress[seg.line]||0)) return;
-            const speed = seg.units / ((seg.endTs - seg.startTs) / 3600000);
-            const pKey = seg.product || seg.barcode || "Unknown";
+        const sorted = [...segments].sort((a,b) => (a.startTs||0) - (b.startTs||0));
+        const linesLastSeen = {};
+        sorted.forEach(seg => {
+            if (!seg.startTs || !seg.endTs || seg.units <= 0) return;
+            const learnedUntil = aiModel.lineProgress[seg.line] || 0;
+            if (seg.endTs <= learnedUntil) return;
+            const durationHrs = (seg.endTs - seg.startTs) / 3600000;
+            if (durationHrs <= 0.001) return;
+            const speed = seg.units / durationHrs;
+            let pKey = seg.product || seg.barcode || "Unknown";
             if (!aiModel.products[pKey]) aiModel.products[pKey] = {};
-            if (!aiModel.products[pKey][seg.line]) aiModel.products[pKey][seg.line] = { sumSpeed: 0, count: 0, minSpeed: Infinity, maxSpeed: -Infinity };
+            if (!aiModel.products[pKey][seg.line]) {
+                aiModel.products[pKey][seg.line] = { sumSpeed: 0, count: 0, minSpeed: Infinity, maxSpeed: -Infinity };
+            }
             const entry = aiModel.products[pKey][seg.line];
             entry.sumSpeed += speed; entry.count++;
-            if (speed < entry.minSpeed) entry.minSpeed = speed; if (speed > entry.maxSpeed) entry.maxSpeed = speed;
-            aiModel.lineProgress[seg.line] = seg.endTs;
+            if (speed < entry.minSpeed) entry.minSpeed = speed;
+            if (speed > entry.maxSpeed) entry.maxSpeed = speed;
+
+            if (!linesLastSeen[seg.line]) {
+                linesLastSeen[seg.line] = seg.endTs;
+            } else {
+                const prevEnd = linesLastSeen[seg.line];
+                const gapMin = (seg.startTs - prevEnd) / 60000;
+                if (gapMin >= 8 && gapMin < 180) {
+                    const breakStart = new Date(prevEnd);
+                    const h = breakStart.getHours();
+                    const type = getInsightText(gapMin, prevEnd);
+                    if (type && type !== "Linija neaktyvi") {
+                        if (!aiModel.breaks[h]) aiModel.breaks[h] = {};
+                        if (!aiModel.breaks[h][type]) aiModel.breaks[h][type] = 0;
+                        aiModel.breaks[h][type]++;
+                    }
+                }
+                linesLastSeen[seg.line] = seg.endTs;
+            }
+            if (seg.endTs > (aiModel.lineProgress[seg.line] || 0)) {
+                aiModel.lineProgress[seg.line] = seg.endTs;
+            }
         });
         saveModel();
     }
     function renderProductTable() {
-        const tbody = document.getElementById('aiProductTable'); if(!tbody) return; tbody.innerHTML = "";
+        const tbody = document.getElementById('aiProductTable'); if (!tbody) return; tbody.innerHTML = "";
         Object.keys(aiModel.products).forEach(pName => {
             const stats = Object.keys(aiModel.products[pName]).map(L => {
                 const d = aiModel.products[pName][L], avg = d.sumSpeed / d.count, max = d.maxSpeed;
-                return { line: L, avg, max, potential: ((max-avg)/avg)*100 };
+                return { line: L, avg, max, potential: ((max - avg) / avg) * 100 };
             }).sort((a,b) => b.avg - a.avg);
             stats.forEach((s, idx) => {
                 const tr = tbody.insertRow();
-                if(idx===0) { const c=tr.insertCell(); c.rowSpan=stats.length; c.textContent=pName; c.style.fontWeight="bold"; }
-                tr.insertCell().textContent=s.line;
-                tr.insertCell().textContent=Math.round(s.avg);
-                tr.insertCell().textContent=Math.round(s.max);
-                const pot=tr.insertCell(); pot.textContent=(s.potential>0?'+'+s.potential.toFixed(0)+'%':'-');
+                if(idx === 0) { const c = tr.insertCell(); c.rowSpan = stats.length; c.textContent = pName; c.style.fontWeight = "bold"; }
+                tr.insertCell().textContent = s.line;
+                tr.insertCell().textContent = Math.round(s.avg);
+                tr.insertCell().textContent = Math.round(s.max);
+                const pot = tr.insertCell(); pot.textContent = (s.potential > 0 ? '+' + s.potential.toFixed(0) + '%' : '-');
                 pot.style.color = s.potential > 20 ? "#00d67a" : (s.potential > 10 ? "#ffa726" : "#888");
+                pot.style.fontWeight = "bold";
             });
         });
     }
-    function renderBreakChart() {
-        if (typeof Highcharts === 'undefined') return;
-        const series = [{ name: 'Prastovos', data: Array.from({length:24}, (_,h) => Object.values(aiModel.breaks[h]||{}).reduce((a,b)=>a+b,0)) }];
-        Highcharts.chart('aiBreakChart', { chart: { type: 'column', backgroundColor: 'transparent', height: 300 }, title: { text: null }, xAxis: { categories: Array.from({length:24}, (_,i)=>i+":00") }, series: series, credits: { enabled: false } });
+        function renderBreakChart() {
+        const container = document.getElementById('aiBreakChart');
+        if (!container || typeof Highcharts === 'undefined') return;
+
+        const hours = Array.from({length: 24}, (_, i) => i);
+        const seriesConfig = {
+            "Pamainos keitimas": { color: '#7f8cff' },
+            "Pietų pertrauka": { color: '#00d67a' },
+            "Trumpa pertrauka": { color: '#ffeb3b' },
+            "Nenumatyta prastova": { color: '#ff5252' },
+            "Ruošimasis / Nėra detalių": { color: '#9e9e9e' },
+            "Linija neaktyvi": { color: '#607d8b' }
+        };
+
+        const seriesMap = {};
+        Object.keys(seriesConfig).forEach(k => seriesMap[k] = new Array(24).fill(0));
+
+        hours.forEach(h => {
+            const entry = aiModel.breaks[h] || {};
+            Object.keys(seriesConfig).forEach(key => {
+                seriesMap[key][h] = entry[key] || 0;
+            });
+        });
+
+        const series = Object.keys(seriesMap).map(k => ({
+            name: k,
+            data: seriesMap[k],
+            color: seriesConfig[k].color
+        }));
+
+        Highcharts.chart('aiBreakChart', {
+            chart: { type: 'column', backgroundColor: 'transparent', height: 300 },
+            title: { text: null },
+            xAxis: {
+                categories: hours.map(h => h + ":00"),
+                labels: {
+                    style: { color: '#bbb' },
+                    formatter: function() { return (this.value.split(':')[0] % 2 === 0) ? this.value : ''; }
+                }
+            },
+            yAxis: { title: { text: 'Pertraukų sk.', style: { color: '#bbb' } }, gridLineColor: '#444' },
+            legend: { itemStyle: { color: '#ddd' } },
+            plotOptions: { column: { stacking: 'normal', borderWeight: 0 } },
+            series: series,
+            credits: { enabled: false }
+        });
     }
-    document.getElementById('aiClearBtn')?.addEventListener('click', () => { if(confirm("Išvalyti?")) clearModel(); });
+
+    document.getElementById('aiClearBtn')?.addEventListener('click', () => { if(confirm("Ar tikrai ištrinti visas sukauptas žinias?")) clearModel(); });
     document.getElementById('aiLearnBtn')?.addEventListener('click', async () => {
-        const st = document.getElementById('aiStatus'); st.textContent = "Mokomasi...";
+        const st = document.getElementById('aiStatus'); st.textContent = "Vyksta mokymasis...";
         const now = new Date(), from = new Date(now.getTime() - 30*86400000), totalSegs = [];
+        const adaxAggregated = await getAllAdaxAggregated();
         for (const L of LINES) {
             if (L.apiType === "ADAX") {
-                const data = await getAdaxData(L.lid);
+                let data = (adaxAggregated && adaxAggregated.lines[L.lid]) ? adaxAggregated.lines[L.lid].data : await getAdaxData(L.lid);
                 if(data) buildAdaxSegments(data, from, now, "Europe/Vilnius").forEach(s => { s.line = L.name; totalSegs.push(s); });
+            } else {
+                const key = READ_KEYS[L.channel];
+                const [bar, cnt] = await Promise.all([
+                    L.fieldBarcode ? _fetchSeries(L.channel, L.fieldBarcode, key, "Europe/Vilnius", from, now) : Promise.resolve([{t: from.getTime(), v: "UI v5"}]),
+                    _fetchSeries(L.channel, L.fieldCount, key, "Europe/Vilnius", from, now, true)
+                ]);
+                _buildSegmentsAI(bar, cnt).forEach(s => { s.line = L.name; totalSegs.push(s); });
             }
         }
         learnFromData(totalSegs); st.textContent = "Baigta!";
     });
+
+    document.getElementById('saveBreaksBtn')?.addEventListener('click', () => {
+        const rows = document.querySelectorAll('#customBreaksContainer .break-row');
+        const newBreaks = [];
+        rows.forEach(row => {
+            const time = row.querySelector('.b-time').value;
+            const name = row.querySelector('.b-name').value;
+            const dur = parseInt(row.querySelector('.b-dur').value, 10) || 0;
+            newBreaks.push({ time, name, duration: dur });
+        });
+        window.aiConfig.breaks = newBreaks;
+        localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(window.aiConfig));
+        const st = document.getElementById('breakSaveStatus');
+        if(st) { st.textContent = "Grafikas išsaugotas."; st.style.color = "#00d67a"; setTimeout(()=>st.textContent="", 3000); }
+    });
+
+    (function loadConfigUI(){
+       const container = document.getElementById('customBreaksContainer');
+       if(!container) return;
+       container.innerHTML = "";
+       let breaks = window.aiConfig.breaks;
+       if (!Array.isArray(breaks)) breaks = [{time: "09:00", name: "Pertraukėlė 1", duration: 15}, {time: "11:30", name: "Pietų pertrauka", duration: 30}, {time: "14:00", name: "Pertraukėlė 2", duration: 15}, {time: "", name: "", duration: 0}, {time: "", name: "", duration: 0}];
+       while(breaks.length < 5) breaks.push({ time: "", name: "", duration: 0 });
+       breaks.slice(0,5).forEach(b => {
+           const div = document.createElement('div');
+           div.className = 'break-row';
+           div.style.display = 'grid';
+           div.style.gridTemplateColumns = '120px 1fr 60px';
+           div.style.gap = '8px';
+           div.innerHTML = `
+             <div style="position:relative; display:flex; align-items:center;">
+                <input type="time" class="report-input b-time" value="${b.time}" style="padding-right:30px;">
+                <span style="position:absolute; right:8px; pointer-events:none;">🕒</span>
+             </div>
+             <input type="text" class="report-input b-name" value="${b.name}" placeholder="Pavadinimas">
+             <input type="number" class="report-input b-dur" value="${b.duration}" placeholder="min">
+           `;
+           container.appendChild(div);
+       });
+    })();
+
     updateUI();
 })();
 </script>
