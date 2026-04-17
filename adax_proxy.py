@@ -35,9 +35,13 @@ def parse_php_var_dump(content):
         "Produktas": re.compile(r'\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
         "Linija": re.compile(r'\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
         "PusgaminioNr": re.compile(r'\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "TotalPusgaminiai": re.compile(r'\["TotalPusgaminiai"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
         "TestavimoLaikas": re.compile(r'\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "GamybosPabaiga": re.compile(r'\["GamybosPabaiga"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
         "NuskanavimoLaikas": re.compile(r'\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "GamybosPradzia": re.compile(r'\["GamybosPradzia"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
         "ItemID": re.compile(r'\["ItemID"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "ItemId": re.compile(r'\["ItemId"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
         "Pavadinimas": re.compile(r'\["Pavadinimas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE)
     }
 

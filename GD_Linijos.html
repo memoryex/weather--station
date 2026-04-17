@@ -909,9 +909,13 @@ async function getAdaxData(lid) {
                         "Produktas": /\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
                         "Linija": /\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
                         "PusgaminioNr": /\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "TotalPusgaminiai": /\["TotalPusgaminiai"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
                         "TestavimoLaikas": /\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "GamybosPabaiga": /\["GamybosPabaiga"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
                         "NuskanavimoLaikas": /\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "GamybosPradzia": /\["GamybosPradzia"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
                         "ItemID": /\["ItemID"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "ItemId": /\["ItemId"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
                         "Pavadinimas": /\["Pavadinimas"\]=>\s*string\(\d+\)\s*"([^"]+)"/i
                     };
 
@@ -1329,8 +1333,10 @@ function renderVizPlaceholder(id, name, type) {
                             currentBatchRecords.unshift(r);
                             if (i > 0) {
                                 const prev = allRecords[i-1];
+                        const curN = parseInt(r.PusgaminioNr) || 0;
+                        const prevN = parseInt(prev.PusgaminioNr) || 0;
                                 if (prev.Produktas && prev.Produktas.trim() === latestProduct) {
-                                    if ((parseInt(r.PusgaminioNr) || 0) < (parseInt(prev.PusgaminioNr) || 0)) break;
+                            if (curN < prevN) break;
                                 } else break;
                             }
                         } else break;
@@ -1655,6 +1661,7 @@ function renderVizPlaceholder(id, name, type) {
                             arrows.forEach((arr, idx) => {
                                 arr.className = 'adax-arrow ' + colorClass;
                                 arr.innerText = '🠗';
+                                arr.style.display = '';
                                 arr.style.animationDuration = `${duration}s`;
                                 arr.style.animationDelay = `${(duration / 3) * idx}s`;
                             });
@@ -1664,6 +1671,7 @@ function renderVizPlaceholder(id, name, type) {
                             arrows.forEach((arr, idx) => {
                                 arr.className = 'adax-arrow red-x';
                                 arr.innerText = idx === 0 ? '✖' : '';
+                                arr.style.display = idx === 0 ? '' : 'none';
                                 arr.style.animationDuration = '';
                                 arr.style.animationDelay = '';
                             });
