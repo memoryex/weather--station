@@ -98,16 +98,16 @@
 
   /* --- VISUALIZATION STYLES --- */
   .viz-container {
-    position:relative; width:95%; max-width:1200px; margin:20px auto;
-    min-height:1200px; /* Increased height to prevent overlap */
+    position:relative; width:95%; max-width:1900px; margin:20px auto;
+    min-height:1500px; /* Increased height to prevent overlap */
     background:var(--bg-panel); border-radius:12px; border:1px solid var(--border-color); padding:40px;
   }
 
   /* Apply border-box locally to visualization to keep sizing predictable */
   .viz-container, .viz-container * { box-sizing: border-box; }
 
-  .viz-group-vertical { display:flex; flex-direction:column; gap:20px; position:absolute; top:40px; left:40px; }
-  .viz-group-horizontal { display:flex; gap:30px; position:absolute; bottom:50px; left:350px; }
+  .viz-group-vertical { display:flex; flex-direction:column; gap:35px; position:absolute; top:40px; left:40px; }
+  .viz-group-horizontal { display:flex; gap:30px; position:absolute; bottom:50px; left:480px; }
 
   .viz-item { display:flex; align-items:center; gap:15px; }
   .viz-item-v { flex-direction:row; } /* Label on right for vertical stack */
@@ -126,29 +126,37 @@
   .viz-box-wide { width:220px; height:110px; } /* Increased height for better text visibility */
   /* Horizontalioje juostoje box'ai aukšti vertikaliai */
   .viz-box-tall { width:120px; height:210px; flex-direction:column; justify-content:center; gap:10px; }
-  .viz-box-adax { width: 100%; height: 100%; flex-direction:column; justify-content:center; gap:0; border:none; border-radius:0; background: transparent; position: relative; padding: 0; }
-  .viz-box-adax .viz-value-big { font-size:15px; }
-  .viz-box-adax .viz-icon { width:14px; height:14px; }
+    .viz-box-adax { width: 100%; height: 100%; flex-direction:column; justify-content:space-between; align-items:center; gap:0; border:none; border-radius:0; background: transparent; position: relative; padding: 30px 0; box-sizing: border-box; }
+  .viz-box-adax .viz-value-big { font-size:24px; }
+  .viz-box-adax .viz-icon { width:18px; height:18px; }
 
   .viz-label { font-size:16px; font-weight:bold; color:var(--text-muted); }
 
-  /* ADAX layout */
-  .viz-group-adax { display:flex; gap:30px; position:absolute; top:80px; left:380px; }
+    /* ADAX layout */
+  .viz-group-adax { display:flex; gap:45px; position:absolute; top:40px; left:480px; }
   .adax-pod {
     display:flex; flex-direction:column; align-items:center;
-    border:4px solid #333; border-radius:15px;
-    padding:0; background:#080808;
-    width:240px; height:720px;
+    border:2px solid #333; border-radius:12px;
+    padding:0; background:#060606;
+    width:130px; height:820px;
     overflow: hidden;
     position: relative;
-    box-shadow: inset 0 0 80px rgba(0,0,0,1), 0 10px 40px rgba(0,0,0,0.6);
+    box-shadow: inset 0 0 30px rgba(0,0,0,1), 0 5px 15px rgba(0,0,0,0.4);
   }
-  .adax-split { display:flex; width:100%; height:100%; position:relative; z-index: 1; }
-  .adax-divider { width: 1px; background: #222; height: 100%; position: absolute; left: 50%; top: 0; z-index: 1; }
-  .adax-item-wrap { flex:1; display:flex; justify-content:center; align-items:center; z-index:2; height: 100%; position: relative; overflow: visible; }
-  .adax-nums { display:flex; width:100%; justify-content:space-around; margin: 15px 0; font-size:32px; font-weight:bold; color:#555; z-index: 10; width: 100%; }
 
   .viz-info { font-size:12px; text-align:center; line-height:1.4; color:var(--text-main); }
+  /* ADAX info stretches to edges and distributes */
+  .viz-box-adax .viz-info {
+    background: transparent;
+    padding: 0;
+    z-index: 10;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    box-shadow: none;
+    border: none;
+  }
   .viz-value-big { font-size:18px; font-weight:bold; display:block; }
 
   /* --- VISUALIZATION INDICATORS & ICONS --- */
@@ -206,10 +214,10 @@
 
       /* ADAX Arrow Animation */
   @keyframes adax-move {
-    0% { transform: translate(-50%, -50px); opacity: 0; }
+    0% { transform: translate(-50%, -100px); opacity: 0; }
     10% { opacity: 0.5; }
     90% { opacity: 0.5; }
-    100% { transform: translate(-50%, 650px); opacity: 0; }
+    100% { transform: translate(-50%, 750px); opacity: 0; }
   }
   .adax-arrows-container {
     position: absolute;
@@ -230,8 +238,8 @@
     color: #444;
     display: block;
   }
-  .adax-arrow.left-lane { left: 12%; z-index: 1; }
-  .adax-arrow.right-lane { left: 88%; z-index: 1; }
+  .adax-arrow.left-lane { left: 10%; z-index: 1; }
+  .adax-arrow.right-lane { left: 90%; z-index: 1; }
   .adax-arrow.green { color: #00d67a; }
   .adax-arrow.orange { color: #ffa726; }
   .adax-arrow.red-x {
@@ -241,31 +249,28 @@
     top: 50%;
     left: 50%;
     font-size: 200px !important;
-    opacity: 0.07 !important;
+    opacity: 0.15 !important;
     display: block !important;
     pointer-events: none;
-    z-index: 0;
+    z-index: 2;
   }
   .adax-speed-label {
     display: none;
   }
-  /* ADAX info stretches to edges */
-  .viz-box-adax .viz-info {
-    background: transparent;
-    padding: 30px 0;
+    .viz-box-adax .viz-indicators {
+    z-index: 10;
+    background: rgba(0,0,0,0.5);
+    padding: 15px;
+    border-radius: 12px;
+    margin: 0;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .adax-num-header { font-size: 80px; font-weight: bold; color: rgba(255,255,255,0.4); z-index: 5; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); pointer-events: none; }
+  .adax-info-item {
+    text-align: center;
     z-index: 10;
     width: 100%;
-    box-shadow: none;
-    border: none;
-  }
-  .viz-box-adax .viz-indicators {
-    z-index: 10;
-    background: rgba(0,0,0,0.3);
-    padding: 12px;
-    border-radius: 12px;
-    margin-bottom: 15px;
-    box-shadow: none;
-    border: 1px solid rgba(255,255,255,0.05);
   }
 </style>
 <!-- XLSX (SheetJS) + ExcelJS + FileSaver – viskas iš CDN -->
@@ -327,8 +332,9 @@
   <h1>Linijų vizualizacija</h1>
   <div class="viz-container">
 
-    <!-- VERTICAL STACK (Left): PLXE5, NOBO7...NOBO2 -->
+    <!-- VERTICAL STACK (Left): UI 1, QRAD 1, PLXE 5, NOBO 7...2 -->
     <div class="viz-group-vertical">
+      <div id="viz-UI 1" class="viz-item viz-item-v"></div>
       <div id="viz-QRAD 1" class="viz-item viz-item-v"></div>
       <div id="viz-PLXE 5" class="viz-item viz-item-v"></div>
       <div id="viz-NOBO 7" class="viz-item viz-item-v"></div>
@@ -342,38 +348,12 @@
     <!-- HORIZONTAL ROW (Bottom): NOBO1, PLXE4...PLXE1 -->
     <!-- ADAX SECTION -->
     <div class="viz-group-adax">
-       <div style="display:flex; flex-direction:column; align-items:center;">
-          <div style="font-size:24px; font-weight:bold; color:var(--text-muted); margin-bottom:10px;">ADAX linijos</div>
-          <div style="display:flex; gap:40px;">
-             <!-- POD 3: 7 & 6 -->
-             <div class="adax-pod">
-                <div class="adax-nums"><span>7</span><span>6</span></div>
-                <div class="adax-split">
-                   <div class="adax-divider"></div>
-                   <div class="adax-item-wrap"><div id="viz-ADAX 7"></div></div>
-                   <div class="adax-item-wrap"><div id="viz-ADAX 6"></div></div>
-                </div>
-             </div>
-             <!-- POD 2: 4 & 3 -->
-             <div class="adax-pod">
-                <div class="adax-nums"><span>4</span><span>3</span></div>
-                <div class="adax-split">
-                   <div class="adax-divider"></div>
-                   <div class="adax-item-wrap"><div id="viz-ADAX 4"></div></div>
-                   <div class="adax-item-wrap"><div id="viz-ADAX 3"></div></div>
-                </div>
-             </div>
-             <!-- POD 1: 2 & 1 -->
-             <div class="adax-pod">
-                <div class="adax-nums"><span>2</span><span>1</span></div>
-                <div class="adax-split">
-                   <div class="adax-divider"></div>
-                   <div class="adax-item-wrap"><div id="viz-ADAX 2"></div></div>
-                   <div class="adax-item-wrap"><div id="viz-ADAX 1"></div></div>
-                </div>
-             </div>
-          </div>
-       </div>
+       <div class="adax-pod"><div id="viz-ADAX 7" style="height:100%; width:100%;"></div></div>
+       <div class="adax-pod"><div id="viz-ADAX 6" style="height:100%; width:100%;"></div></div>
+       <div class="adax-pod"><div id="viz-ADAX 4" style="height:100%; width:100%;"></div></div>
+       <div class="adax-pod"><div id="viz-ADAX 3" style="height:100%; width:100%;"></div></div>
+       <div class="adax-pod"><div id="viz-ADAX 2" style="height:100%; width:100%;"></div></div>
+       <div class="adax-pod"><div id="viz-ADAX 1" style="height:100%; width:100%;"></div></div>
     </div>
 
     <div class="viz-group-horizontal">
@@ -1174,15 +1154,58 @@ function renderVizPlaceholder(id, name, type) {
 
   const labelHtml = (type !== 'adax') ? `<div class="viz-label">${name}</div>` : '';
 
+    if (type === 'adax') {
+    const lineNum = name.replace('ADAX ', '');
+    el.innerHTML = `
+      <div class="viz-box ${boxClass}" id="box-${name}">
+        <div class="adax-arrows-container" id="arrows-${name}">
+          <div class="adax-arrow">🠗</div>
+          <div class="adax-arrow">🠗</div>
+          <div class="adax-arrow">🠗</div>
+          <div class="adax-arrow">🠗</div>
+        </div>
+
+        <div class="adax-num-header">${lineNum}</div>
+
+        <div class="viz-indicators">
+           <div class="viz-ind-row" title="Linijos būsena (Online/Offline)">
+              ${iconPulse}
+              <div class="ind-circle ind-active" id="ind-act-${name}"></div>
+           </div>
+           <div class="viz-ind-row" title="Gamybos greitis">
+              ${iconSpeed}
+              <div class="ind-circle ind-speed" id="ind-spd-${name}"></div>
+           </div>
+        </div>
+
+        <div class="adax-info-item">
+           <span class="viz-value-big" id="val-speed-${name}">-</span>
+           <div style="font-size:11px;color:#888">pcs/h</div>
+        </div>
+
+        <div class="adax-info-item">
+           <span class="viz-value-big" id="val-units-${name}">-</span>
+           <div style="font-size:11px;color:#888">vnt</div>
+        </div>
+
+        <div class="adax-info-item">
+           <div id="val-move-${name}" style="font-size:18px; color:#00d67a; font-weight:bold; z-index:10;">-</div>
+        </div>
+
+        <div class="adax-info-item">
+           <div id="val-gap-${name}" style="font-size:14px; color:#bbb; z-index:10;">-</div>
+        </div>
+
+        <div class="adax-info-item" style="padding-bottom: 20px;">
+           <div id="val-prod-${name}" style="font-size:11px; line-height:1.3; color:#9ad; font-weight:bold; padding:0 8px; z-index:10; word-break: break-all;" title="${name}">-</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   el.innerHTML = `
     <div class="viz-box ${boxClass}" id="box-${name}">
-      ${type === 'adax' ? `
-      <div class="adax-arrows-container" id="arrows-${name}">
-        <div class="adax-arrow">🠗</div>
-        <div class="adax-arrow">🠗</div>
-        <div class="adax-arrow">🠗</div>
-        <div class="adax-arrow">🠗</div>
-      </div>` : ''}
        <div class="viz-indicators">
 
          <div class="viz-ind-row" title="Linijos būsena (Online/Offline)">
@@ -1198,17 +1221,17 @@ function renderVizPlaceholder(id, name, type) {
        </div>
 
        <div class="viz-info">
-         <div style="line-height:1.2">
-           <span class="viz-value-big" id="val-speed-${name}" style="font-size:${type==='adax'?'13px':'16px'}">-</span>
-           <span style="font-size:9px;color:#888">pcs/h</span>
+         <div style="line-height:1.1">
+           <span class="viz-value-big" id="val-speed-${name}" style="font-size:${type==='adax'?'22px':'16px'}">-</span>
+           <span style="font-size:11px;color:#888">pcs/h</span>
          </div>
-         <div style="line-height:1.2; margin-top:4px">
-           <span class="viz-value-big" id="val-units-${name}" style="font-size:${type==='adax'?'13px':'16px'}">-</span>
-           <span style="font-size:9px;color:#888">vnt</span>
+         <div style="line-height:1.1">
+           <span class="viz-value-big" id="val-units-${name}" style="font-size:${type==='adax'?'22px':'16px'}">-</span>
+           <span style="font-size:11px;color:#888">vnt</span>
          </div>
-         ${type==='adax' ? `<div style="margin-top:6px; font-size:11px; color:#00d67a; font-weight:bold;" id="val-move-${name}">-</div>` : ''}
-         <div style="margin-top:2px; font-size:10px; color:#bbb;" id="val-gap-${name}">-</div>
-         <div style="margin-top:2px; font-size:9px; line-height:1.1; color:#9ad; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:${type==='adax'?'100%':'80px'};" id="val-prod-${name}">-</div>
+         ${type==='adax' ? `<div style="font-size:16px; color:#00d67a; font-weight:bold; padding: 5px 0;" id="val-move-${name}">-</div>` : ''}
+         <div style="font-size:${type==='adax'?'14px':'10px'}; color:#bbb;" id="val-gap-${name}">-</div>
+         <div style="font-size:${type==='adax'?'13px':'9px'}; line-height:1.3; color:#9ad; font-weight:bold; padding:0 5px;" id="val-prod-${name}">-</div>
        </div>
     </div>
     ${labelHtml}
@@ -1217,7 +1240,7 @@ function renderVizPlaceholder(id, name, type) {
 
 (function InitVizLayout(){
   // Vertical Stack
-  ['QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2'].forEach(n => {
+  ['UI 1','QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'v');
   });
   // Horizontal Row
@@ -1230,18 +1253,7 @@ function renderVizPlaceholder(id, name, type) {
     renderVizPlaceholder(`viz-${n}`, n, 'adax');
   });
 
-  // UI 1 (Top Right) - Inject dynamically if not in HTML
-  const container = document.querySelector('.viz-container');
-  if(container && !document.getElementById('viz-UI 1')) {
-     const d = document.createElement('div');
-     d.id = 'viz-UI 1';
-     d.className = 'viz-item viz-item-v';
-     d.style.position = 'absolute';
-     d.style.top = '40px';
-     d.style.right = '40px';
-     container.appendChild(d);
-     renderVizPlaceholder('viz-UI 1', 'UI 1', 'v');
-  }
+  // UI 1 is now part of the vertical stack in HTML
 })();
 
 /* ================================================================================================
