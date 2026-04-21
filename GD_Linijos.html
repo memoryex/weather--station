@@ -98,53 +98,53 @@
 
   /* --- VISUALIZATION STYLES --- */
   .viz-container {
-    position:relative; width:95%; max-width:1900px; margin:20px auto;
-    min-height:1500px; /* Increased height to prevent overlap */
+    position:relative; width:95%; max-width:2500px; margin:20px auto;
+    min-height:1600px; /* Adjusted to fit better */
     background:var(--bg-panel); border-radius:12px; border:1px solid var(--border-color); padding:40px;
   }
 
   /* Apply border-box locally to visualization to keep sizing predictable */
   .viz-container, .viz-container * { box-sizing: border-box; }
 
-  .viz-group-vertical { display:flex; flex-direction:column; gap:35px; position:absolute; top:40px; left:40px; }
-  .viz-group-horizontal { display:flex; gap:30px; position:absolute; bottom:50px; left:480px; }
+  .viz-group-vertical { display:flex; flex-direction:column; gap:50px; position:absolute; top:40px; left:40px; }
+  .viz-group-horizontal { display:flex; gap:50px; position:absolute; bottom:50px; left:600px; }
 
-  .viz-item { display:flex; align-items:center; gap:15px; }
+  .viz-item { display:flex; align-items:center; gap:25px; }
   .viz-item-v { flex-direction:row; } /* Label on right for vertical stack */
   .viz-item-h { flex-direction:column-reverse; } /* Label on bottom for horizontal row */
 
   .viz-box {
-    width:180px; height:80px;
-    border:3px solid var(--viz-box-border); border-radius:20px;
+    width:220px; height:100px;
+    border:4px solid var(--viz-box-border); border-radius:24px;
     background:var(--viz-box-bg);
     display:flex; flex-direction:row; justify-content:space-around; align-items:center;
-    padding:8px;
-    box-shadow: 0 4px 10px var(--viz-shadow);
+    padding:12px;
+    box-shadow: 0 6px 15px var(--viz-shadow);
     position: relative;
   }
   /* Vertikalioje juostoje box'ai pailgi horizontaliai */
-  .viz-box-wide { width:220px; height:110px; } /* Increased height for better text visibility */
+  .viz-box-wide { width:280px; height:140px; } /* Increased for zoom */
   /* Horizontalioje juostoje box'ai aukšti vertikaliai */
-  .viz-box-tall { width:120px; height:210px; flex-direction:column; justify-content:center; gap:10px; }
-    .viz-box-adax { width: 100%; height: 100%; flex-direction:column; justify-content:space-between; align-items:center; gap:0; border:none; border-radius:0; background: transparent; position: relative; padding: 30px 0; box-sizing: border-box; }
-  .viz-box-adax .viz-value-big { font-size:24px; }
-  .viz-box-adax .viz-icon { width:18px; height:18px; }
+  .viz-box-tall { width:160px; height:280px; flex-direction:column; justify-content:center; gap:15px; }
+  .viz-box-adax { width: 100%; height: 100%; flex-direction:column; justify-content:space-between; align-items:center; gap:0; border:none; border-radius:0; background: transparent; position: relative; padding: 40px 0; box-sizing: border-box; }
+  .viz-box-adax .viz-value-big { font-size:28px; }
+  .viz-box-adax .viz-icon { width:22px; height:22px; }
 
-  .viz-label { font-size:16px; font-weight:bold; color:var(--text-muted); }
+  .viz-label { font-size:24px; font-weight:bold; color:var(--text-muted); }
 
     /* ADAX layout */
-  .viz-group-adax { display:flex; gap:45px; position:absolute; top:40px; left:480px; }
+  .viz-group-adax { display:flex; gap:60px; position:absolute; top:40px; left:700px; }
   .adax-pod {
     display:flex; flex-direction:column; align-items:center;
-    border:2px solid #333; border-radius:12px;
-    padding:0; background:#060606;
-    width:130px; height:820px;
+    border:3px solid #444; border-radius:20px;
+    padding:0; background:#0a0a0a;
+    width:240px; height:1100px;
     overflow: hidden;
     position: relative;
-    box-shadow: inset 0 0 30px rgba(0,0,0,1), 0 5px 15px rgba(0,0,0,0.4);
+    box-shadow: inset 0 0 50px rgba(0,0,0,1), 0 10px 30px rgba(0,0,0,0.6);
   }
 
-  .viz-info { font-size:12px; text-align:center; line-height:1.4; color:var(--text-main); }
+  .viz-info { font-size:18px; text-align:center; line-height:1.4; color:var(--text-main); }
   /* ADAX info stretches to edges and distributes */
   .viz-box-adax .viz-info {
     background: transparent;
@@ -153,11 +153,11 @@
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 30px;
+    gap: 50px;
     box-shadow: none;
     border: none;
   }
-  .viz-value-big { font-size:18px; font-weight:bold; display:block; }
+  .viz-value-big { font-size:26px; font-weight:bold; display:block; }
 
   /* --- VISUALIZATION INDICATORS & ICONS --- */
   .viz-indicators {
@@ -231,15 +231,15 @@
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 44px;
+    font-size: 72px;
     font-weight: bold;
     animation: adax-move 3s linear infinite;
-    text-shadow: 0 0 12px rgba(0,0,0,0.7);
-    color: #444;
+    text-shadow: 0 0 25px rgba(0,0,0,1);
+    color: #222;
     display: block;
   }
-  .adax-arrow.left-lane { left: 10%; z-index: 1; }
-  .adax-arrow.right-lane { left: 90%; z-index: 1; }
+  .adax-arrow.left-lane { left: 6%; z-index: 1; }
+  .adax-arrow.right-lane { left: 94%; z-index: 1; }
   .adax-arrow.green { color: #00d67a; }
   .adax-arrow.orange { color: #ffa726; }
   .adax-arrow.red-x {
@@ -266,7 +266,7 @@
     box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     border: 1px solid rgba(255,255,255,0.05);
   }
-  .adax-num-header { font-size: 80px; font-weight: bold; color: rgba(255,255,255,0.4); z-index: 5; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); pointer-events: none; }
+  .adax-num-header { font-size: 140px; font-weight: 900; color: rgba(255,255,255,0.10); z-index: 5; position: absolute; top: 0px; left: 50%; transform: translateX(-50%); pointer-events: none; }
   .adax-info-item {
     text-align: center;
     z-index: 10;
@@ -347,6 +347,7 @@
 
     <!-- HORIZONTAL ROW (Bottom): NOBO1, PLXE4...PLXE1 -->
     <!-- ADAX SECTION -->
+    <div style="position:absolute; top:10px; left:700px; font-size:32px; font-weight:bold; color:var(--text-muted);">ADAX linijos</div>
     <div class="viz-group-adax">
        <div class="adax-pod"><div id="viz-ADAX 7" style="height:100%; width:100%;"></div></div>
        <div class="adax-pod"><div id="viz-ADAX 6" style="height:100%; width:100%;"></div></div>
@@ -1154,7 +1155,7 @@ function renderVizPlaceholder(id, name, type) {
 
   const labelHtml = (type !== 'adax') ? `<div class="viz-label">${name}</div>` : '';
 
-    if (type === 'adax') {
+  if (type === 'adax') {
     const lineNum = name.replace('ADAX ', '');
     el.innerHTML = `
       <div class="viz-box ${boxClass}" id="box-${name}">
@@ -1178,26 +1179,26 @@ function renderVizPlaceholder(id, name, type) {
            </div>
         </div>
 
-        <div class="adax-info-item">
-           <span class="viz-value-big" id="val-speed-${name}">-</span>
-           <div style="font-size:11px;color:#888">pcs/h</div>
+        <div class="adax-info-item" style="padding: 0 10px;">
+           <div id="val-prod-${name}" style="font-size:18px; line-height:1.2; color:#4fc3f7; font-weight:bold; z-index:10; word-break: break-word;" title="${name}">-</div>
         </div>
 
         <div class="adax-info-item">
-           <span class="viz-value-big" id="val-units-${name}">-</span>
-           <div style="font-size:11px;color:#888">vnt</div>
+           <span class="viz-value-big" id="val-speed-${name}" style="font-size:32px;">-</span>
+           <div style="font-size:16px;color:#888">pcs/h</div>
         </div>
 
         <div class="adax-info-item">
-           <div id="val-move-${name}" style="font-size:18px; color:#00d67a; font-weight:bold; z-index:10;">-</div>
+           <span class="viz-value-big" id="val-units-${name}" style="font-size:32px;">-</span>
+           <div style="font-size:16px;color:#888">vnt</div>
         </div>
 
         <div class="adax-info-item">
-           <div id="val-gap-${name}" style="font-size:14px; color:#bbb; z-index:10;">-</div>
+           <div id="val-move-${name}" style="font-size:28px; color:#00d67a; font-weight:bold; z-index:10; background: rgba(0,0,0,0.5); border-radius: 12px; padding: 5px; border: 1px solid rgba(0,214,122,0.3);">-</div>
         </div>
 
-        <div class="adax-info-item" style="padding-bottom: 20px;">
-           <div id="val-prod-${name}" style="font-size:11px; line-height:1.3; color:#9ad; font-weight:bold; padding:0 8px; z-index:10; word-break: break-all;" title="${name}">-</div>
+        <div class="adax-info-item" style="padding-bottom: 40px;">
+           <div id="val-gap-${name}" style="font-size:18px; color:#bbb; z-index:10;">-</div>
         </div>
       </div>
     `;
@@ -1221,17 +1222,16 @@ function renderVizPlaceholder(id, name, type) {
        </div>
 
        <div class="viz-info">
-         <div style="line-height:1.1">
-           <span class="viz-value-big" id="val-speed-${name}" style="font-size:${type==='adax'?'22px':'16px'}">-</span>
-           <span style="font-size:11px;color:#888">pcs/h</span>
+         <div style="line-height:1.2">
+           <span class="viz-value-big" id="val-speed-${name}" style="font-size:26px">-</span>
+           <span style="font-size:16px;color:#888">pcs/h</span>
          </div>
-         <div style="line-height:1.1">
-           <span class="viz-value-big" id="val-units-${name}" style="font-size:${type==='adax'?'22px':'16px'}">-</span>
-           <span style="font-size:11px;color:#888">vnt</span>
+         <div style="line-height:1.2; margin-top:5px;">
+           <span class="viz-value-big" id="val-units-${name}" style="font-size:26px">-</span>
+           <span style="font-size:16px;color:#888">vnt</span>
          </div>
-         ${type==='adax' ? `<div style="font-size:16px; color:#00d67a; font-weight:bold; padding: 5px 0;" id="val-move-${name}">-</div>` : ''}
-         <div style="font-size:${type==='adax'?'14px':'10px'}; color:#bbb;" id="val-gap-${name}">-</div>
-         <div style="font-size:${type==='adax'?'13px':'9px'}; line-height:1.3; color:#9ad; font-weight:bold; padding:0 5px;" id="val-prod-${name}">-</div>
+         <div style="font-size:16px; color:#bbb; margin-top:5px;" id="val-gap-${name}">-</div>
+         <div style="font-size:14px; line-height:1.2; color:#9ad; font-weight:bold; padding:0 5px; margin-top:5px;" id="val-prod-${name}">-</div>
        </div>
     </div>
     ${labelHtml}
