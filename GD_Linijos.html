@@ -126,24 +126,27 @@
   .viz-box-wide { width:220px; height:110px; } /* Increased height for better text visibility */
   /* Horizontalioje juostoje box'ai aukšti vertikaliai */
   .viz-box-tall { width:120px; height:210px; flex-direction:column; justify-content:center; gap:10px; }
-  .viz-box-adax { width:75px; height:180px; flex-direction:column; justify-content:center; gap:5px; border-width:2px; }
-  .viz-box-adax .viz-value-big { font-size:14px; }
-  .viz-box-adax .viz-icon { width:12px; height:12px; }
+  .viz-box-adax { width: 100%; height: 100%; flex-direction:column; justify-content:center; gap:0; border:none; border-radius:0; background: transparent; position: relative; padding: 0; }
+  .viz-box-adax .viz-value-big { font-size:15px; }
+  .viz-box-adax .viz-icon { width:14px; height:14px; }
 
   .viz-label { font-size:16px; font-weight:bold; color:var(--text-muted); }
 
   /* ADAX layout */
-  .viz-group-adax { display:flex; gap:40px; position:absolute; top:160px; left:400px; }
+  .viz-group-adax { display:flex; gap:30px; position:absolute; top:80px; left:380px; }
   .adax-pod {
     display:flex; flex-direction:column; align-items:center;
-    border:4px solid #444; border-radius:20px;
-    padding:20px 15px; background:rgba(255,255,255,0.03);
-    width:200px; height:500px;
+    border:4px solid #333; border-radius:15px;
+    padding:0; background:#080808;
+    width:240px; height:720px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 0 80px rgba(0,0,0,1), 0 10px 40px rgba(0,0,0,0.6);
   }
-  .adax-split { display:flex; width:100%; height:100%; position:relative; }
-  .adax-divider { width:2px; background:#444; height:100%; position:absolute; left:50%; margin-left:-1px; }
-  .adax-item-wrap { flex:1; display:flex; justify-content:center; align-items:center; z-index:2; }
-  .adax-nums { display:flex; width:100%; justify-content:space-around; margin-top:20px; font-size:22px; font-weight:bold; color:var(--text-muted); }
+  .adax-split { display:flex; width:100%; height:100%; position:relative; z-index: 1; }
+  .adax-divider { width: 1px; background: #222; height: 100%; position: absolute; left: 50%; top: 0; z-index: 1; }
+  .adax-item-wrap { flex:1; display:flex; justify-content:center; align-items:center; z-index:2; height: 100%; position: relative; overflow: visible; }
+  .adax-nums { display:flex; width:100%; justify-content:space-around; margin: 15px 0; font-size:32px; font-weight:bold; color:#555; z-index: 10; width: 100%; }
 
   .viz-info { font-size:12px; text-align:center; line-height:1.4; color:var(--text-main); }
   .viz-value-big { font-size:18px; font-weight:bold; display:block; }
@@ -203,36 +206,66 @@
 
       /* ADAX Arrow Animation */
   @keyframes adax-move {
-    0% { transform: translateY(-40px); opacity: 0; }
-    20% { opacity: 1; }
-    80% { opacity: 1; }
-    100% { transform: translateY(160px); opacity: 0; }
+    0% { transform: translate(-50%, -50px); opacity: 0; }
+    10% { opacity: 0.5; }
+    90% { opacity: 0.5; }
+    100% { transform: translate(-50%, 650px); opacity: 0; }
   }
   .adax-arrows-container {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none;
     overflow: hidden;
-    display: none;
+    display: block;
     z-index: 1;
   }
   .adax-arrow {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 32px;
+    font-size: 44px;
     font-weight: bold;
     animation: adax-move 3s linear infinite;
-    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+    text-shadow: 0 0 12px rgba(0,0,0,0.7);
+    color: #444;
+    display: block;
   }
+  .adax-arrow.left-lane { left: 12%; z-index: 1; }
+  .adax-arrow.right-lane { left: 88%; z-index: 1; }
   .adax-arrow.green { color: #00d67a; }
   .adax-arrow.orange { color: #ffa726; }
   .adax-arrow.red-x {
     color: #ff5252;
-    animation: none;
-    transform: translate(-50%, 50px);
-    font-size: 60px;
-    opacity: 0.8;
+    animation: none !important;
+    transform: translate(-50%, -50%) !important;
+    top: 50%;
+    left: 50%;
+    font-size: 200px !important;
+    opacity: 0.07 !important;
+    display: block !important;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .adax-speed-label {
+    display: none;
+  }
+  /* ADAX info stretches to edges */
+  .viz-box-adax .viz-info {
+    background: transparent;
+    padding: 30px 0;
+    z-index: 10;
+    width: 100%;
+    box-shadow: none;
+    border: none;
+  }
+  .viz-box-adax .viz-indicators {
+    z-index: 10;
+    background: rgba(0,0,0,0.3);
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    box-shadow: none;
+    border: 1px solid rgba(255,255,255,0.05);
   }
 </style>
 <!-- XLSX (SheetJS) + ExcelJS + FileSaver – viskas iš CDN -->
@@ -314,30 +347,30 @@
           <div style="display:flex; gap:40px;">
              <!-- POD 3: 7 & 6 -->
              <div class="adax-pod">
+                <div class="adax-nums"><span>7</span><span>6</span></div>
                 <div class="adax-split">
                    <div class="adax-divider"></div>
                    <div class="adax-item-wrap"><div id="viz-ADAX 7"></div></div>
                    <div class="adax-item-wrap"><div id="viz-ADAX 6"></div></div>
                 </div>
-                <div class="adax-nums"><span>7</span><span>6</span></div>
              </div>
              <!-- POD 2: 4 & 3 -->
              <div class="adax-pod">
+                <div class="adax-nums"><span>4</span><span>3</span></div>
                 <div class="adax-split">
                    <div class="adax-divider"></div>
                    <div class="adax-item-wrap"><div id="viz-ADAX 4"></div></div>
                    <div class="adax-item-wrap"><div id="viz-ADAX 3"></div></div>
                 </div>
-                <div class="adax-nums"><span>4</span><span>3</span></div>
              </div>
              <!-- POD 1: 2 & 1 -->
              <div class="adax-pod">
+                <div class="adax-nums"><span>2</span><span>1</span></div>
                 <div class="adax-split">
                    <div class="adax-divider"></div>
                    <div class="adax-item-wrap"><div id="viz-ADAX 2"></div></div>
                    <div class="adax-item-wrap"><div id="viz-ADAX 1"></div></div>
                 </div>
-                <div class="adax-nums"><span>2</span><span>1</span></div>
              </div>
           </div>
        </div>
@@ -1148,7 +1181,7 @@ function renderVizPlaceholder(id, name, type) {
         <div class="adax-arrow">🠗</div>
         <div class="adax-arrow">🠗</div>
         <div class="adax-arrow">🠗</div>
-        <div id="speed-label-${name}" style="position:absolute; bottom:5px; left:50%; transform:translateX(-50%); font-size:10px; font-weight:bold; color:var(--text-main); white-space:nowrap;"></div>
+        <div class="adax-arrow">🠗</div>
       </div>` : ''}
        <div class="viz-indicators">
 
@@ -1173,8 +1206,9 @@ function renderVizPlaceholder(id, name, type) {
            <span class="viz-value-big" id="val-units-${name}" style="font-size:${type==='adax'?'13px':'16px'}">-</span>
            <span style="font-size:9px;color:#888">vnt</span>
          </div>
+         ${type==='adax' ? `<div style="margin-top:6px; font-size:11px; color:#00d67a; font-weight:bold;" id="val-move-${name}">-</div>` : ''}
          <div style="margin-top:2px; font-size:10px; color:#bbb;" id="val-gap-${name}">-</div>
-         <div style="margin-top:2px; font-size:9px; line-height:1.1; color:#9ad; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:${type==='adax'?'60px':'80px'};" id="val-prod-${name}">-</div>
+         <div style="margin-top:2px; font-size:9px; line-height:1.1; color:#9ad; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:${type==='adax'?'100%':'80px'};" id="val-prod-${name}">-</div>
        </div>
     </div>
     ${labelHtml}
@@ -1214,7 +1248,7 @@ function renderVizPlaceholder(id, name, type) {
    LOGIC: STATUS TAB
    ================================================================================================ */
 (function InitStatus(){
-    const OFFLINE_MINUTES = 60;
+    const OFFLINE_MINUTES = 720; // Increased to 12 hours
     const REFRESH_MS = 120000;
     let timer = REFRESH_MS / 1000;
 
@@ -1315,10 +1349,13 @@ function renderVizPlaceholder(id, name, type) {
 
                 if (allRecords.length === 0) throw "Tušti duomenys";
 
+                // Normalize and filter valid records first
+                allRecords = allRecords.map(normalizeAdaxRecord);
+
                 allRecords.sort((a, b) => {
-                    const da = (a.TestavimoLaikas && typeof a.TestavimoLaikas === 'string') ? new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
-                    const db = (b.TestavimoLaikas && typeof b.TestavimoLaikas === 'string') ? new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
-                    return da - db;
+                    const ta = a.TestavimoLaikas ? new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+                    const tb = b.TestavimoLaikas ? new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+                    return ta - tb;
                 });
 
                 const latest = allRecords[allRecords.length - 1];
@@ -1365,22 +1402,19 @@ function renderVizPlaceholder(id, name, type) {
                     ? toLT(firstInBatch.TestavimoLaikas.replace(' ', 'T')) : "-";
                 const tLast = (latest && latest.TestavimoLaikas && typeof latest.TestavimoLaikas === 'string')
                     ? toLT(latest.TestavimoLaikas.replace(' ', 'T')) : "-";
-                const latestIso = latest ? latest.TestavimoLaikas : null;
+                const latestIso = latest ? (latest.TestavimoLaikas || latest.GamybosPabaiga) : null;
 
-                let status="NEAKTYVI", statusCls="status-offline";
-                let active = false;
-                let msSinceLast = 0;
-                if (latestIso && typeof latestIso === 'string') {
-                    msSinceLast = now - new Date(latestIso.replace(' ', 'T')).getTime();
-                    if (msSinceLast/60000 <= OFFLINE_MINUTES) {
-                        status="AKTYVI"; statusCls="status-online";
-                        active = true;
+                let msSinceLast = Infinity;
+                if (latestIso) {
+                    const lastTs = new Date(latestIso.replace(' ', 'T')).getTime();
+                    if (isFinite(lastTs)) {
+                        msSinceLast = now - lastTs;
                     }
                 }
 
                 let spTxt="–", gapTxt="–", spClass="";
                 let speedVal = 0;
-                if (msSinceLast > 24 * 3600 * 1000) {
+                if (msSinceLast > 24 * 3600 * 1000 && msSinceLast !== Infinity) {
                     spTxt = "Nėra naujų duomenų >24h";
                     spClass = "bad";
                 } else if (allRecords.length >= 2) {
@@ -1401,28 +1435,49 @@ function renderVizPlaceholder(id, name, type) {
                     }
                 }
 
+                let status="NEAKTYVI", statusCls="status-offline", active = false;
+                const hasRecentActivity = (msSinceLast/60000 <= OFFLINE_MINUTES) || (msSinceLast < 0);
+                if (hasRecentActivity || speedVal > 0) {
+                    status="AKTYVI"; statusCls="status-online";
+                    active = true;
+                }
+                console.log(`[ADAX ${L.lid}] Last: ${latestIso}, mins ago: ${(msSinceLast/60000).toFixed(0)}, Speed: ${speedVal.toFixed(1)}, Active: ${active}`);
+
                 // Calculate movement intensity (m/min)
                 let moveIntensity = 0;
-                if (allRecords.length >= 2) {
-                    const sample = allRecords.slice(-5); // Use last 5 records for intensity
+                let leadTimeIntensity = 0;
+                if (allRecords.length >= 1) {
+                    const sample = allRecords.slice(-20);
                     let totalLeadTimeMs = 0;
                     let validSamples = 0;
-                    sample.forEach(r => {
-                        const testEnd = r.TestavimoLaikas ? new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
-                        const testStart = r.NuskanavimoLaikas ? new Date(r.NuskanavimoLaikas.replace(' ', 'T')).getTime() : 0;
-                        if (testEnd > 0 && testStart > 0 && testEnd > testStart) {
-                            totalLeadTimeMs += (testEnd - testStart);
-                            validSamples++;
+                    sample.forEach(rec => {
+                        const tEndStr = rec.TestavimoLaikas || rec.GamybosPabaiga;
+                        const tStartStr = rec.NuskanavimoLaikas || rec.GamybosPradzia;
+                        if (tEndStr && tStartStr) {
+                            const testEnd = new Date(tEndStr.replace(' ', 'T')).getTime();
+                            const testStart = new Date(tStartStr.replace(' ', 'T')).getTime();
+                            if (isFinite(testEnd) && isFinite(testStart)) {
+                                const diff = testEnd - testStart;
+                                if (diff > 1000 && diff < 3600000) { // 1s to 1h
+                                    totalLeadTimeMs += diff;
+                                    validSamples++;
+                                }
+                            }
                         }
                     });
                     if (validSamples > 0) {
                         const avgLeadTimeMin = (totalLeadTimeMs / validSamples) / 60000;
                         const lineLen = adaxLineLengths[L.lid] || 25;
-                        if (avgLeadTimeMin > 0) {
-                            moveIntensity = lineLen / avgLeadTimeMin; // meters per minute
-                        }
+                        leadTimeIntensity = lineLen / avgLeadTimeMin;
                     }
                 }
+
+                // Fallback to throughput-based intensity if lead-time is missing
+                // Heuristic: moveIntensity = speedVal / 12 (assumes 1 unit per 5 meters)
+                const throughputIntensity = (speedVal > 0) ? (speedVal / 10) : 0;
+                moveIntensity = (leadTimeIntensity > 0) ? leadTimeIntensity : throughputIntensity;
+
+                if (isNaN(moveIntensity) || !isFinite(moveIntensity) || moveIntensity < 0) moveIntensity = 0;
 
                 return { L, countValStr, countValNum, dailyUnits, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, moveIntensity };
             } catch(e) {
@@ -1483,9 +1538,9 @@ function renderVizPlaceholder(id, name, type) {
                 let msSinceLast = 0;
 
                 if (latestIso) {
-                    msSinceLast = now - new Date(latestIso).getTime();
-                    const mins = msSinceLast/60000;
-                    if (mins <= OFFLINE_MINUTES) {
+                    const lastTs = new Date(latestIso).getTime();
+                    msSinceLast = now - lastTs;
+                    if (msSinceLast/60000 <= OFFLINE_MINUTES || msSinceLast < 0) {
                         status="AKTYVI"; statusCls="status-online";
                         active = true;
                     }
@@ -1645,37 +1700,51 @@ function renderVizPlaceholder(id, name, type) {
                    }
                 }
 
-                                                // Update ADAX animations
+                // Update ADAX animations
                 if (r.L.apiType === 'ADAX') {
                     const arrowsCont = document.getElementById(`arrows-${r.L.name}`);
-                    const speedLab = document.getElementById(`speed-label-${r.L.name}`);
+                    const moveLab = document.getElementById(`val-move-${r.L.name}`);
                     if (arrowsCont) {
-                        arrowsCont.style.display = 'block';
                         const arrows = arrowsCont.querySelectorAll('.adax-arrow');
 
-                        if (r.active && r.moveIntensity > 0) {
-                            const isFast = r.moveIntensity >= 4.0;
+                        // Explicit Reset
+                        arrows.forEach(arr => {
+                            arr.className = 'adax-arrow';
+                            arr.style.display = 'block';
+                            arr.style.animation = 'none';
+                            void arr.offsetHeight; // force reflow
+                        });
+
+                        if (r.active) {
+                            // Active line: show moving arrows
+                            const displayIntensity = Math.max(0.5, r.moveIntensity);
+                            const isFast = displayIntensity >= 4.0;
                             const colorClass = isFast ? 'green' : 'orange';
-                            const duration = Math.max(0.8, Math.min(10, 20 / r.moveIntensity));
+                            const duration = Math.max(1.0, Math.min(20, 30 / displayIntensity));
 
                             arrows.forEach((arr, idx) => {
-                                arr.className = 'adax-arrow ' + colorClass;
+                                const laneClass = (idx % 2 === 0) ? 'left-lane' : 'right-lane';
+                                arr.className = 'adax-arrow ' + colorClass + ' ' + laneClass;
                                 arr.innerText = '🠗';
-                                arr.style.display = '';
-                                arr.style.animationDuration = `${duration}s`;
-                                arr.style.animationDelay = `${(duration / 3) * idx}s`;
+                                arr.style.animation = `adax-move ${duration}s linear infinite`;
+                                arr.style.animationDelay = `${(duration / (arrows.length/2)) * Math.floor(idx/2)}s`;
                             });
-                            if(speedLab) speedLab.innerText = r.moveIntensity.toFixed(1) + ' m/min.';
+                            const speedText = (r.moveIntensity > 0) ? r.moveIntensity.toFixed(1) : "0.5";
+                            if(moveLab) {
+                                moveLab.innerText = speedText + ' m/min.';
+                                moveLab.style.color = isFast ? '#00d67a' : '#ffa726';
+                            }
                         } else {
-                            // Inactive - Red X
+                            // Inactive line: show a single Red X
                             arrows.forEach((arr, idx) => {
-                                arr.className = 'adax-arrow red-x';
-                                arr.innerText = idx === 0 ? '✖' : '';
-                                arr.style.display = idx === 0 ? '' : 'none';
-                                arr.style.animationDuration = '';
-                                arr.style.animationDelay = '';
+                                if (idx === 0) {
+                                    arr.className = 'adax-arrow red-x';
+                                    arr.innerText = '✖';
+                                } else {
+                                    arr.style.display = 'none';
+                                }
                             });
-                            if(speedLab) speedLab.innerText = '';
+                            if(moveLab) moveLab.innerText = '-';
                         }
                     }
                 }
