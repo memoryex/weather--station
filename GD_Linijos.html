@@ -342,12 +342,11 @@
       <div id="viz-NOBO 5" class="viz-item viz-item-v"></div>
       <div id="viz-NOBO 4" class="viz-item viz-item-v"></div>
       <div id="viz-NOBO 3" class="viz-item viz-item-v"></div>
-      <div id="viz-NOBO 2" class="viz-item viz-item-v"></div>
     </div>
 
     <!-- HORIZONTAL ROW (Bottom): NOBO1, PLXE4...PLXE1 -->
     <!-- ADAX SECTION -->
-    <div style="position:absolute; top:10px; left:700px; font-size:32px; font-weight:bold; color:var(--text-muted);">ADAX linijos</div>
+    <div style="position:absolute; top:10px; left:700px; width:1740px; text-align:center; font-size:32px; font-weight:bold; color:var(--text-muted);">ADAX linijos</div>
     <div class="viz-group-adax">
        <div class="adax-pod"><div id="viz-ADAX 7" style="height:100%; width:100%;"></div></div>
        <div class="adax-pod"><div id="viz-ADAX 6" style="height:100%; width:100%;"></div></div>
@@ -363,6 +362,7 @@
       <div id="viz-PLXE 3" class="viz-item viz-item-h"></div>
       <div id="viz-PLXE 2" class="viz-item viz-item-h"></div>
       <div id="viz-PLXE 1" class="viz-item viz-item-h"></div>
+      <div id="viz-NOBO 2" class="viz-item viz-item-h"></div>
     </div>
 
   </div>
@@ -1240,11 +1240,11 @@ function renderVizPlaceholder(id, name, type) {
 
 (function InitVizLayout(){
   // Vertical Stack
-  ['UI 1','QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2'].forEach(n => {
+  ['UI 1','QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'v');
   });
   // Horizontal Row
-  ['NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1'].forEach(n => {
+  ['NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','NOBO 2'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'h');
   });
 
