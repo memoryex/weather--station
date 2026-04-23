@@ -110,8 +110,8 @@
   .viz-group-horizontal { display:flex; gap:50px; position:absolute; bottom:50px; left:600px; }
 
   .viz-item { display:flex; align-items:center; gap:25px; }
-  .viz-item-v { flex-direction:row; } /* Label on right for vertical stack */
-  .viz-item-h { flex-direction:column-reverse; } /* Label on bottom for horizontal row */
+  .viz-item-v { flex-direction:row; } /* Info on right for vertical stack */
+  .viz-item-h { flex-direction:column-reverse; align-items: center; text-align: center; } /* Info on top for horizontal row */
 
   .viz-box {
     width:220px; height:100px;
@@ -121,16 +121,29 @@
     padding:12px;
     box-shadow: 0 6px 15px var(--viz-shadow);
     position: relative;
+    flex-shrink: 0;
   }
   /* Vertikalioje juostoje box'ai pailgi horizontaliai */
-  .viz-box-wide { width:280px; height:140px; } /* Increased for zoom */
+  .viz-box-wide { width:280px; height:160px; }
   /* Horizontalioje juostoje box'ai aukšti vertikaliai */
-  .viz-box-tall { width:160px; height:280px; flex-direction:column; justify-content:center; gap:15px; }
+  .viz-box-tall { width:200px; height:240px; flex-direction:column; justify-content:center; gap:15px; }
   .viz-box-adax { width: 100%; height: 100%; flex-direction:column; justify-content:space-between; align-items:center; gap:0; border:none; border-radius:0; background: transparent; position: relative; padding: 40px 0; box-sizing: border-box; }
   .viz-box-adax .viz-value-big { font-size:28px; }
   .viz-box-adax .viz-icon { width:22px; height:22px; }
 
-  .viz-label { font-size:24px; font-weight:bold; color:var(--text-muted); }
+  .viz-label { font-size:28px; font-weight:bold; color:var(--text-header); margin-bottom: 5px; }
+
+  .viz-external-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    max-width: 450px;
+  }
+  .viz-item-h .viz-external-info {
+    margin-bottom: 15px;
+    margin-left: 0;
+  }
 
     /* ADAX layout */
   .viz-group-adax { display:flex; gap:60px; position:absolute; top:40px; left:700px; }
@@ -1148,12 +1161,11 @@ function renderVizPlaceholder(id, name, type) {
   if(type === 'adax') boxClass = 'viz-box-adax';
 
   // Ikonėlės (paveikslėliai): Pulse (Būsena) ir Gauge (Greitis)
-  const iconPulse = `<img src="icons/pulse.png" class="viz-icon" alt="Status" />`;
+  // Using emojis as fallback for missing assets to ensure clean visualization
+  const iconPulse = `<span style="font-size: 24px;">💓</span>`;
   const iconSpeed = (name === "UI 1")
-      ? `<img src="icons/computer.png" class="viz-icon" alt="Speed" />`
-      : `<img src="icons/speed.jpg" class="viz-icon" alt="Speed" />`;
-
-  const labelHtml = (type !== 'adax') ? `<div class="viz-label">${name}</div>` : '';
+      ? `<span style="font-size: 24px;">💻</span>`
+      : `<span style="font-size: 24px;">🚀</span>`;
 
   if (type === 'adax') {
     const lineNum = name.replace('ADAX ', '');
@@ -1184,13 +1196,17 @@ function renderVizPlaceholder(id, name, type) {
         </div>
 
         <div class="adax-info-item">
-           <span class="viz-value-big" id="val-speed-${name}" style="font-size:32px;">-</span>
-           <div style="font-size:16px;color:#888">pcs/h</div>
+           <div style="display: flex; align-items: baseline; justify-content: center; gap: 8px;">
+             <span class="viz-value-big" id="val-speed-${name}" style="font-size:48px;">-</span>
+             <span style="font-size:20px;color:#888">pcs/h</span>
+           </div>
         </div>
 
         <div class="adax-info-item">
-           <span class="viz-value-big" id="val-units-${name}" style="font-size:32px;">-</span>
-           <div style="font-size:16px;color:#888">vnt</div>
+           <div style="display: flex; align-items: baseline; justify-content: center; gap: 8px;">
+             <span class="viz-value-big" id="val-units-${name}" style="font-size:48px;">-</span>
+             <span style="font-size:20px;color:#888">vnt</span>
+           </div>
         </div>
 
         <div class="adax-info-item">
@@ -1222,19 +1238,21 @@ function renderVizPlaceholder(id, name, type) {
        </div>
 
        <div class="viz-info">
-         <div style="line-height:1.2">
-           <span class="viz-value-big" id="val-speed-${name}" style="font-size:26px">-</span>
-           <span style="font-size:16px;color:#888">pcs/h</span>
+         <div style="display: flex; align-items: baseline; gap: 8px;">
+           <span class="viz-value-big" id="val-speed-${name}" style="font-size:36px">-</span>
+           <span style="font-size:18px;color:#888">pcs/h</span>
          </div>
-         <div style="line-height:1.2; margin-top:5px;">
-           <span class="viz-value-big" id="val-units-${name}" style="font-size:26px">-</span>
-           <span style="font-size:16px;color:#888">vnt</span>
+         <div style="display: flex; align-items: baseline; gap: 8px;">
+           <span class="viz-value-big" id="val-units-${name}" style="font-size:36px">-</span>
+           <span style="font-size:18px;color:#888">vnt</span>
          </div>
-         <div style="font-size:16px; color:#bbb; margin-top:5px;" id="val-gap-${name}">-</div>
-         <div style="font-size:14px; line-height:1.2; color:#9ad; font-weight:bold; padding:0 5px; margin-top:5px;" id="val-prod-${name}">-</div>
        </div>
     </div>
-    ${labelHtml}
+    <div class="viz-external-info">
+      <div class="viz-label">${name}</div>
+      <div style="font-size:22px; color:#bbb; font-weight: bold;" id="val-gap-${name}">-</div>
+      <div style="font-size:20px; line-height:1.1; color:#9ad; font-weight:bold; word-break: break-word;" id="val-prod-${name}">-</div>
+    </div>
   `;
 }
 
