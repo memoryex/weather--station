@@ -1022,7 +1022,7 @@ function buildAdaxSegments(data, from, to, tz) {
     const filtered = allRecords.filter(r => {
         if (!r.TestavimoLaikas || typeof r.TestavimoLaikas !== 'string') return false;
         // Exclude test codes
-        if (r.Produktas === '222222' || r.Produktas === '333333') return false;
+        if (['111111', '222222', '333333', '444444', '666666', '777777'].includes(r.Produktas)) return false;
         // Robust date parsing for "YYYY-MM-DD HH:MM:SS"
         const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
         return t >= fTs && t <= tTs;
@@ -1369,7 +1369,7 @@ function renderVizPlaceholder(id, name, type) {
                     }
                 }
                 // Filter out test codes
-                allRecords = allRecords.filter(r => r.Produktas !== '222222' && r.Produktas !== '333333');
+                allRecords = allRecords.filter(r => !['111111', '222222', '333333', '444444', '666666', '777777'].includes(r.Produktas));
 
                 if (allRecords.length === 0) throw "Tušti duomenys";
 
@@ -1892,6 +1892,9 @@ function renderVizPlaceholder(id, name, type) {
             pushSegment(bVal, units, startT, endT, bTime);
         }
         function pushSegment(barcode, units, startT, endT, bTimeStr) {
+            // Exclude test codes
+            if (['111111', '222222', '333333', '444444', '666666', '777777'].includes(barcode)) return;
+
             const code = normalizeCode(barcode);
             const prodName = PRODUCT_MAP.get(code) || "";
             const durationMs = endT - startT;
@@ -1980,7 +1983,7 @@ function renderVizPlaceholder(id, name, type) {
                         if (isRaw) {
                             let pts = [];
                             for (let prod in grouped) {
-                                if (prod === '222222' || prod === '333333') continue;
+                                if (['111111', '222222', '333333', '444444', '666666', '777777'].includes(prod)) continue;
                                 if (Array.isArray(grouped[prod])) {
                                     grouped[prod].map(normalizeAdaxRecord).forEach(r => {
                                         if (!r.TestavimoLaikas) return;
@@ -2168,6 +2171,9 @@ function renderVizPlaceholder(id, name, type) {
         const linesLastSeen = {};
         sorted.forEach(seg => {
             if (!seg.startTs || !seg.endTs || seg.units <= 0) return;
+            // Exclude test codes
+            if (['111111', '222222', '333333', '444444', '666666', '777777'].includes(seg.barcode)) return;
+
             const learnedUntil = aiModel.lineProgress[seg.line] || 0;
             if (seg.endTs <= learnedUntil) return;
             const durationHrs = (seg.endTs - seg.startTs) / 3600000;
@@ -2333,6 +2339,67 @@ function renderVizPlaceholder(id, name, type) {
            container.appendChild(div);
        });
     })();
+
+    // --- HELPERS (Private) ---
+    async function _fetchSeries(ch, field, key, tz, start, end, isNum=false) {
+        const url = `https://api.thingspeak.com/channels/${ch}/fields/${field}.json?api_key=${key}&start=${toIso(start)}&end=${toIso(end)}&timezone=${tz}&results=8000`;
+        const r = await fetchWithTimeout(url, { timeout: 15000 });
+        if(!r.ok) return [];
+        const j = await r.json();
+        if(!j.feeds) return [];
+
+        return j.feeds.map(f => ({
+            t: new Date(f.created_at).getTime(),
+            v: isNum ? parseFloat(f[`field${field}`]) : f[`field${field}`]
+        })).filter(x => isNum ? isFinite(x.v) : (x.v != null));
+    }
+
+    function toIso(d) {
+        return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'%20'+
+               pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+    }
+    function pad(n){return n<10?'0'+n:n;}
+
+    function _buildSegmentsAI(barcodes, counts) {
+        const segs = [];
+        if (!barcodes.length) return segs;
+
+        barcodes.sort((a,b)=>a.t-b.t);
+        counts.sort((a,b)=>a.t-b.t);
+
+        for(let i=0; i<barcodes.length; i++) {
+            const b = barcodes[i];
+            // Exclude test codes
+            if (['111111', '222222', '333333', '444444', '666666', '777777'].includes(String(b.v))) continue;
+
+            const nextB = barcodes[i+1];
+            const tEnd = nextB ? nextB.t : new Date().getTime();
+
+            const range = counts.filter(c => c.t >= b.t && c.t < tEnd);
+            if (range.length < 2) continue;
+
+            let units = 0;
+            for(let k=1; k<range.length; k++) {
+                const d = range[k].v - range[k-1].v;
+                if(d > 0) units += d;
+            }
+
+            if (units > 0) {
+                let name = b.v;
+                const code = normalizeCode(name);
+                if (PRODUCT_MAP.get(code)) name = PRODUCT_MAP.get(code);
+
+                segs.push({
+                    startTs: b.t,
+                    endTs: range[range.length-1].t,
+                    units: units,
+                    product: name,
+                    barcode: b.v
+                });
+            }
+        }
+        return segs;
+    }
 
     updateUI();
 })();
