@@ -313,7 +313,7 @@
   <table>
     <thead>
     <tr>
-      <th>Linija</th>
+      <th>GD Linijos</th>
       <th>Pagaminta vnt.</th>
       <th>Gaminio numeris</th>
       <th>Gaminio pavadinimas</th>
@@ -333,9 +333,8 @@
   <h1>Linijų vizualizacija</h1>
   <div class="viz-container">
 
-    <!-- VERTICAL STACK (Left): UI 1, QRAD 1, PLXE 5, NOBO 7...2 -->
+    <!-- VERTICAL STACK (Left): QRAD 1, PLXE 5, NOBO 7...2, UI perrašymas -->
     <div class="viz-group-vertical">
-      <div id="viz-UI 1" class="viz-item viz-item-v"></div>
       <div id="viz-QRAD 1" class="viz-item viz-item-v"></div>
       <div id="viz-PLXE 5" class="viz-item viz-item-v"></div>
       <div id="viz-NOBO 7" class="viz-item viz-item-v"></div>
@@ -343,6 +342,7 @@
       <div id="viz-NOBO 5" class="viz-item viz-item-v"></div>
       <div id="viz-NOBO 4" class="viz-item viz-item-v"></div>
       <div id="viz-NOBO 3" class="viz-item viz-item-v"></div>
+      <div id="viz-UI perrašymas" class="viz-item viz-item-v"></div>
     </div>
 
     <!-- HORIZONTAL ROW (Bottom): NOBO1, PLXE4...PLXE1 -->
@@ -558,7 +558,7 @@ const READ_KEYS = {
   463450: "VAL3TD2W5LADX7K1", // PLXE 1-4
   703669: "S44OBKWC5C7FODZ5", // NOBO 1-4
   802414: "I6NIZAVZYLPVV1ME", // NOBO 5-7, PLXE 5
-  807602: ""                  // UI 1 (Public)
+  807602: ""                  // UI perrašymas (Public)
 };
 
 const LINES = [
@@ -581,7 +581,7 @@ const LINES = [
   { name:"ADAX 4", lid: 4, apiType: "ADAX" },
   { name:"ADAX 6", lid: 6, apiType: "ADAX" },
   { name:"ADAX 7", lid: 7, apiType: "ADAX" },
-  { name:"UI 1",   channel:807602, fieldCount:1, fieldBarcode:null, apiType: "TS" }
+  { name:"UI perrašymas",   channel:807602, fieldCount:1, fieldBarcode:null, apiType: "TS" }
 ];
 // Alias for Status code compatibility
 const LINE_MAP = LINES;
@@ -1151,7 +1151,7 @@ function renderVizPlaceholder(id, name, type) {
 
   // Ikonėlės (paveikslėliai): Pulse (Būsena) ir Gauge (Greitis)
   const iconPulse = `<img src="icons/pulse.png" class="viz-icon" alt="Status" />`;
-  const iconSpeed = (name === "UI 1")
+  const iconSpeed = (name === "UI perrašymas")
       ? `<img src="icons/computer.png" class="viz-icon" alt="Speed" />`
       : `<img src="icons/speed.jpg" class="viz-icon" alt="Speed" />`;
 
@@ -1253,7 +1253,7 @@ function renderVizPlaceholder(id, name, type) {
 
 (function InitVizLayout(){
   // Vertical Stack
-  ['UI 1','QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3'].forEach(n => {
+  ['QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','UI perrašymas'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'v');
   });
   // Horizontal Row
@@ -1266,7 +1266,7 @@ function renderVizPlaceholder(id, name, type) {
     renderVizPlaceholder(`viz-${n}`, n, 'adax');
   });
 
-  // UI 1 is now part of the vertical stack in HTML
+  // UI perrašymas is now part of the vertical stack in HTML
 })();
 
 /* ================================================================================================
@@ -1539,15 +1539,25 @@ function renderVizPlaceholder(id, name, type) {
 
                 let productName = "—";
                 if (!L.fieldBarcode) {
-                    productName = "ECU-2Rw"; // Static for UI 1
+                    productName = "ECU-2Rw"; // Static for UI perrašymas
                 } else if (barcodeVal && barcodeVal !== "-") {
                     const code = normalizeCode(barcodeVal);
                     if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
                 }
 
                 // If no barcode field, tStart relies on countData or is just "Static"
-                const tStart = L.fieldBarcode ? toLT(barcodeData?.created_at) : "-";
+                let tStart = L.fieldBarcode ? toLT(barcodeData?.created_at) : "-";
                 const tLast  = toLT(countData?.created_at);
+
+                // Special logic for UI perrašymas: find first unit of the day
+                if (!L.fieldBarcode && dailyHistory.length > 1) {
+                    for (let i = 1; i < dailyHistory.length; i++) {
+                        if (dailyHistory[i].v > dailyHistory[i-1].v) {
+                            tStart = toLT(new Date(dailyHistory[i].t).toISOString());
+                            break;
+                        }
+                    }
+                }
 
                 // Latest activity logic
                 let latestIso;
@@ -1622,6 +1632,13 @@ function renderVizPlaceholder(id, name, type) {
         console.log("Waiting for all promises...");
         const results = await Promise.all([...tsPromises, ...adaxPromises]);
 
+        // Ensure UI perrašymas is at the end
+        const uiIdx = results.findIndex(r => r && r.L.name === "UI perrašymas");
+        if (uiIdx !== -1) {
+            const uiRes = results.splice(uiIdx, 1)[0];
+            results.push(uiRes);
+        }
+
         // Filter out failed fetches
         const validResults = results.filter(r => r !== null);
 
@@ -1642,11 +1659,11 @@ function renderVizPlaceholder(id, name, type) {
         let adaxSeparatorDone = false;
         let uiSeparatorDone = false;
         validResults.forEach(r => {
-            // Add separator before UI 1 if it's at the end
-            if (sortBy === 'default' && r.L.name === 'UI 1' && !uiSeparatorDone) {
+            // Add separator before UI perrašymas if it's at the end
+            if (sortBy === 'default' && r.L.name === 'UI perrašymas' && !uiSeparatorDone) {
                 html += `
-                <tr style="background: var(--bg-panel); color: var(--text-header); border-top: 4px solid #ff5252;">
-                    <th style="font-size:16px;">Linija</th>
+                <tr style="background: var(--bg-panel); color: var(--text-header);">
+                    <th style="font-size:16px;">UI perrašymas</th>
                     <th style="font-size:16px;">Pagaminta vnt.</th>
                     <th style="font-size:16px;">Užsakymo nr.</th>
                     <th style="font-size:16px;">Gaminio pavadinimas</th>
@@ -1663,8 +1680,8 @@ function renderVizPlaceholder(id, name, type) {
             // Add separator before first ADAX line if using default sort
             if (sortBy === 'default' && r.L.apiType === 'ADAX' && !adaxSeparatorDone) {
                 html += `
-                <tr style="background: var(--bg-panel); color: var(--text-header); border-top: 4px solid #ff5252;">
-                    <th style="font-size:16px;">Linija</th>
+                <tr style="background: var(--bg-panel); color: var(--text-header);">
+                    <th style="font-size:16px;">ADAX Linijos</th>
                     <th style="font-size:16px;">Pagaminta vnt.</th>
                     <th style="font-size:16px;">Užsakymo nr.</th>
                     <th style="font-size:16px;">Gaminio pavadinimas</th>
