@@ -575,13 +575,13 @@ const LINES = [
   { name:"NOBO 6", channel:802414, fieldCount:3, fieldBarcode:4, apiType: "TS" },
   { name:"NOBO 7", channel:802414, fieldCount:5, fieldBarcode:6, apiType: "TS" },
   { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8, apiType: "TS" },
-  { name:"UI 1",   channel:807602, fieldCount:1, fieldBarcode:null, apiType: "TS" },
   { name:"ADAX 1", lid: 1, apiType: "ADAX" },
   { name:"ADAX 2", lid: 2, apiType: "ADAX" },
   { name:"ADAX 3", lid: 3, apiType: "ADAX" },
   { name:"ADAX 4", lid: 4, apiType: "ADAX" },
   { name:"ADAX 6", lid: 6, apiType: "ADAX" },
-  { name:"ADAX 7", lid: 7, apiType: "ADAX" }
+  { name:"ADAX 7", lid: 7, apiType: "ADAX" },
+  { name:"UI 1",   channel:807602, fieldCount:1, fieldBarcode:null, apiType: "TS" }
 ];
 // Alias for Status code compatibility
 const LINE_MAP = LINES;
@@ -656,7 +656,8 @@ const PRODUCT_MAP = new Map([
   ["91789", "PLX150NC 1.5kw Dimplex Panel NO CONTROL"],
   ["91796", "PLX200NC 2.00kw Dimplex Panel NO CONTROL"],
   ["672016", "ADAX CLEA White 600W"],
-  ["678811", "ADAX NEO Blue 1000W"]
+  ["678811", "ADAX NEO Blue 1000W"],
+  ["UI v5", "ECU-2Rw"]
 ]);
 
 /* ===================== TAB LOGIC ===================== */
@@ -1538,7 +1539,7 @@ function renderVizPlaceholder(id, name, type) {
 
                 let productName = "—";
                 if (!L.fieldBarcode) {
-                    productName = "UI v5"; // Static for UI 1
+                    productName = "ECU-2Rw"; // Static for UI 1
                 } else if (barcodeVal && barcodeVal !== "-") {
                     const code = normalizeCode(barcodeVal);
                     if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
@@ -1639,7 +1640,26 @@ function renderVizPlaceholder(id, name, type) {
         // Render HTML
         let html = "";
         let adaxSeparatorDone = false;
+        let uiSeparatorDone = false;
         validResults.forEach(r => {
+            // Add separator before UI 1 if it's at the end
+            if (sortBy === 'default' && r.L.name === 'UI 1' && !uiSeparatorDone) {
+                html += `
+                <tr style="background: var(--bg-panel); color: var(--text-header); border-top: 4px solid #ff5252;">
+                    <th style="font-size:16px;">Linija</th>
+                    <th style="font-size:16px;">Pagaminta vnt.</th>
+                    <th style="font-size:16px;">Užsakymo nr.</th>
+                    <th style="font-size:16px;">Gaminio pavadinimas</th>
+                    <th style="font-size:16px;">Gaminio testavimo pradžia</th>
+                    <th style="font-size:16px;">Paskutinis užfiksavimas</th>
+                    <th style="font-size:16px;">Linijos būsena</th>
+                    <th style="font-size:16px;">Tarpas tarp testų</th>
+                    <th style="font-size:16px;">Greitis (vnt/val.)</th>
+                </tr>
+                `;
+                uiSeparatorDone = true;
+            }
+
             // Add separator before first ADAX line if using default sort
             if (sortBy === 'default' && r.L.apiType === 'ADAX' && !adaxSeparatorDone) {
                 html += `
@@ -1895,8 +1915,11 @@ function renderVizPlaceholder(id, name, type) {
             // Exclude test codes
             if (['111111', '222222', '333333', '444444', '666666', '777777'].includes(barcode)) return;
 
-            const code = normalizeCode(barcode);
-            const prodName = PRODUCT_MAP.get(code) || "";
+            let prodName = PRODUCT_MAP.get(barcode);
+            if (!prodName) {
+                const code = normalizeCode(barcode);
+                prodName = PRODUCT_MAP.get(code) || "";
+            }
             const durationMs = endT - startT;
             const startLT = toLTString(new Date(startT).toISOString(), tz);
             const endLT = toLTString(new Date(endT).toISOString(), tz);
@@ -2386,8 +2409,12 @@ function renderVizPlaceholder(id, name, type) {
 
             if (units > 0) {
                 let name = b.v;
-                const code = normalizeCode(name);
-                if (PRODUCT_MAP.get(code)) name = PRODUCT_MAP.get(code);
+                let prodName = PRODUCT_MAP.get(name);
+                if (!prodName) {
+                    const code = normalizeCode(name);
+                    if (PRODUCT_MAP.get(code)) prodName = PRODUCT_MAP.get(code);
+                }
+                if (prodName) name = prodName;
 
                 segs.push({
                     startTs: b.t,
