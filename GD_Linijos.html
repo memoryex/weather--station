@@ -1781,7 +1781,8 @@ function renderVizPlaceholder(id, name, type) {
                             const displayIntensity = Math.max(0.5, r.moveIntensity);
                             const isFast = displayIntensity >= 4.0;
                             const colorClass = isFast ? 'green' : 'orange';
-                            const duration = Math.max(0.5, Math.min(10, 25 / displayIntensity));
+                            const lineLen = adaxLineLengths[r.L.lid] || 25;
+                            const duration = Math.max(0.5, Math.min(10, lineLen / displayIntensity));
 
                             arrows.forEach((arr, idx) => {
                                 const laneClass = (idx % 2 === 0) ? 'left-lane' : 'right-lane';
