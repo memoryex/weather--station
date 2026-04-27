@@ -30,19 +30,19 @@ def parse_php_var_dump(content):
     # Pattern to find the array(5) blocks which represent individual records
     record_pattern = re.compile(r'array\(\d+\)\s*\{([^}]+)\}', re.DOTALL)
 
-    # Patterns for fields within a record
+    # Patterns for fields within a record - handles string values and NULL
     field_patterns = {
-        "Produktas": re.compile(r'\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "Linija": re.compile(r'\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "PusgaminioNr": re.compile(r'\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "TotalPusgaminiai": re.compile(r'\["TotalPusgaminiai"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "TestavimoLaikas": re.compile(r'\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "GamybosPabaiga": re.compile(r'\["GamybosPabaiga"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "NuskanavimoLaikas": re.compile(r'\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "GamybosPradzia": re.compile(r'\["GamybosPradzia"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "ItemID": re.compile(r'\["ItemID"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "ItemId": re.compile(r'\["ItemId"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
-        "Pavadinimas": re.compile(r'\["Pavadinimas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE)
+        "Produktas": re.compile(r'\["Produktas"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "Linija": re.compile(r'\["Linija"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "PusgaminioNr": re.compile(r'\["PusgaminioNr"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "TotalPusgaminiai": re.compile(r'\["TotalPusgaminiai"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "TestavimoLaikas": re.compile(r'\["TestavimoLaikas"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "GamybosPabaiga": re.compile(r'\["GamybosPabaiga"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "NuskanavimoLaikas": re.compile(r'\["NuskanavimoLaikas"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "GamybosPradzia": re.compile(r'\["GamybosPradzia"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "ItemID": re.compile(r'\["ItemID"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "ItemId": re.compile(r'\["ItemId"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE),
+        "Pavadinimas": re.compile(r'\["Pavadinimas"\]=>\s*(?:string\(\d+\)\s*"([^"]*)"|NULL)', re.IGNORECASE)
     }
 
     results = []
@@ -52,7 +52,8 @@ def parse_php_var_dump(content):
         for field, pattern in field_patterns.items():
             field_match = pattern.search(record_text)
             if field_match:
-                record_data[field] = field_match.group(1).strip()
+                val = field_match.group(1)
+                record_data[field] = val.strip() if val else ""
 
         if record_data:
             results.append(normalize_adax_record(record_data))
@@ -64,14 +65,19 @@ def normalize_adax_record(r):
     # "GamybosPabaiga" -> "TestavimoLaikas"
     # "GamybosPradzia" -> "NuskanavimoLaikas"
 
-    if "TotalPusgaminiai" in r and "PusgaminioNr" not in r:
+    if "TotalPusgaminiai" in r and (not r.get("PusgaminioNr")):
         r["PusgaminioNr"] = r["TotalPusgaminiai"]
-    if "GamybosPabaiga" in r and "TestavimoLaikas" not in r:
+    if "GamybosPabaiga" in r and (not r.get("TestavimoLaikas")):
         r["TestavimoLaikas"] = r["GamybosPabaiga"]
-    if "GamybosPradzia" in r and "NuskanavimoLaikas" not in r:
+    if "GamybosPradzia" in r and (not r.get("NuskanavimoLaikas")):
         r["NuskanavimoLaikas"] = r["GamybosPradzia"]
-    if "ItemId" in r and "ItemID" not in r:
+    if "ItemId" in r and (not r.get("ItemID")):
         r["ItemID"] = r["ItemId"]
+
+    # Ensure key fields are never undefined/missing
+    for field in ["Pavadinimas", "ItemID", "Produktas"]:
+        if field not in r:
+            r[field] = ""
 
     return r
 
