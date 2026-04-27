@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Messenger Cleaner V20.0 (Sidebar Fix)
+// @name         Messenger Cleaner V22.0 (Ultra-Safe Surgical)
 // @namespace    http://tampermonkey.net/
-// @version      20.0
-// @description  Blokuoja Shorts/Reels/TikTok/FB nuotraukas ir Forwarded nuorodas. Ištaisyta problema su pradingstančiais kontaktais sidebar'e.
+// @version      22.0
+// @description  Blokuoja Shorts/Reels/TikTok/FB nuotraukas ir Forwarded nuorodas. Naudoja ultra-saugų metodą, kad nedingtų langai.
 // @author       Jules
 // @match        https://www.messenger.com/*
 // @match        https://www.facebook.com/messages/*
@@ -13,18 +13,15 @@
 (function() {
     'use strict';
 
-    console.log("Messenger Cleaner V20.0: Startuoja (Sidebar Fix)...");
+    console.log("Messenger Cleaner V22.0: Startuoja (Ultra-Safe Surgical)...");
 
-    // --- 1. CSS INJEKCIJA ---
+    // --- 1. CSS ---
     const style = document.createElement('style');
     style.innerHTML = `
-        /* Paslepia nuorodas tiesiogiai per CSS greičiui (tik pagrindiniame lange) */
-        /* Mes nenaudosime display:none nuorodoms per CSS, nes tai gali paslėpti sidebar elementus netyčia */
-
         [data-cleaner-hidden="true"] {
             display: none !important;
+            visibility: hidden !important;
         }
-
         .cleaner-replaced-text {
             color: #888 !important;
             font-style: italic !important;
@@ -36,18 +33,12 @@
     // --- 2. KONFIGŪRACIJA ---
 
     const blockedPhrases = [
-        "Tadas atsiuntė priedą", "Mindaugas atsiuntė priedą",
-        "Ramūnas atsiuntė priedą", "sent an attachment",
-        "shared a reel", "pasidalijo ritiniu",
-        "atsiuntė ritinį", "atsiuntė nuorodą", "sent a link",
-        "forwarded a link", "persiuntė nuorodą",
-        "forwarded a message", "persiuntė žinutę",
-        "shared a post", "pasidalijo įrašu",
-        "shared a video", "pasidalijo vaizdo įrašu",
-        "shared a photo", "pasidalijo nuotrauka",
-        "shared a link", "pasidalijo nuoroda",
-        "Forwarded", "Persiųsta", "Persiųsta žinutė", "Persiuntė"
+        "shared a reel", "pasidalijo ritiniu", "shared a video", "pasidalijo vaizdo įrašu",
+        "shared a photo", "pasidalijo nuotrauka", "shared a link", "pasidalijo nuoroda",
+        "forwarded a link", "forwarded a message", "persiuntė žinutę", "persiuntė nuorodą"
     ];
+
+    const forwardedLabels = ["Forwarded", "Persiųsta", "Persiųsta žinutė", "Persiuntė"];
 
     const blockedDomains = [
         "tiktok.com", "instagram.com", "youtube.com/shorts", "youtu.be/shorts",
@@ -57,15 +48,6 @@
     ];
 
     // --- 3. PAGALBINĖS FUNKCIJOS ---
-
-    function isSafeNavigation(href) {
-        if (!href) return true;
-        if (href.includes('/messages/t/')) return true;
-        if (href.includes('/t/')) return true;
-        if (href.includes('/active_status/')) return true;
-        if (href === '#' || href === '') return true;
-        return false;
-    }
 
     function decodeFBUrl(url) {
         try {
@@ -81,135 +63,146 @@
     function isBadUrl(url) {
         if (!url) return false;
         const decodedUrl = decodeFBUrl(url);
+        if (decodedUrl.includes('/messages/t/')) return false;
+        if (decodedUrl.includes('/t/')) return false;
+        if (decodedUrl === '#' || decodedUrl === '') return false;
+
         if (decodedUrl.includes('tiktok.com')) return true;
         if (decodedUrl.includes('instagram.com')) return true;
         if ((decodedUrl.includes('youtube.com') || decodedUrl.includes('youtu.be')) && decodedUrl.includes('/shorts/')) return true;
-        if ((decodedUrl.includes('facebook.') || decodedUrl.includes('fb.watch')) && !isSafeNavigation(decodedUrl)) {
-            if (decodedUrl.includes('/reel/') || decodedUrl.includes('fb.watch') || decodedUrl.includes('/share/') ||
-                decodedUrl.includes('/videos/') || decodedUrl.includes('/photo/') || decodedUrl.includes('fbid=') ||
-                decodedUrl.includes('/story.php') || decodedUrl.includes('/posts/') || decodedUrl.includes('/permalink.php') ||
-                decodedUrl.includes('/groups/')) {
-                return true;
-            }
+        if (decodedUrl.includes('fb.watch')) return true;
+
+        if (decodedUrl.includes('facebook.com')) {
+            try {
+                const urlObj = new URL(decodedUrl);
+                const path = urlObj.pathname;
+                const badPaths = ['/reel/', '/share/', '/videos/', '/photo/', '/story.php', '/posts/', '/permalink.php', '/groups/'];
+                if (badPaths.some(bp => path.includes(bp))) return true;
+                if (decodedUrl.includes('fbid=')) return true;
+            } catch(e) {}
         }
         return false;
     }
 
-    function isSidebar(node) {
-        return !!(node.closest('div[role="gridcell"]') ||
-                  node.closest('div[data-testid="mwthreadlist-item"]') ||
-                  node.closest('div[aria-label="Conversations"]') ||
-                  node.closest('div[aria-label="Pokalbiai"]'));
+    function isInsideSidebar(node) {
+        if (!node) return false;
+        // Sidebar elementai paprastai turi specifines roles arba tėvus
+        return !!(node.closest('[role="gridcell"]') ||
+                  node.closest('[data-testid="mwthreadlist-item"]') ||
+                  node.closest('[aria-label="Conversations"]') ||
+                  node.closest('[aria-label="Pokalbiai"]') ||
+                  node.closest('[aria-label="Chats"]') ||
+                  node.closest('nav') ||
+                  node.closest('[role="navigation"]') ||
+                  node.closest('[role="tablist"]'));
     }
 
-    function getChatContainer(node) {
-        // Ieškome bendro žinutės konteinerio TIK jei tai ne sidebar
-        if (isSidebar(node)) return null;
+    function getSmallMessageContainer(node) {
+        // Ieškome TIK labai specifinių žinučių burbulų
+        let container = node.closest('[data-testid="message-container"]') ||
+                        node.closest('[data-testid="msg_batch"]') ||
+                        node.closest('[role="none"].x1n2onr6.x1iyjqo2');
 
-        return node.closest('div[role="row"]') ||
-               node.closest('div[data-testid="message-container"]') ||
-               node.closest('div[aria-label^="Žinutė"]') ||
-               node.closest('div[aria-label^="Message"]') ||
-               node.closest('div[data-testid="msg_batch"]');
+        if (container) {
+            // SAUGIKLIAI: niekada neslepiame didelių layout blokų ar elementų su ID
+            if (container.id) return null;
+
+            const role = container.getAttribute('role');
+            if (role && role !== 'none' && role !== 'gridcell') return null;
+
+            // Tikriname matmenis santykinai su langu
+            const rect = container.getBoundingClientRect();
+            if (rect.width > (window.innerWidth * 0.7)) return null;
+            if (rect.height > (window.innerHeight * 0.7)) return null;
+            if (rect.height > 600 || rect.width > 800) return null;
+
+            // Žinutės burbulas neturi turėti per daug vaikų
+            if (container.querySelectorAll('*').length > 50) return null;
+        }
+
+        return container;
     }
 
-    function maskSidebarNode(node) {
-        // Ieškome artimiausio row konteinerio sidebare, kad rastume visą preview tekstą
-        let row = node.closest('div[role="gridcell"]') || node.closest('div[data-testid="mwthreadlist-item"]');
-        if (row) {
-            // Messenger sidebare preview tekstas dažniausiai yra giliai spanuose
-            // Mes norime rasti tą span, kuris rodo žinutės fragmentą
-            const spans = row.querySelectorAll('span');
-            spans.forEach(s => {
-                // Tikriname ar span turi tekstą ir neturi vaikų (lapas)
-                if (s.children.length === 0 && s.innerText.length > 0) {
-                    const txt = s.innerText.toLowerCase();
-                    let isBad = false;
-                    for (let domain of blockedDomains) { if (txt.includes(domain)) { isBad = true; break; } }
-                    if (!isBad) {
-                        for (let phrase of blockedPhrases) { if (txt.includes(phrase.toLowerCase())) { isBad = true; break; } }
-                    }
+    function maskSidebarRow(node) {
+        let row = node.closest('[role="gridcell"]') ||
+                  node.closest('[data-testid="mwthreadlist-item"]') ||
+                  node.closest('[role="row"]');
+        if (!row) return;
 
-                    if (isBad || s.innerText === "unable receive message") {
-                        s.innerText = "unable receive message";
-                        s.classList.add('cleaner-replaced-text');
-                    }
+        const spans = row.querySelectorAll('span');
+        spans.forEach(s => {
+            if (s.children.length === 0 && s.innerText.trim().length > 0) {
+                const txt = s.innerText.toLowerCase();
+                let shouldMask = false;
+                for (let d of blockedDomains) { if (txt.includes(d)) { shouldMask = true; break; } }
+                if (!shouldMask) {
+                    for (let p of blockedPhrases) { if (txt.includes(p.toLowerCase())) { shouldMask = true; break; } }
                 }
-            });
-            return;
-        }
+                if (!shouldMask) {
+                    for (let l of forwardedLabels) { if (txt === l.toLowerCase()) { shouldMask = true; break; } }
+                }
 
-        // Fallback jei neradome row
-        let span = node.tagName === 'SPAN' ? node : node.querySelector('span');
-        if (span) {
-            span.innerText = "unable receive message";
-            span.classList.add('cleaner-replaced-text');
-        }
+                if (shouldMask && s.innerText !== "unable receive message") {
+                    s.innerText = "unable receive message";
+                    s.classList.add('cleaner-replaced-text');
+                }
+            }
+        });
     }
 
-    function cleanElement(element) {
-        if (!element) return;
-        if (element.getAttribute('data-cleaner-hidden') === 'true') return;
-        element.setAttribute('data-cleaner-hidden', 'true');
-        element.style.display = 'none';
+    function performSurgicalHide(node) {
+        const container = getSmallMessageContainer(node);
+        if (container) {
+            container.setAttribute('data-cleaner-hidden', 'true');
+            container.style.display = 'none';
+        } else {
+            // Jei neradome saugaus konteinerio, paslepiame TIK nuorodą
+            if (node.tagName === 'A') {
+                node.style.display = 'none';
+                node.setAttribute('data-cleaner-hidden', 'true');
+            }
+        }
     }
 
     // --- 4. PAGRINDINĖ LOGIKA ---
 
     function cleanMess() {
-        // A. NUORODŲ VALYMAS
-        const links = document.querySelectorAll('a:not([data-cleaner-processed])');
-        links.forEach(link => {
-            const href = link.getAttribute('href');
-            if (isBadUrl(href)) {
-                if (isSidebar(link)) {
-                    maskSidebarNode(link);
-                } else {
-                    let container = getChatContainer(link);
-                    if (container) cleanElement(container);
-                    else link.style.display = 'none'; // Fallback paslėpti tik nuorodą jei konteinerio nėra
+        try {
+            // A. NUORODOS
+            const links = document.querySelectorAll('a:not([data-cleaner-processed])');
+            links.forEach(link => {
+                const href = link.getAttribute('href');
+                if (isBadUrl(href)) {
+                    if (isInsideSidebar(link)) {
+                        maskSidebarRow(link);
+                    } else {
+                        performSurgicalHide(link);
+                    }
                 }
-            }
-            link.setAttribute('data-cleaner-processed', 'true');
-        });
+                link.setAttribute('data-cleaner-processed', 'true');
+            });
 
-        // B. "FORWARDED" ETIKEČIŲ VALYMAS
-        const potentialLabels = document.querySelectorAll('span:not([data-cleaner-processed]), div:not([data-cleaner-processed])');
-        potentialLabels.forEach(el => {
-            if (el.children.length > 0) return;
-            const txt = el.innerText ? el.innerText.trim() : "";
-            if (txt === "Forwarded" || txt === "Persiųsta" || txt === "Persiųsta žinutė" || txt === "Persiuntė") {
-                if (isSidebar(el)) {
-                    maskSidebarNode(el);
-                } else {
-                    let container = getChatContainer(el);
-                    if (container) cleanElement(container);
+            // B. "FORWARDED" ETIKETĖS
+            const allSpans = document.querySelectorAll('span:not([data-cleaner-processed])');
+            allSpans.forEach(span => {
+                if (span.children.length > 0) return;
+                const txt = span.innerText.trim();
+                if (forwardedLabels.includes(txt)) {
+                    if (isInsideSidebar(span)) {
+                        maskSidebarRow(span);
+                    } else {
+                        performSurgicalHide(span);
+                    }
                 }
-            }
-            el.setAttribute('data-cleaner-processed', 'true');
-        });
+                span.setAttribute('data-cleaner-processed', 'true');
+            });
 
-        // C. SIDEBARO TEKSTO ANALIZĖ (Bendram saugumui)
-        const sidebarSpans = document.querySelectorAll('div[role="gridcell"] span, div[data-testid="mwthreadlist-item"] span');
-        sidebarSpans.forEach(span => {
-            if (span.classList.contains('cleaner-replaced-text')) return;
-            const text = span.innerText || "";
-            if (text === "unable receive message") return;
-
-            let isBad = false;
-            for (let domain of blockedDomains) {
-                 if (text.includes(domain)) { isBad = true; break; }
-            }
-            if (!isBad) {
-                for (let phrase of blockedPhrases) {
-                    if (text.toLowerCase().includes(phrase.toLowerCase())) { isBad = true; break; }
-                }
-            }
-
-            if (isBad) {
-                maskSidebarNode(span);
-            }
-        });
+            // C. SIDEBARO PERIODINIS VALYMAS
+            const sidebarRows = document.querySelectorAll('[role="gridcell"], [data-testid="mwthreadlist-item"]');
+            sidebarRows.forEach(row => {
+                maskSidebarRow(row);
+            });
+        } catch (err) {}
     }
 
     // --- 5. STEBĖJIMAS ---
@@ -219,7 +212,7 @@
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             cleanMess();
-        }, 100);
+        }, 200);
     });
 
     observer.observe(document.body, {
@@ -227,6 +220,8 @@
         subtree: true
     });
 
-    cleanMess();
+    // Pradiniai paleidimai
+    setTimeout(cleanMess, 500);
+    setTimeout(cleanMess, 2000);
 
 })();
