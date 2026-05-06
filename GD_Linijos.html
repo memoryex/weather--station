@@ -171,7 +171,7 @@
     border:1px solid rgba(255,255,255,0.1); border-radius:25px;
     padding:20px 15px; background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
     backdrop-filter: blur(10px);
-    width:200px; height:500px;
+    width:200px; height:540px;
     position: relative;
     overflow: hidden;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
@@ -1127,12 +1127,19 @@ function renderVizPlaceholder(id, name, type) {
             <div class="ind-circle ind-speed" id="ind-spd-${name}"></div>
          </div>
       </div>
-      <div class="viz-info" style="margin-top:auto; padding-bottom:20px; width:100%;">
+      <div class="viz-info" style="margin-top:auto; padding-bottom:15px; width:100%;">
          <div id="val-prod-${name}" style="font-size:14px; font-weight:bold; color:#4fc3f7; height:40px; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 10px;">-</div>
-         <div style="font-size:18px; margin-top:10px;"><span class="viz-value-big" id="val-speed-${name}" style="display:inline;">-</span> <span style="font-size:10px;color:#888">pcs/h</span></div>
+         <div style="font-size:18px; margin-top:5px;"><span class="viz-value-big" id="val-speed-${name}" style="display:inline;">-</span> <span style="font-size:10px;color:#888">pcs/h</span></div>
          <div style="font-size:18px;"><span class="viz-value-big" id="val-units-${name}" style="display:inline;">-</span> <span style="font-size:10px;color:#888">vnt</span></div>
-         <div id="val-mmin-${name}" style="margin-top:10px; font-size:16px; font-weight:bold;">-</div>
-         <div id="val-gap-${name}" style="margin-top:5px; font-size:12px; color:#bbb;">-</div>
+
+         <div id="val-brk-${name}" style="font-size:11px; margin:5px 15px 0; display:flex; flex-direction:column; gap:2px; background:rgba(0,0,0,0.3); padding:5px; border-radius:8px; z-index:10;">
+            <div style="display:flex; justify-content:space-between;"><span>&le;1.5m:</span><span id="brk-a-${name}" style="color:#00d67a; font-weight:bold;">0</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>1.5-2.5m:</span><span id="brk-b-${name}" style="color:#ffa726; font-weight:bold;">0</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>&gt;2.5m:</span><span id="brk-c-${name}" style="color:#ff5252; font-weight:bold;">0</span></div>
+         </div>
+
+         <div id="val-mmin-${name}" style="margin-top:8px; font-size:16px; font-weight:bold;">-</div>
+         <div id="val-gap-${name}" style="margin-top:3px; font-size:11px; color:#bbb;">-</div>
       </div>
     `;
     return;
@@ -1342,9 +1349,17 @@ function renderVizPlaceholder(id, name, type) {
                 const cachedLine = adaxAggregated?.lines && adaxAggregated.lines[lidStr];
                 if (!cachedLine?.data) throw "Nėra duomenų";
                 const data = cachedLine.data;
-                let allRecords = (Array.isArray(data) ? data : Object.values(data).flat()).map(normalizeAdaxRecord).filter(r => !TEST_CODES.includes(r.Produktas));
+                let allRecords = (Array.isArray(data) ? data : Object.values(data).flat())
+                    .map(normalizeAdaxRecord)
+                    .filter(r => r.TestavimoLaikas && r.TestavimoLaikas !== "NULL" && !TEST_CODES.includes(r.Produktas));
+
                 if (allRecords.length === 0) throw "Tušti duomenys";
-                allRecords.sort((a, b) => new Date(a.TestavimoLaikas.replace(' ', 'T')) - new Date(b.TestavimoLaikas.replace(' ', 'T')));
+
+                allRecords.sort((a, b) => {
+                    const ta = new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    const tb = new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    return ta - tb;
+                });
                 const latest = allRecords[allRecords.length - 1];
                 const latestProduct = latest.Produktas ? latest.Produktas.trim() : null;
                 let currentBatchRecords = [];
@@ -1366,6 +1381,30 @@ function renderVizPlaceholder(id, name, type) {
                 const countValNum = latest ? (parseInt(latest.PusgaminioNr) || 0) : 0;
                 const dailySegs = buildAdaxSegments(data, d0, calcEnd, tz);
                 const dailyUnits = dailySegs.reduce((sum, s) => sum + s.units, 0);
+
+                // Breakdown Calculation (based on lead time: scan to test)
+                const dailyRecords = allRecords.filter(r => {
+                    const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    return t >= d0.getTime() && t <= calcEnd.getTime();
+                });
+
+                let groupA = 0, groupB = 0, groupC = 0;
+                dailyRecords.forEach(r => {
+                    const e = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    const s = (r.NuskanavimoLaikas && r.NuskanavimoLaikas !== "NULL")
+                        ? new Date(r.NuskanavimoLaikas.replace(' ', 'T')).getTime()
+                        : 0;
+
+                    if (e > s && s > 0) {
+                        const leadMin = (e - s) / 60000;
+                        if (leadMin <= 1.5) groupA++;
+                        else if (leadMin <= 2.5) groupB++;
+                        else groupC++;
+                    } else {
+                        groupC++;
+                    }
+                });
+                const breakdown = { a: groupA, b: groupB, c: groupC };
                 let productName = "—";
                 if (latest.ItemID && latest.Pavadinimas && latest.ItemID !== "NULL" && latest.Pavadinimas !== "NULL") {
                     productName = `${latest.ItemID} - ${latest.Pavadinimas}`;
@@ -1395,7 +1434,7 @@ function renderVizPlaceholder(id, name, type) {
                     let leadS=0, leadC=0; allRecords.slice(-20).forEach(r=>{ const e=new Date(r.TestavimoLaikas.replace(' ','T')).getTime(), s=new Date(r.NuskanavimoLaikas.replace(' ','T')).getTime(); if(e>s && (e-s)<3600000){ leadS+=(e-s); leadC++; } });
                     if(leadC) mMin = ADAX_LENGTHS[L.lid] / (leadS/leadC/60000);
                 }
-                return { L, countValStr: countValNum.toString(), countValNum, dailyUnits, barcodeVal: latestProduct||"-", productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, mMin };
+                return { L, countValStr: countValNum.toString(), countValNum, dailyUnits, barcodeVal: latestProduct||"-", productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, mMin, breakdown };
             } catch(e) { return { L, countValStr: "-", countValNum: 0, dailyUnits: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: "KLAIDA", statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false, mMin: 0 }; }
         });
 
@@ -1452,7 +1491,13 @@ function renderVizPlaceholder(id, name, type) {
                 html += `<tr style="background: var(--bg-panel); color: var(--text-header); border-top: 4px solid #ff5252;"><th colspan="9" style="text-align:left; padding-left:20px;">ADAX Linijos</th></tr>`;
                 adaxSeparatorDone = true;
             }
-            html += `<tr><td>${r.L.name}</td><td class="good">${r.countValStr}</td><td class="bar">${r.barcodeVal}</td><td>${r.productName}</td><td class="time">${r.tStart}</td><td class="time">${r.tLast}</td><td class="${r.statusCls}">${r.status}</td><td class="time">${r.gapTxt}</td><td class="${r.spClass}">${r.spTxt}</td></tr>`;
+
+            let unitsDisplay = r.countValStr;
+            if (r.L.apiType === 'ADAX' && r.breakdown) {
+                unitsDisplay = `${r.dailyUnits} <br/><span style="font-size:12px; font-weight:normal; color:#bbb;" title="A: ≤1.5m | B: 1.5-2.5m | C: >2.5m">(${r.breakdown.a} / ${r.breakdown.b} / ${r.breakdown.c})</span>`;
+            }
+
+            html += `<tr><td>${r.L.name}</td><td class="good">${unitsDisplay}</td><td class="bar">${r.barcodeVal}</td><td>${r.productName}</td><td class="time">${r.tStart}</td><td class="time">${r.tLast}</td><td class="${r.statusCls}">${r.status}</td><td class="time">${r.gapTxt}</td><td class="${r.spClass}">${r.spTxt}</td></tr>`;
 
             const elUnits = document.getElementById(`val-units-${r.L.name}`), elSpeed = document.getElementById(`val-speed-${r.L.name}`), elGap = document.getElementById(`val-gap-${r.L.name}`), elProd = document.getElementById(`val-prod-${r.L.name}`), elIndAct = document.getElementById(`ind-act-${r.L.name}`), elIndSpd = document.getElementById(`ind-spd-${r.L.name}`);
             if(elUnits) elUnits.innerText = r.countValStr;
@@ -1470,6 +1515,14 @@ function renderVizPlaceholder(id, name, type) {
                     if(mminEl) {
                         mminEl.innerText = r.mMin > 0 ? r.mMin.toFixed(1) + ' m/min' : '-';
                         mminEl.style.color = r.mMin >= 4 ? '#00d67a' : '#ffa726';
+                    }
+                    if(r.breakdown) {
+                        const elA = document.getElementById(`brk-a-${r.L.name}`);
+                        const elB = document.getElementById(`brk-b-${r.L.name}`);
+                        const elC = document.getElementById(`brk-c-${r.L.name}`);
+                        if(elA) elA.innerText = r.breakdown.a;
+                        if(elB) elB.innerText = r.breakdown.b;
+                        if(elC) elC.innerText = r.breakdown.c;
                     }
                     if(arsCont) {
                         if(r.active) {
