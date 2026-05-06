@@ -1,0 +1,1669 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8" />
+<title>GD ir ADAX linijos – Ataskaita ir Statusas</title>
+<style>
+  /* --- VARIABLES & THEME --- */
+  :root {
+    --bg-body: #121212;
+    --text-main: #e5e5e5;
+    --text-muted: #bbb;
+    --text-header: #fff;
+
+    --bg-panel: #1a1a1a;
+    --bg-input: #1c1c1c;
+    --bg-hover: #444;
+    --bg-card: #1a1a1a;
+
+    --border-color: #333;
+    --border-input: #444;
+
+    --accent-color: #0d6efd;
+    --viz-box-bg: #222;
+    --viz-box-border: #eee;
+    --viz-shadow: rgba(0,0,0,0.5);
+
+    /* Customization Variables */
+    --viz-scale: 1;
+    --viz-font-scale: 1;
+  }
+
+  .light-mode {
+    --bg-body: #f4f4f4;
+    --text-main: #333;
+    --text-muted: #666;
+    --text-header: #111;
+
+    --bg-panel: #fff;
+    --bg-input: #fff;
+    --bg-hover: #eee;
+    --bg-card: #fff;
+
+    --border-color: #ccc;
+    --border-input: #ccc;
+
+    --accent-color: #0d6efd;
+    --viz-box-bg: #fff;
+    --viz-box-border: #999;
+    --viz-shadow: rgba(0,0,0,0.15);
+  }
+
+  .light-mode .viz-box, .light-mode .adax-pod {
+    background: linear-gradient(135deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.01) 100%);
+    border-color: rgba(0,0,0,0.1);
+  }
+
+  /* --- GLOBAL & LAYOUT --- */
+  body { background:var(--bg-body); color:var(--text-main); font-family:Arial,Helvetica,sans-serif; margin:0; padding:0; transition: background 0.3s, color 0.3s; }
+  h1 { font-size:28px; text-align:center; margin:20px 0; color:var(--text-header); }
+
+  /* --- TABS --- */
+  .tab-nav { display:flex; gap:10px; background:var(--bg-panel); padding:10px 20px; border-bottom:1px solid var(--border-color); justify-content:center; align-items:center; }
+  .tab-btn { padding:10px 20px; cursor:pointer; background:var(--bg-panel); color:var(--text-muted); border:1px solid transparent; border-radius:4px; font-size:16px; transition:0.2s; }
+  .tab-btn:hover { background:var(--bg-hover); color:var(--text-main); }
+  .tab-btn.active { background:var(--accent-color); color:#fff; font-weight:bold; }
+
+  .tab-pane { display:none; padding:20px; animation:fadeIn 0.3s; }
+  .tab-pane.active { display:block; }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+
+  /* --- REPORT TAB STYLES --- */
+  .wrap { width:95%; max-width:1200px; margin:0 auto; }
+  .report-label { font-size:13px; color:var(--text-muted); display:block; margin-bottom:4px; }
+  .report-input, .report-select { padding:8px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-main); border-radius:6px; width:100%; box-sizing:border-box; }
+  .msg { font-size:14px; color:#9ad; margin-top:6px; }
+  .card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; padding:20px; margin-top:12px; }
+
+  /* New Grid Layout for Report */
+  .report-grid { display:flex; gap:30px; }
+  .report-left { flex:1; display:flex; flex-direction:column; gap:20px; }
+  .report-right { width:280px; display:flex; flex-direction:column; }
+
+  .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
+
+  .file-section { background:var(--bg-panel); padding:15px; border-radius:6px; border:1px solid var(--border-color); }
+  .line-header { display:flex; justify-content:flex-start; gap:15px; align-items:center; margin-bottom:5px; }
+  .line-header label { margin:0; cursor:pointer; }
+
+  /* --- STATUS TAB STYLES --- */
+  #summaryBox { text-align:center; font-size:22px; margin-top:10px; color:#4fc3f7; }
+  #timerBox { text-align:center; font-size:20px; color:var(--text-muted); margin-top:5px; }
+  .toolbar { width:95%; margin:10px auto 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center; position: relative; }
+
+  /* Line Filter Panel */
+  .filter-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    z-index: 1000;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    width: 300px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .filter-panel.active { display: block; }
+  .filter-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
+  .filter-item input { cursor: pointer; }
+
+  table { width:95%; margin:14px auto 20px; border-collapse:collapse; font-size:18px; }
+  th, td { padding:14px; border-bottom:1px solid var(--border-color); text-align:center; }
+  th { background:var(--bg-panel); color:var(--text-header); font-size:20px; }
+
+  .good { color:#00d67a; font-weight:bold; }
+  .warn { color:#ffa726; font-weight:bold; }
+  .bad  { color:#ff5252; font-weight:bold; }
+  .bar  { color:#4fc3f7; font-weight:bold; }
+  .time { font-size:16px; color:var(--text-muted); }
+
+  .status-online  { color:#00d67a; font-weight:bold; }
+  .status-offline { color:#ff5252; font-weight:bold; }
+  .loading { text-align:center; padding:20px; font-size:20px; color:var(--text-muted); }
+
+  /* --- VISUALIZATION STYLES --- */
+  .viz-container {
+    position:relative; width:98%; margin:20px auto;
+    min-height:1200px;
+    background:var(--bg-panel); border-radius:12px; border:1px solid var(--border-color); padding:40px;
+    overflow-x: auto;
+  }
+  .viz-content {
+    position: relative;
+    min-width: 1850px;
+    height: 1100px;
+    transform-origin: top left;
+    transform: scale(var(--viz-scale));
+  }
+
+  .viz-container, .viz-container * { box-sizing: border-box; }
+
+  .viz-group-vertical { display:flex; flex-direction:column; gap:20px; position:absolute; top:40px; left:40px; }
+  .viz-group-horizontal { display:flex; gap:30px; position:absolute; bottom:50px; left:350px; }
+
+  .viz-item { display:flex; align-items:center; gap:15px; }
+  .viz-item-v { flex-direction:row; }
+  .viz-item-h { flex-direction:column-reverse; }
+
+  .viz-box {
+    width:180px; height:80px;
+    border:2px solid rgba(255,255,255,0.1); border-radius:15px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+    backdrop-filter: blur(10px);
+    display:flex; flex-direction:row; justify-content:space-around; align-items:center;
+    padding:8px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease;
+  }
+  .viz-box:hover { transform: translateY(-5px); border-color: var(--accent-color); box-shadow: 0 12px 40px 0 rgba(13, 110, 253, 0.2); }
+  .viz-box-wide { width:220px; height:110px; }
+  .viz-box-tall { width:120px; height:210px; flex-direction:column; justify-content:center; gap:10px; }
+
+  /* ADAX layout */
+  .viz-group-adax { display:flex; gap:40px; position:absolute; top:160px; left:400px; }
+  .adax-pod {
+    display:flex; flex-direction:column; align-items:center;
+    border:1px solid rgba(255,255,255,0.1); border-radius:25px;
+    padding:20px 15px; background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+    backdrop-filter: blur(10px);
+    width:200px; height:540px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+  .adax-pod::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 20%; right: 20%; bottom: 0;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 40px);
+    z-index: 0;
+  }
+  .adax-num-header { font-size:60px; font-weight:bold; color:rgba(255,255,255,0.05); position:absolute; top:10px; left:50%; transform:translateX(-50%); pointer-events:none; }
+
+  /* ADAX ANIMATIONS */
+  @keyframes adax-move {
+    0% { transform: translate(-50%, -50px); opacity: 0; }
+    15% { opacity: 0.9; }
+    85% { opacity: 0.9; }
+    100% { transform: translate(-50%, 550px); opacity: 0; }
+  }
+  .adax-arrows-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+  .adax-arrow {
+    position: absolute; left: 50%; transform: translateX(-50%); font-size: 40px; font-weight: bold;
+    animation: adax-move 3s linear infinite; text-shadow: 0 0 10px #000; opacity: 0;
+  }
+  .adax-arrow.left-lane { left: 20%; }
+  .adax-arrow.right-lane { left: 80%; }
+  .adax-arrow.green { color: #00d67a; }
+  .adax-arrow.orange { color: #ffa726; }
+  .adax-arrow.red-x {
+    color: #ff5252; animation: none !important; transform: translate(-50%, -50%) !important;
+    top: 50%; left: 50%; font-size: 100px !important; opacity: 0.3 !important; z-index: 2;
+  }
+
+  .viz-label { font-size: calc(16px * var(--viz-font-scale)); font-weight:bold; color:var(--text-muted); }
+
+  .viz-info { font-size: calc(12px * var(--viz-font-scale)); text-align:center; line-height:1.4; color:var(--text-main); z-index: 10; }
+  .viz-value-big { font-size: calc(18px * var(--viz-font-scale)); font-weight:bold; display:block; }
+
+  /* --- VISUALIZATION INDICATORS & ICONS --- */
+  .viz-indicators {
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    align-items:flex-start;
+    justify-content:center;
+    z-index: 10;
+  }
+
+  .viz-ind-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+  }
+
+  .viz-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    opacity: 0.7;
+  }
+
+  .ind-circle {
+    width:12px; height:12px;
+    border-radius:50%;
+    border:2px solid #555;
+    background:#333;
+    transition:0.3s;
+  }
+
+  .ind-active.on { background:#00d67a; border-color:#00d67a; box-shadow:0 0 6px #00d67a; }
+  .ind-active.off { background:#ff5252; border-color:#ff5252; }
+
+  .ind-speed.good { border-color:#00d67a; background:#00d67a; box-shadow:0 0 6px #00d67a; }
+  .ind-speed.warn { border-color:#ffa726; background:#ffa726; box-shadow:0 0 6px #ffa726; }
+  .ind-speed.bad { border-color:#ff5252; background:#ff5252; box-shadow:0 0 6px #ff5252; }
+
+  .viz-item-h .viz-box { border-width:4px; }
+  .viz-item-v .viz-box { border-width:4px; }
+
+  /* --- SHARED BUTTONS --- */
+  button.action-btn { padding:10px 14px; background:#0d6efd; border:none; border-radius:6px; color:#fff; cursor:pointer; }
+  button.action-btn:disabled { opacity:0.5; cursor:not-allowed; }
+  input[type="file"] { color:#ddd; }
+
+  /* AI Animation */
+  @keyframes spin-slow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  .ai-icon-spin { animation: spin-slow 10s linear infinite; }
+</style>
+<!-- XLSX (SheetJS) + ExcelJS + FileSaver – viskas iš CDN -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts/highcharts.js"></script>
+</head>
+<body>
+
+<!-- TAB NAVIGATION -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="openTab('status')">GD ir ADAX linijų statusas</button>
+  <button class="tab-btn" onclick="openTab('visual')">Vizualizacija</button>
+  <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
+  <button class="tab-btn" onclick="openTab('ai')">Įžvalgos(beta)</button>
+  <button class="tab-btn" id="themeToggle" type="button" title="Keisti temą">🌙/☀️</button>
+</div>
+
+<!-- ========================= TAB: STATUSAS ========================= -->
+<div id="tab-status" class="tab-pane active">
+  <h1>GD ir ADAX linijų būsena</h1>
+
+  <div id="summaryBox">Bendras pagamintas kiekis: …</div>
+  <div id="timerBox">Kitas atnaujinimas po: …</div>
+
+  <div class="toolbar">
+    <div>
+      <label class="report-label">Rikiuoti pagal:</label><br/>
+      <select id="sortBy" class="report-select" style="min-width:150px">
+        <option value="default">Numatytasis</option>
+        <option value="units">Pagaminta vnt.</option>
+        <option value="speed">Greitis</option>
+      </select>
+    </div>
+    <div>
+      <label class="report-label">Linijų filtras:</label><br/>
+      <button id="filterToggleBtn" class="action-btn" style="min-width:120px;">Pasirinkti linijas</button>
+      <div id="lineFilterPanel" class="filter-panel">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px; border-bottom:1px solid var(--border-color); padding-bottom:5px;">
+           <button class="action-btn" style="padding:4px 8px; font-size:12px;" onclick="toggleAllFilters(true)">Visas</button>
+           <button class="action-btn" style="padding:4px 8px; font-size:12px; background:#666;" onclick="toggleAllFilters(false)">Nė vienos</button>
+        </div>
+        <div id="filterList"></div>
+      </div>
+    </div>
+    <div id="statusMapInfo" class="msg"></div>
+  </div>
+
+  <table>
+    <thead>
+    <tr>
+      <th>Linija</th>
+      <th>Pagaminta vnt.</th>
+      <th>Gaminio numeris</th>
+      <th>Gaminio pavadinimas</th>
+      <th>Gaminio testavimo pradžia</th>
+      <th>Paskutinis užfiksavimas</th>
+      <th>Linijos būsena</th>
+      <th>Tarpas tarp testų</th>
+      <th>Greitis (vnt/val.)</th>
+    </tr>
+    </thead>
+    <tbody id="data"></tbody>
+  </table>
+</div>
+
+<!-- ========================= TAB: VIZUALIZACIJA ========================= -->
+<div id="tab-visual" class="tab-pane">
+  <div style="display:flex; justify-content:space-between; align-items:center; width:95%; margin:0 auto;">
+    <h1>Linijų vizualizacija</h1>
+    <div class="card" style="display:flex; gap:20px; align-items:center; padding:10px 20px; margin:0;">
+      <div style="display:flex; flex-direction:column; gap:5px;">
+        <label class="report-label" style="margin:0;">Vizualizacijos mastelis</label>
+        <input type="range" id="vizScaleRange" min="0.5" max="2" step="0.1" value="1" style="width:150px;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:5px;">
+        <label class="report-label" style="margin:0;">Teksto mastelis</label>
+        <input type="range" id="fontScaleRange" min="0.5" max="2" step="0.1" value="1" style="width:150px;">
+      </div>
+      <button id="resetVizBtn" class="action-btn" style="padding:5px 10px; font-size:12px;">Atstatyti</button>
+    </div>
+  </div>
+  <div class="viz-container">
+    <div class="viz-content">
+
+    <!-- VERTICAL STACK (Left): PLXE5, NOBO7...NOBO2 -->
+    <div class="viz-group-vertical">
+      <div id="viz-QRAD 1" class="viz-item viz-item-v"></div>
+      <div id="viz-PLXE 5" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 7" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 6" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 5" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 4" class="viz-item viz-item-v"></div>
+      <div id="viz-NOBO 3" class="viz-item viz-item-v"></div>
+      <div id="viz-UI perrašymas" class="viz-item viz-item-v"></div>
+    </div>
+
+    <!-- ADAX SECTION -->
+    <div class="viz-group-adax">
+       <div style="display:flex; flex-direction:column; align-items:center;">
+          <div style="font-size:24px; font-weight:bold; color:var(--text-muted); margin-bottom:10px;">ADAX linijos</div>
+          <div style="display:flex; gap:40px;">
+             <!-- POD 3: 7 & 6 -->
+             <div class="adax-pod" id="pod-ADAX 7"></div>
+             <div class="adax-pod" id="pod-ADAX 6"></div>
+             <!-- POD 2: 4 & 3 -->
+             <div class="adax-pod" id="pod-ADAX 4"></div>
+             <div class="adax-pod" id="pod-ADAX 3"></div>
+             <!-- POD 1: 2 & 1 -->
+             <div class="adax-pod" id="pod-ADAX 2"></div>
+             <div class="adax-pod" id="pod-ADAX 1"></div>
+          </div>
+       </div>
+    </div>
+
+    <div class="viz-group-horizontal">
+      <div id="viz-NOBO 1" class="viz-item viz-item-h"></div>
+      <div id="viz-PLXE 4" class="viz-item viz-item-h"></div>
+      <div id="viz-PLXE 3" class="viz-item viz-item-h"></div>
+      <div id="viz-PLXE 2" class="viz-item viz-item-h"></div>
+      <div id="viz-PLXE 1" class="viz-item viz-item-h"></div>
+      <div id="viz-NOBO 2" class="viz-item viz-item-h"></div>
+    </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ========================= TAB: AI (SMART ANALYTICS) ========================= -->
+<div id="tab-ai" class="tab-pane">
+  <h1>Intelektuali Gamybos Analizė (beta)</h1>
+  <div class="wrap">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <h2 style="margin:0; display:flex; align-items:center; gap:10px;">
+          Mokymosi Centras
+        </h2>
+        <div style="display:flex; gap:10px;">
+           <button id="aiLearnBtn" class="action-btn">Mokytis iš istorijos (30d.)</button>
+           <button id="aiClearBtn" class="action-btn" style="background:#d32f2f;">Išvalyti atmintį</button>
+        </div>
+      </div>
+      <div id="aiStatus" class="msg">DI modelis: Tuščias. Paspauskite "Mokytis iš istorijos", kad sukauptumėte duomenis.</div>
+
+      <div class="settings-grid" style="margin-top:20px;">
+        <!-- Kairė: Gaminio Efektyvumas -->
+        <div class="file-section">
+          <h3 style="margin-top:0;">Gaminio Efektyvumas (Detali analizė)</h3>
+          <p style="font-size:13px; color:var(--text-muted);">
+            Detali statistika pagal gaminį ir liniją (Vidutinis greitis / Maksimalus greitis).
+          </p>
+          <div style="max-height:600px; overflow-y:auto;">
+            <table style="width:100%; font-size:14px; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                  <th style="text-align:left; padding:6px;">Gaminys</th>
+                  <th style="text-align:left; padding:6px;">Linija</th>
+                  <th style="text-align:right; padding:6px;">Vid. (vnt/h)</th>
+                  <th style="text-align:right; padding:6px;">Max. (vnt/h)</th>
+                  <th style="text-align:right; padding:6px;">Potencialas</th>
+                </tr>
+              </thead>
+              <tbody id="aiProductTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Dešinė: Pertraukų Tendencijos -->
+        <div class="file-section">
+          <h3 style="margin-top:0;">Pertraukų Tendencijos</h3>
+          <p style="font-size:13px; color:var(--text-muted);">
+            Sistema analizuoja, kada dažniausiai stoja linijos (neplanuotos pertraukos > 15 min).
+          </p>
+          <div id="aiBreakChart" style="width:100%; height:300px;"></div>
+          <div id="aiBreakStats" style="font-size:13px; color:var(--text-main); margin-top:10px;"></div>
+
+          <!-- Rankinis pertraukų konfigūravimas -->
+          <div style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:10px;">
+             <h4 style="margin:0 0 10px 0; font-size:14px; color:var(--text-header);">Pertraukų grafikas (Mokymui)</h4>
+             <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Įveskite laiką, pavadinimą ir trukmę (min), kad sistema atpažintų šias pertraukas.</p>
+
+             <div id="customBreaksContainer" style="display:flex; flex-direction:column; gap:8px;">
+                <!-- 5 Eilutės bus sugeneruotos JS -->
+             </div>
+
+             <div style="margin-top:10px;">
+                <button id="saveBreaksBtn" class="action-btn" style="width:100%;">Išsaugoti grafiką</button>
+             </div>
+             <div id="breakSaveStatus" class="msg" style="font-size:11px; min-height:16px;"></div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ========================= TAB: ATASKAITA ========================= -->
+<div id="tab-report" class="tab-pane">
+  <h1>GD ir ADAX linijų – Istorijos ataskaita</h1>
+  <div class="wrap">
+    <div class="card">
+      <div class="report-grid">
+
+        <!-- Kairė pusė: Nustatymai, Laikas, Failas -->
+        <div class="report-left">
+          <div class="settings-grid">
+            <div>
+              <label class="report-label">Nuo</label>
+              <input id="from" type="datetime-local" class="report-input"/>
+            </div>
+            <div>
+              <label class="report-label">Iki</label>
+              <input id="to" type="datetime-local" class="report-input"/>
+            </div>
+            <div>
+              <label class="report-label">Laiko zona</label>
+              <select id="tz" class="report-select">
+                <option value="Europe/Vilnius" selected>Europe/Vilnius</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </div>
+            <div>
+              <label class="report-label">Laiko langas (dienomis)</label>
+              <select id="chunkDays" class="report-select">
+                <option>31</option><option selected>90</option><option>180</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top:auto">
+            <button id="go" class="action-btn" style="width:100%; font-size:16px; padding:12px;">Generuoti ataskaitą (XLSX)</button>
+            <div id="repStatus" class="msg" style="text-align:center; margin-top:10px;">Paruošta.</div>
+          </div>
+        </div>
+
+        <!-- Dešinė pusė: Linijų sąrašas -->
+        <div class="report-right">
+          <div class="line-header">
+            <label class="report-label" style="margin-bottom:0">Linijos (Ctrl/Shift – keli pasirinkimai)</label>
+            <div>
+              <input type="checkbox" id="selectAllLines" style="vertical-align:middle;">
+              <label for="selectAllLines" class="report-label" style="display:inline; vertical-align:middle;">Pažymėti visus</label>
+            </div>
+          </div>
+          <select id="lineFilter" multiple class="report-select" style="flex:1; height:300px;"></select>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Chart Section -->
+    <div class="card" style="margin-top:20px;">
+        <h2 style="text-align:center;">Gamybos Progresas (Tendencijos)</h2>
+
+        <!-- CHART CONTROLS -->
+        <div style="display:flex; gap:15px; flex-wrap:wrap; align-items:flex-end; border-bottom:1px solid var(--border-color); padding-bottom:15px; margin-bottom:15px;">
+           <div>
+             <label class="report-label">Nuo</label>
+             <input id="chartFrom" type="datetime-local" class="report-input"/>
+           </div>
+           <div>
+             <label class="report-label">Iki</label>
+             <input id="chartTo" type="datetime-local" class="report-input"/>
+           </div>
+           <div>
+             <label class="report-label">Grafiko tipas</label>
+             <select id="chartType" class="report-select">
+               <option value="line" selected>Trendline (Line)</option>
+               <option value="spline">Spline (Curved)</option>
+               <option value="bar">Bar (Horizontal)</option>
+               <option value="column">Column (Vertical)</option>
+               <option value="area">Area</option>
+               <option value="scatter">Scatter</option>
+             </select>
+           </div>
+           <div style="flex:1; min-width:200px;">
+             <div style="display:flex; justify-content:space-between;">
+                <label class="report-label">Linijos (Grafikui)</label>
+                <div style="font-size:12px;">
+                    <input type="checkbox" id="selectAllChartLines" style="vertical-align:middle;">
+                    <label for="selectAllChartLines" style="vertical-align:middle; cursor:pointer;">Visos</label>
+                </div>
+             </div>
+             <select id="chartLines" multiple class="report-select" size="4" style="height:auto;" title="Pasirinkite linijas (Ctrl/Shift)"></select>
+           </div>
+           <div style="display:flex; flex-direction:column; gap:8px;">
+             <div>
+                <input type="checkbox" id="chartCumulative" style="vertical-align:middle;" checked>
+                <label for="chartCumulative" style="font-size:13px; color:var(--text-muted); cursor:pointer; vertical-align:middle;">Rodyti skaitiklio reikšmę (Raw)</label>
+             </div>
+             <button id="updateChartBtn" class="action-btn">Atnaujinti grafiką</button>
+           </div>
+        </div>
+
+        <div id="productionChart" style="width:100%; height:400px;"></div>
+        <div id="chartStatus" class="msg" style="text-align:center;">Laukiama duomenų...</div>
+
+        <!-- INSIGHTS SECTION -->
+        <div id="insightsSection" style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:15px; display:none;">
+            <h3 style="margin:0 0 10px 0; font-size:18px; color:var(--text-header);">Gamybos įžvalgos (Prastovos)</h3>
+            <div id="insightsContent" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
+        <div id="debugLog" style="margin-top:10px; font-size:12px; color:#0f0; background:#000; font-family:monospace; max-height:200px; overflow-y:auto; border:1px solid #555; padding:10px; display:none;"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ===================== SHARED CONFIG & GLOBALS ===================== */
+const READ_KEYS = {
+  463450: "VAL3TD2W5LADX7K1", // PLXE 1-4
+  703669: "S44OBKWC5C7FODZ5", // NOBO 1-4
+  802414: "I6NIZAVZYLPVV1ME", // NOBO 5-7, PLXE 5
+  807602: ""                  // UI 1 (Public)
+};
+
+const LINES = [
+  { name:"QRAD 1", channel:807602, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"PLXE 1", channel:463450, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"PLXE 2", channel:463450, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"PLXE 3", channel:463450, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"PLXE 4", channel:463450, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"NOBO 1", channel:703669, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"NOBO 2", channel:703669, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"NOBO 3", channel:703669, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"NOBO 4", channel:703669, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"NOBO 5", channel:802414, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"NOBO 6", channel:802414, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"NOBO 7", channel:802414, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"ADAX 1", lid: 1, apiType: "ADAX" },
+  { name:"ADAX 2", lid: 2, apiType: "ADAX" },
+  { name:"ADAX 3", lid: 3, apiType: "ADAX" },
+  { name:"ADAX 4", lid: 4, apiType: "ADAX" },
+  { name:"ADAX 6", lid: 6, apiType: "ADAX" },
+  { name:"ADAX 7", lid: 7, apiType: "ADAX" },
+  { name:"UI perrašymas", channel:807602, fieldCount:1, fieldBarcode:null, apiType: "TS" }
+];
+// Alias for Status code compatibility
+const LINE_MAP = LINES;
+
+// Shared Map: "090775" -> "PLX070E"
+const PRODUCT_MAP = new Map([
+  ["376180", "E8 PLX050E - EU"],
+  ["376190", "E8 PLX075E - EU"],
+  ["376200", "E8 PLX100E - EU"],
+  ["376210", "E8 PLX150E - EU"],
+  ["376220", "E8 PLX200E - EU"],
+  ["376230", "E8 PLX300E - EU"],
+  ["377610", "E8 PLX025E - EU"],
+  ["400000649", "DTD4R 15 1500W 230-240V DX WIFI ALTA"],
+  ["400000660", "DTD4R 20 2000W 230-240V DX WIFI ALTA"],
+  ["400001221", "DTD4R 05 500W WiFi Alta UK"],
+  ["400001222", "DTD4R 07 750W WiFi Alta UK"],
+  ["400001223", "DTD4R 10 1000W WiFi Alta UK"],
+  ["400001224", "DTD4R 15 1500W WiFi Alta UK"],
+  ["400001225", "DTD4R 20 2000W WiFi Alta UK"],
+  ["400001363", "PLX1250E 1.25KW DIMPLEX Panel Heater SDM TL"],
+  ["400001367", "NTL4R 07 750W WiFi AUS"],
+  ["400001368", "NTL4R 10 1000W WiFi AUS"],
+  ["400001370", "PLX1250E 1.25KW DIMPLEX Panel Heater SDM"],
+  ["400001390", "NTL4R 12 1250W WiFi AUS"],
+  ["400001391", "NTL4R 15 1500W WiFi AUS"],
+  ["400001392", "NTL4R 20 2000W WiFi AUS"],
+  ["400001393", "NTL4R 24 2400W WiFi AUS"],
+  ["400001726", "HSDPD 07 7500W 230-240V WiFi"],
+  ["400001727", "HSDPD 10 1000W 230-240V WiFi"],
+  ["400001728", "HSDPD 15 1500W 230-240V WiFi"],
+  ["400001729", "HSDPD 20 2000W 230-240V WiFi"],
+  ["400001734", "HSDPD 05 500W 230-240V WiFi"],
+  ["400001772", "NLTR 05 500W DX EU"],
+  ["400001773", "NLTR 10 1000W DX EU"],
+  ["400001774", "NLTR 15 1500W DX EU"],
+  ["400001775", "NLTR 20 2000W DX EU"],
+  ["81353", "QRAD050RF 500W Quantum Electric Rad"],
+  ["81360", "QRAD075RF 750W Quantum Electric Rad"],
+  ["81377", "QRAD100RF 1000W Quantum Electric Rad"],
+  ["81384", "QRAD150RF 1500W Quantum Electric Rad"],
+  ["81391", "QRAD200RF 2000W Quantum Electric Rad"],
+  ["82820005", "DTD2R 05 500W WiFi Alta"],
+  ["82820007", "DTD2R 07 750W WiFi Alta"],
+  ["82820010", "DTD2R 10 1000W WiFi Alta"],
+  ["82840002", "DTD4R 02 250W WiFi Alta"],
+  ["82840005", "DTD4R 05 500W WiFi Alta"],
+  ["82840007", "DTD4R 07 750W WiFi Alta"],
+  ["82840010", "DTD4R 10 1000W WiFi Alta"],
+  ["82840012", "DTD4R 12 1250W 230-240V DX WiFi Alta"],
+  ["90355", "HSDP1000 1.0kw Heatstore Inteli Pnl"],
+  ["90362", "HSDP1500 1.5kw Heatstore Inteli Pnl"],
+  ["90379", "HSDP2000 2.0kw Heatstore Inteli Pnl"],
+  ["90386", "HSDP3000 3.0kw Heatstore Inteli Pnl"],
+  ["90393", "HSDP750 0.75kw Heatstore Inteli Pnl"],
+  ["90713", "PLX100E 1.0kw Dimplex Panel Heater"],
+  ["90720", "PLX125E 1.25kw Dimplex Panel Heater"],
+  ["90737", "PLX150E 1.5kw Dimplex Panel Heater"],
+  ["90744", "PLX200E 2.0kw Dimplex Panel Heater"],
+  ["90751", "PLXC300E 3.0kw Dimplex Panel Heater"],
+  ["90768", "PLX050E 0.5kw Dimplex Panel Heater"],
+  ["90775", "PLX070E 0.75kw Dimplex Panel Heater"],
+  ["91178", "LST075E 750W Low Surface Temperature"],
+  ["91185", "LST100E 1000W Low Surface Temperature"],
+  ["91192", "LST150E 1500W Low Surface Temperature"],
+  ["91208", "LST050E 500W Low Surface Temperature"],
+  ["91291", "HSDP500 0.5kw Heatstore Inteli Panel"],
+  ["91741", "PLX50NC 0.5kw Dimplex Panel NO CONTROL"],
+  ["91758", "PLX750NC 7.5kw Dimplex Panel NO CONTROL"],
+  ["91765", "PLX100NC 1.00kw Dimplex Panel NO CONTROL"],
+  ["91772", "PLX125NC 1.25kw Dimplex Panel NO CONTROL"],
+  ["91789", "PLX150NC 1.5kw Dimplex Panel NO CONTROL"],
+  ["91796", "PLX200NC 2.00kw Dimplex Panel NO CONTROL"],
+  ["672016", "ADAX CLEA White 600W"],
+  ["678811", "ADAX NEO Blue 1000W"],
+  ["UI v5", "ECU-2Rw"]
+]);
+
+const ADAX_LENGTHS = { 1:25, 2:25, 3:25, 4:25, 6:10, 7:10 };
+const TEST_CODES = ['111111','222222','333333','444444','666666','777777'];
+const OFFLINE_LIMIT = 36000000; // 10h
+
+/* ===================== TAB LOGIC ===================== */
+function openTab(tabName) {
+  const tabs = document.getElementsByClassName("tab-pane");
+  for (let i = 0; i < tabs.length; i++) {
+    tabs[i].classList.remove("active");
+  }
+  const btns = document.getElementsByClassName("tab-btn");
+  for (let i = 0; i < btns.length; i++) {
+    if(btns[i].id !== 'themeToggle') btns[i].classList.remove("active");
+  }
+
+  document.getElementById("tab-" + tabName).classList.add("active");
+  const clickedBtn = Array.from(btns).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + tabName + "'"));
+  if(clickedBtn) clickedBtn.classList.add("active");
+}
+
+/* ===================== THEME LOGIC ===================== */
+let themeDebounce = 0;
+function toggleTheme(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const now = Date.now();
+  if (now - themeDebounce < 500) return;
+  themeDebounce = now;
+
+  try {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+
+    if (typeof window.reRenderChart === 'function') {
+      window.reRenderChart();
+    }
+  } catch(e) {
+    console.error("Theme toggle error:", e);
+  }
+}
+
+(function initTheme(){
+  const saved = localStorage.getItem('theme');
+  if(saved === 'light') {
+    document.body.classList.add('light-mode');
+  }
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.addEventListener('click', toggleTheme);
+})();
+
+/* ===================== SHARED HELPERS ===================== */
+const pad2 = n => String(n).padStart(2,'0');
+
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 15000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      console.warn(`Fetch to ${resource} timed out after ${timeout}ms`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+// --- GLOBAL INSIGHTS LOGIC ---
+window.getInsightText = function(minutes, startTs) {
+    const m = Math.round(minutes);
+    let date = startTs ? new Date(startTs) : null;
+
+    if (date && window.aiConfig && Array.isArray(window.aiConfig.breaks)) {
+        const h = date.getHours();
+        const min = date.getMinutes();
+        const totalMin = h * 60 + min;
+
+        for (const b of window.aiConfig.breaks) {
+            if (!b.time || !b.name) continue;
+            const [cH, cM] = b.time.split(':').map(Number);
+            if (isNaN(cH)) continue;
+            const confTotal = cH * 60 + cM;
+            if (Math.abs(totalMin - confTotal) <= 30) {
+                return b.name;
+            }
+        }
+    }
+
+    if (date) {
+        const h = date.getHours();
+        const min = date.getMinutes();
+        const totalMin = h * 60 + min;
+        const shifts = [360, 840, 1320];
+        for (let s of shifts) {
+            if (Math.abs(totalMin - s) <= 45) return "Pamainos keitimas";
+        }
+        if (m >= 20 && m <= 50 && h >= 10 && h <= 13) return "Pietų pertrauka";
+    }
+
+    if (m >= 61) return "Linija neaktyvi";
+    if (m >= 34) return "Ruošimasis / Nėra detalių";
+    if (m >= 25) return "Pietų pertrauka (nenumatyta)";
+    if (m >= 13) return "Nenumatyta prastova";
+    if (m >= 8) return "Trumpa pertrauka";
+    return "";
+};
+
+window.getInsightIcon = function(text) {
+    if (!text) return "";
+    if (text === "Linija neaktyvi") return "🔴";
+    if (text === "Ruošimasis / Nėra detalių") return "🛠️";
+    if (text.includes("Pietų pertrauka")) return "🍽️";
+    if (text === "Pamainos keitimas") return "🔄";
+    if (text === "Trumpa pertrauka") return "☕";
+    if (text === "Nenumatyta prastova") return "⚠️";
+    return "⚠️";
+};
+
+function toIsoLocal(date){
+  const y=date.getFullYear(), M=pad2(date.getMonth()+1), d=pad2(date.getDate()),
+        h=pad2(date.getHours()), m=pad2(date.getMinutes()), s=pad2(date.getSeconds());
+  return `${y}-${M}-${d} ${h}:${m}:${s}`;
+}
+function parseISO(iso){ return new Date(iso); }
+
+async function fetchFieldWindow(channel, field, readKey, startStr, endStr, tz){
+    const base=`https://api.thingspeak.com/channels/${channel}/fields/${field}.json`;
+    const qs=new URLSearchParams({ api_key:readKey, results:'8000', start:startStr, end:endStr, timezone:tz });
+    const r = await fetchWithTimeout(`${base}?${qs.toString()}`, { timeout: 15000 });
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+}
+
+async function fetchWholePeriodNumeric(channel, field, readKey, tz, from, to, chunkDays=90){
+    const feeds=[]; let curStart=new Date(from.getTime());
+    while(curStart<to){
+        const curEnd=new Date(Math.min(to.getTime(), curStart.getTime()+chunkDays*24*3600*1000));
+        const js=await fetchFieldWindow(channel,field,readKey,toIsoLocal(curStart),toIsoLocal(curEnd),tz);
+        if(js?.feeds?.length) feeds.push(...js.feeds);
+        curStart=new Date(curEnd.getTime()+1000);
+    }
+    const out=[];
+    for(const f of feeds){
+        const v=parseFloat(f[`field${field}`]);
+        if(isFinite(v)) out.push({t:parseISO(f.created_at).getTime(), v, at:f.created_at});
+    }
+    out.sort((a,b)=>a.t-b.t);
+    const ded=[]; let lt=-1, lv;
+    for(const x of out){ if(x.t!==lt || x.v!==lv){ ded.push(x); lt=x.t; lv=x.v; } }
+    return ded;
+}
+
+function sumPositiveDeltas(counts){
+    if(!counts.length) return {units:0,lastT:null};
+    let units=0;
+    for(let i=1;i<counts.length;i++){
+        const diff=counts[i].v - counts[i-1].v;
+        if(diff>0) units+=diff;
+    }
+    return {units,lastT:counts[counts.length-1].t};
+}
+
+function toLT(iso) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString("lt-LT", {
+    year:"numeric", month:"2-digit", day:"2-digit",
+    hour:"2-digit", minute:"2-digit", second:"2-digit"
+  }).replace(",", "");
+}
+const toLTString = (iso, tz) => {
+    if(!iso) return "";
+    return new Date(iso).toLocaleString('lt-LT',{
+        timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit',
+        hour:'2-digit', minute:'2-digit', second:'2-digit'
+    }).replace(',','');
+};
+
+function formatDuration(ms) {
+  if (!isFinite(ms) || ms < 0) return "-";
+  const s = Math.floor(ms/1000);
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  const ss = s % 60;
+  return `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
+}
+const msToHMS = formatDuration;
+
+function normalizeCode(v){
+  const digits = String(v ?? "").replace(/\D/g,'');
+  if(!digits) return "";
+  return digits.replace(/^0+/, '') || '0';
+}
+
+function normalizeAdaxRecord(r) {
+    if (r.TotalPusgaminiai && !r.PusgaminioNr) r.PusgaminioNr = r.TotalPusgaminiai;
+    if (r.GamybosPabaiga && !r.TestavimoLaikas) r.TestavimoLaikas = r.GamybosPabaiga;
+    if (r.GamybosPradzia && !r.NuskanavimoLaikas) r.NuskanavimoLaikas = r.GamybosPradzia;
+    if (r.ItemId && !r.ItemID) r.ItemID = r.ItemId;
+    return r;
+}
+
+async function getAdaxData(lid) {
+    if (typeof window.ADAX_PROXY === 'undefined') window.ADAX_PROXY = '';
+    let PROXY_URL = window.ADAX_PROXY;
+    const targetUrl = `http://10.12.24.51:8088/api/index.php?lid=${lid}&group=1`;
+    if (PROXY_URL && !PROXY_URL.includes('?url=')) {
+        PROXY_URL = PROXY_URL.split('?')[0] + '?url=';
+    }
+    const url = PROXY_URL ? PROXY_URL + encodeURIComponent(targetUrl) : targetUrl;
+    try {
+        const r = await fetchWithTimeout(url, { timeout: 15000 });
+        if (!r.ok) throw `HTTP ${r.status}`;
+        const text = await r.text();
+        if (!text || text.trim() === "") throw "Tuščias atsakymas";
+        try {
+            let data = JSON.parse(text);
+            if (Array.isArray(data)) return data.map(normalizeAdaxRecord);
+            if (data && data.data && Array.isArray(data.data)) return data.data.map(normalizeAdaxRecord);
+            return data;
+        } catch(e) {
+            if (text.includes("array(")) {
+                try {
+                    const results = [];
+                    const recordRegex = /array\(\d+\)\s*\{([^}]+)\}/g;
+                    const fieldPatterns = {
+                        "Produktas": /\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "Linija": /\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "PusgaminioNr": /\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "TestavimoLaikas": /\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "NuskanavimoLaikas": /\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "ItemID": /\["ItemID"\]=>\s*string\(\d+\)\s*"([^"]+)"/i,
+                        "Pavadinimas": /\["Pavadinimas"\]=>\s*string\(\d+\)\s*"([^"]+)"/i
+                    };
+                    let match;
+                    while ((match = recordRegex.exec(text)) !== null) {
+                        const recordText = match[1];
+                        const recordData = {};
+                        for (const field in fieldPatterns) {
+                            const fieldMatch = recordText.match(fieldPatterns[field]);
+                            if (fieldMatch) {
+                                recordData[field] = fieldMatch[1].trim();
+                            }
+                        }
+                        if (Object.keys(recordData).length > 0) {
+                            results.push(normalizeAdaxRecord(recordData));
+                        }
+                    }
+                    if (results.length > 0) return results;
+                } catch (err) {}
+            }
+            let startB = text.indexOf('[');
+            let endB = text.lastIndexOf(']');
+            if (startB !== -1 && endB > startB) {
+                try {
+                    let cand = JSON.parse(text.substring(startB, endB + 1));
+                    if (Array.isArray(cand)) return cand.map(normalizeAdaxRecord);
+                } catch(err) {}
+            }
+            let startBr = text.indexOf('{');
+            let endBr = text.lastIndexOf('}');
+            if (startBr !== -1 && endBr > startBr) {
+                try {
+                    return JSON.parse(text.substring(startBr, endBr + 1));
+                } catch(err) {}
+            }
+            throw "Nerasta JSON arba var_dump atsakyme";
+        }
+    } catch(e) {
+        console.error(`ADAX API Fetch error for lid=${lid}:`, e);
+        throw e;
+    }
+}
+
+async function getAllAdaxAggregated() {
+    if (typeof window.ADAX_PROXY === 'undefined') window.ADAX_PROXY = '';
+    let PROXY_URL = window.ADAX_PROXY;
+    if (!PROXY_URL) return null;
+    const baseProxy = PROXY_URL.split('?')[0];
+    const url = baseProxy.endsWith('/') ? baseProxy + 'adax/all' : baseProxy + '/adax/all';
+    try {
+        const r = await fetchWithTimeout(url, { timeout: 5000 });
+        if (!r.ok) return null;
+        return await r.json();
+    } catch(e) {
+        console.error("Error fetching aggregated ADAX data:", e);
+        return null;
+    }
+}
+
+function buildAdaxSegments(data, from, to, tz) {
+    const segs = [];
+    if (!data) return segs;
+    const fTs = from instanceof Date ? from.getTime() : (new Date(from)).getTime();
+    const tTs = to instanceof Date ? to.getTime() : (new Date(to)).getTime();
+
+    let allRecords = [];
+    if (Array.isArray(data)) {
+        allRecords = data.map(normalizeAdaxRecord);
+    } else if (typeof data === 'object' && data !== null) {
+        for (let prod in data) {
+            if (Array.isArray(data[prod])) {
+                allRecords.push(...data[prod].map(normalizeAdaxRecord));
+            }
+        }
+    }
+
+    const filtered = allRecords.filter(r => {
+        if (!r.TestavimoLaikas || typeof r.TestavimoLaikas !== 'string') return false;
+        if (TEST_CODES.includes(r.Produktas)) return false;
+        const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
+        return t >= fTs && t <= tTs;
+    }).sort((a, b) => {
+        const da = new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime();
+        const db = new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime();
+        return da - db;
+    });
+
+    if (filtered.length === 0) return segs;
+
+    let batchStartI = 0;
+    for (let i = 1; i < filtered.length; i++) {
+        const curr = filtered[i];
+        const prev = filtered[i-1];
+        const curN = parseInt(curr.PusgaminioNr) || 0;
+        const prevN = parseInt(prev.PusgaminioNr) || 0;
+        const curProd = (curr.Produktas || "").trim();
+        const prevProd = (prev.Produktas || "").trim();
+        if (curProd !== prevProd || curN < prevN) {
+            processBatch(filtered.slice(batchStartI, i));
+            batchStartI = i;
+        }
+    }
+    processBatch(filtered.slice(batchStartI));
+
+    function processBatch(batch) {
+        if (batch.length === 0) return;
+        const r0 = batch[0];
+        const rN = batch[batch.length - 1];
+        let eTs = new Date(rN.TestavimoLaikas.replace(' ', 'T')).getTime();
+        let sTs = (r0.NuskanavimoLaikas && typeof r0.NuskanavimoLaikas === 'string')
+            ? new Date(r0.NuskanavimoLaikas.replace(' ', 'T')).getTime()
+            : new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
+        if (isNaN(sTs)) sTs = new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
+        if (isNaN(eTs) || isNaN(sTs)) return;
+        const units = (parseInt(rN.PusgaminioNr) || 0) - (parseInt(r0.PusgaminioNr) || 0) + 1;
+        if (units <= 0) return;
+        const barcode = (rN.Produktas || "Unknown").trim();
+        const code = normalizeCode(barcode);
+        let product = PRODUCT_MAP.get(code) || "";
+        if (rN.ItemID && rN.Pavadinimas && rN.ItemID !== "NULL" && rN.Pavadinimas !== "NULL") {
+            product = `${rN.ItemID} - ${rN.Pavadinimas}`;
+        } else if (rN.Pavadinimas && rN.Pavadinimas !== "NULL") {
+            product = rN.Pavadinimas;
+        } else if (rN.ItemID && rN.ItemID !== "NULL") {
+            product = rN.ItemID;
+        }
+        const durationMs = eTs - sTs;
+        const avg = (durationMs > 0) ? (units / (durationMs / 3600000)) : 0;
+        const startIso = new Date(sTs).toISOString();
+        const endIso = new Date(eTs).toISOString();
+        segs.push({
+            barcode, product, units, avg,
+            startTs: sTs, endTs: eTs,
+            startLT: toLTString(startIso, tz),
+            endLT: toLTString(endIso, tz),
+            barcodeTime: toLTString(startIso, tz),
+            duration: formatDuration(durationMs),
+            start: toLTString(startIso, tz),
+            end: toLTString(endIso, tz)
+        });
+    }
+    return segs;
+}
+
+// --- GLOBAL AI MODEL ---
+window.aiModel = {
+    products: {},
+    breaks: {},
+    lineProgress: {},
+    lastUpdated: null
+};
+const AI_MODEL_KEY = 'gd_ai_model';
+const AI_CONFIG_KEY = 'gd_ai_config';
+
+window.aiConfig = {
+    breaks: [
+        { time: "09:00", name: "Pertraukėlė 1", duration: 15 },
+        { time: "11:30", name: "Pietų pertrauka", duration: 30 },
+        { time: "14:00", name: "Pertraukėlė 2", duration: 15 },
+        { time: "", name: "", duration: 0 },
+        { time: "", name: "", duration: 0 }
+    ]
+};
+
+try {
+    const raw = localStorage.getItem(AI_MODEL_KEY);
+    if (raw) {
+        const loaded = JSON.parse(raw);
+        Object.assign(window.aiModel, loaded);
+        if (!window.aiModel.lineProgress) window.aiModel.lineProgress = {};
+        for (let h=0; h<24; h++) {
+            if (typeof window.aiModel.breaks[h] === 'number') window.aiModel.breaks[h] = {};
+        }
+    }
+    const conf = localStorage.getItem(AI_CONFIG_KEY);
+    if(conf) {
+        Object.assign(window.aiConfig, JSON.parse(conf));
+    }
+} catch (e) { console.error("AI Global Load Error", e); }
+
+
+/* ================================================================================================
+   LOGIC: VISUALIZATION INIT
+   ================================================================================================ */
+function renderVizPlaceholder(id, name, type) {
+  const el = document.getElementById(id);
+  if(!el) return;
+
+  let boxClass = 'viz-box-wide';
+  if(type === 'h') boxClass = 'viz-box-tall';
+
+  const iconPulse = `<img src="icons/pulse.png" class="viz-icon" alt="Status" />`;
+  const iconSpeed = (name === "UI perrašymas")
+      ? `<img src="icons/computer.png" class="viz-icon" alt="Speed" />`
+      : `<img src="icons/speed.jpg" class="viz-icon" alt="Speed" />`;
+
+  if (type === 'adax') {
+    const n = name.replace('ADAX ','');
+    el.innerHTML = `
+      <div class="adax-arrows-container" id="arrows-${name}"></div>
+      <div class="adax-num-header">${n}</div>
+      <div class="viz-indicators" style="position:absolute; top:20px; left:20px;">
+         <div class="viz-ind-row" title="Linijos būsena">
+            ${iconPulse}
+            <div class="ind-circle ind-active" id="ind-act-${name}"></div>
+         </div>
+         <div class="viz-ind-row" title="Gamybos greitis">
+            ${iconSpeed}
+            <div class="ind-circle ind-speed" id="ind-spd-${name}"></div>
+         </div>
+      </div>
+      <div class="viz-info" style="margin-top:auto; padding-bottom:15px; width:100%;">
+         <div id="val-prod-${name}" style="font-size:14px; font-weight:bold; color:#4fc3f7; height:40px; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 10px;">-</div>
+         <div style="font-size:18px; margin-top:5px;"><span class="viz-value-big" id="val-speed-${name}" style="display:inline;">-</span> <span style="font-size:10px;color:#888">pcs/h</span></div>
+         <div style="font-size:18px;"><span class="viz-value-big" id="val-units-${name}" style="display:inline;">-</span> <span style="font-size:10px;color:#888">vnt</span></div>
+
+         <div id="val-brk-${name}" style="font-size:11px; margin:5px 15px 0; display:flex; flex-direction:column; gap:2px; background:rgba(0,0,0,0.3); padding:5px; border-radius:8px; z-index:10;">
+            <div style="display:flex; justify-content:space-between;"><span>&le;1.5m:</span><span id="brk-a-${name}" style="color:#00d67a; font-weight:bold;">0</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>1.5-2.5m:</span><span id="brk-b-${name}" style="color:#ffa726; font-weight:bold;">0</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>&gt;2.5m:</span><span id="brk-c-${name}" style="color:#ff5252; font-weight:bold;">0</span></div>
+         </div>
+
+         <div id="val-mmin-${name}" style="margin-top:8px; font-size:16px; font-weight:bold;">-</div>
+         <div id="val-gap-${name}" style="margin-top:3px; font-size:11px; color:#bbb;">-</div>
+      </div>
+    `;
+    return;
+  }
+
+  const labelHtml = `<div class="viz-label">${name}</div>`;
+
+  el.innerHTML = `
+    <div class="viz-box ${boxClass}">
+       <div class="viz-indicators">
+         <div class="viz-ind-row" title="Linijos būsena">
+            ${iconPulse}
+            <div class="ind-circle ind-active" id="ind-act-${name}"></div>
+         </div>
+         <div class="viz-ind-row" title="Gamybos greitis">
+            ${iconSpeed}
+            <div class="ind-circle ind-speed" id="ind-spd-${name}"></div>
+         </div>
+       </div>
+
+       <div class="viz-info">
+         <div style="line-height:1.2">
+           <span class="viz-value-big" id="val-speed-${name}">-</span>
+           <span style="font-size:9px;color:#888">pcs/h</span>
+         </div>
+         <div style="line-height:1.2; margin-top:4px">
+           <span class="viz-value-big" id="val-units-${name}">-</span>
+           <span style="font-size:9px;color:#888">vnt</span>
+         </div>
+         <div style="margin-top:2px; font-size:10px; color:#bbb;" id="val-gap-${name}">-</div>
+         <div style="margin-top:2px; font-size:9px; line-height:1.1; color:#9ad; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px;" id="val-prod-${name}">-</div>
+       </div>
+    </div>
+    ${labelHtml}
+  `;
+}
+
+(function InitVizLayout(){
+  // --- CUSTOMIZATION TOOLS LOGIC ---
+  const vizScale = document.getElementById('vizScaleRange');
+  const fontScale = document.getElementById('fontScaleRange');
+  const resetBtn = document.getElementById('resetVizBtn');
+  const root = document.documentElement;
+
+  const VIZ_SETTINGS_KEY = 'gd_viz_settings';
+  let vizSettings = { scale: 1, fontScale: 1 };
+  try {
+      const saved = localStorage.getItem(VIZ_SETTINGS_KEY);
+      if(saved) vizSettings = JSON.parse(saved);
+  } catch(e) {}
+
+  function applyVizSettings() {
+      root.style.setProperty('--viz-scale', vizSettings.scale);
+      root.style.setProperty('--viz-font-scale', vizSettings.fontScale);
+      if(vizScale) vizScale.value = vizSettings.scale;
+      if(fontScale) fontScale.value = vizSettings.fontScale;
+  }
+  applyVizSettings();
+
+  if(vizScale) {
+      vizScale.addEventListener('input', (e) => {
+          vizSettings.scale = e.target.value;
+          root.style.setProperty('--viz-scale', vizSettings.scale);
+          localStorage.setItem(VIZ_SETTINGS_KEY, JSON.stringify(vizSettings));
+      });
+  }
+  if(fontScale) {
+      fontScale.addEventListener('input', (e) => {
+          vizSettings.fontScale = e.target.value;
+          root.style.setProperty('--viz-font-scale', vizSettings.fontScale);
+          localStorage.setItem(VIZ_SETTINGS_KEY, JSON.stringify(vizSettings));
+      });
+  }
+  if(resetBtn) {
+      resetBtn.addEventListener('click', () => {
+          vizSettings = { scale: 1, fontScale: 1 };
+          applyVizSettings();
+          localStorage.setItem(VIZ_SETTINGS_KEY, JSON.stringify(vizSettings));
+      });
+  }
+
+  ['QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','UI perrašymas'].forEach(n => {
+    renderVizPlaceholder(`viz-${n}`, n, 'v');
+  });
+  ['NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','NOBO 2'].forEach(n => {
+    renderVizPlaceholder(`viz-${n}`, n, 'h');
+  });
+  ['ADAX 7','ADAX 6','ADAX 4','ADAX 3','ADAX 2','ADAX 1'].forEach(n => {
+    renderVizPlaceholder(`pod-${n}`, n, 'adax');
+  });
+})();
+
+/* ================================================================================================
+   LOGIC: STATUS TAB
+   ================================================================================================ */
+(function InitStatus(){
+    const OFFLINE_MINUTES = 600;
+    const REFRESH_MS = 120000;
+    let timer = REFRESH_MS / 1000;
+
+    // --- FILTERS LOGIC ---
+    const FILTER_KEY = 'gd_line_filters';
+    let activeFilters = {};
+    try {
+        const saved = localStorage.getItem(FILTER_KEY);
+        if(saved) activeFilters = JSON.parse(saved);
+        else LINES.forEach(L => activeFilters[L.name] = true);
+    } catch(e) { LINES.forEach(L => activeFilters[L.name] = true); }
+
+    function saveFilters() { localStorage.setItem(FILTER_KEY, JSON.stringify(activeFilters)); }
+
+    const filterList = document.getElementById('filterList');
+    const filterBtn = document.getElementById('filterToggleBtn');
+    const filterPanel = document.getElementById('lineFilterPanel');
+
+    if(filterList) {
+        LINES.forEach(L => {
+            const div = document.createElement('label');
+            div.className = 'filter-item';
+            const isChecked = activeFilters[L.name] !== false;
+            div.innerHTML = `<input type="checkbox" data-line="${L.name}" ${isChecked ? 'checked' : ''}> <span>${L.name}</span>`;
+            div.querySelector('input').addEventListener('change', (e) => {
+                activeFilters[L.name] = e.target.checked;
+                saveFilters();
+                window.refresh();
+            });
+            filterList.appendChild(div);
+        });
+    }
+
+    if(filterBtn && filterPanel) {
+        filterBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            filterPanel.classList.toggle('active');
+        });
+        document.addEventListener('click', (e) => {
+            if(!filterPanel.contains(e.target) && e.target !== filterBtn) filterPanel.classList.remove('active');
+        });
+    }
+
+    window.toggleAllFilters = function(val) {
+        const inputs = filterList.querySelectorAll('input');
+        inputs.forEach(i => {
+            i.checked = val;
+            activeFilters[i.dataset.line] = val;
+        });
+        saveFilters();
+        window.refresh();
+    };
+
+    async function getFieldLast(channel, field, key) {
+        try {
+            const url = `https://api.thingspeak.com/channels/${channel}/fields/${field}/last.json?api_key=${key}`;
+            const r = await fetchWithTimeout(url, { timeout: 10000 });
+            if (!r.ok) throw "HTTP error";
+            return r.json();
+        } catch { return null; }
+    }
+    async function getFieldHistory(channel, field, key, results=50) {
+        try {
+            const url = `https://api.thingspeak.com/channels/${channel}/fields/${field}.json?api_key=${key}&results=${results}`;
+            const r = await fetchWithTimeout(url, { timeout: 10000 });
+            if (!r.ok) throw "HTTP error";
+            return r.json();
+        } catch { return null; }
+    }
+    function getLastValidCountPair(history, fieldN) {
+        if (!history?.feeds) return null;
+        const list = history.feeds
+            .map(f => {
+            const c = parseFloat(f[`field${fieldN}`]);
+            const t = new Date(f.created_at).getTime();
+            return isFinite(c) ? {c,t} : null;
+            })
+            .filter(x => x)
+            .sort((a,b) => a.t - b.t);
+        if (list.length < 2) return null;
+        for (let i = list.length-2; i >= 0; i--) {
+            const a = list[i], b = list[i+1];
+            if (b.c > a.c && b.t > a.t) return {c0:a.c, c1:b.c, t0:a.t, t1:b.t};
+        }
+        return null;
+    }
+
+    const DEFAULT_PROXY = 'http://localhost:8081/?url=';
+    window.ADAX_PROXY = localStorage.getItem('adax_proxy') || DEFAULT_PROXY;
+
+    window.refresh = async function() {
+        const tbody = document.getElementById("data");
+        const sortSelect = document.getElementById("sortBy");
+        const sortBy = sortSelect ? sortSelect.value : "default";
+        if(tbody) tbody.innerHTML = "<tr><td class='loading' colspan='10'>Kraunama…</td></tr>";
+
+        let totalDailyCount = 0;
+        const now = Date.now(), tz = "Europe/Vilnius";
+        const d0 = new Date(now); d0.setHours(6, 0, 0, 0);
+        const d1 = new Date(now); d1.setHours(23, 0, 0, 0);
+        const calcEnd = new Date(Math.min(now, d1.getTime()));
+
+        const adaxLines = LINE_MAP.filter(L => L.apiType === "ADAX");
+        const tsLines = LINE_MAP.filter(L => L.apiType !== "ADAX");
+        const adaxAggregated = await getAllAdaxAggregated();
+
+        const adaxPromises = adaxLines.map(async (L) => {
+            try {
+                const lidStr = L.lid.toString();
+                const cachedLine = adaxAggregated?.lines && adaxAggregated.lines[lidStr];
+                if (!cachedLine?.data) throw "Nėra duomenų";
+                const data = cachedLine.data;
+                let allRecords = (Array.isArray(data) ? data : Object.values(data).flat())
+                    .map(normalizeAdaxRecord)
+                    .filter(r => r.TestavimoLaikas && r.TestavimoLaikas !== "NULL" && !TEST_CODES.includes(r.Produktas));
+
+                if (allRecords.length === 0) throw "Tušti duomenys";
+
+                allRecords.sort((a, b) => {
+                    const ta = new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    const tb = new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    return ta - tb;
+                });
+                const latest = allRecords[allRecords.length - 1];
+                const latestProduct = latest.Produktas ? latest.Produktas.trim() : null;
+                let currentBatchRecords = [];
+                if (latestProduct) {
+                    for (let i = allRecords.length - 1; i >= 0; i--) {
+                        const r = allRecords[i];
+                        if (r.Produktas && r.Produktas.trim() === latestProduct) {
+                            currentBatchRecords.unshift(r);
+                            if (i > 0) {
+                                const prev = allRecords[i-1];
+                                if (prev.Produktas && prev.Produktas.trim() === latestProduct) {
+                                    if ((parseInt(r.PusgaminioNr) || 0) < (parseInt(prev.PusgaminioNr) || 0)) break;
+                                } else break;
+                            }
+                        } else break;
+                    }
+                }
+                const firstInBatch = currentBatchRecords[0];
+                const countValNum = latest ? (parseInt(latest.PusgaminioNr) || 0) : 0;
+                const dailySegs = buildAdaxSegments(data, d0, calcEnd, tz);
+                const dailyUnits = dailySegs.reduce((sum, s) => sum + s.units, 0);
+
+                // Breakdown Calculation (based on lead time: scan to test)
+                const dailyRecords = allRecords.filter(r => {
+                    const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    return t >= d0.getTime() && t <= calcEnd.getTime();
+                });
+
+                let groupA = 0, groupB = 0, groupC = 0;
+                dailyRecords.forEach(r => {
+                    const e = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    const s = (r.NuskanavimoLaikas && r.NuskanavimoLaikas !== "NULL")
+                        ? new Date(r.NuskanavimoLaikas.replace(' ', 'T')).getTime()
+                        : 0;
+
+                    if (e > s && s > 0) {
+                        const leadMin = (e - s) / 60000;
+                        if (leadMin <= 1.5) groupA++;
+                        else if (leadMin <= 2.5) groupB++;
+                        else groupC++;
+                    } else {
+                        groupC++;
+                    }
+                });
+                const breakdown = { a: groupA, b: groupB, c: groupC };
+                let productName = "—";
+                if (latest.ItemID && latest.Pavadinimas && latest.ItemID !== "NULL" && latest.Pavadinimas !== "NULL") {
+                    productName = `${latest.ItemID} - ${latest.Pavadinimas}`;
+                } else if (latest.Pavadinimas && latest.Pavadinimas !== "NULL") {
+                    productName = latest.Pavadinimas;
+                } else if (latestProduct) {
+                    productName = PRODUCT_MAP.get(normalizeCode(latestProduct)) || latestProduct;
+                }
+                const tStart = firstInBatch ? toLT(firstInBatch.TestavimoLaikas.replace(' ', 'T')) : "-";
+                const tLast = latest ? toLT(latest.TestavimoLaikas.replace(' ', 'T')) : "-";
+                let active = false, msSinceLast = 0, status="NEAKTYVI", statusCls="status-offline";
+                if (latest) {
+                    msSinceLast = now - new Date(latest.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    if (msSinceLast/60000 <= OFFLINE_MINUTES) { status="AKTYVI"; statusCls="status-online"; active = true; }
+                }
+                let spTxt="–", gapTxt="–", spClass="", speedVal = 0, mMin = 0;
+                if (allRecords.length >= 2) {
+                    const sample = allRecords.slice(-10);
+                    const r1 = sample[sample.length - 1], r0 = sample[0];
+                    const t1 = new Date(r1.TestavimoLaikas.replace(' ', 'T')).getTime(), t0 = new Date(r0.TestavimoLaikas.replace(' ', 'T')).getTime();
+                    const dHours = (t1 - t0) / 3600000;
+                    if (dHours > 0) {
+                        speedVal = (sample.length - 1) / dHours; spTxt = speedVal.toFixed(1);
+                        gapTxt = formatDuration((t1 - t0) / (sample.length - 1));
+                        if (speedVal > 12) spClass="good"; else if (speedVal >= 6) spClass="warn"; else spClass="bad";
+                    }
+                    let leadS=0, leadC=0; allRecords.slice(-20).forEach(r=>{ const e=new Date(r.TestavimoLaikas.replace(' ','T')).getTime(), s=new Date(r.NuskanavimoLaikas.replace(' ','T')).getTime(); if(e>s && (e-s)<3600000){ leadS+=(e-s); leadC++; } });
+                    if(leadC) mMin = ADAX_LENGTHS[L.lid] / (leadS/leadC/60000);
+                }
+                return { L, countValStr: countValNum.toString(), countValNum, dailyUnits, barcodeVal: latestProduct||"-", productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, mMin, breakdown };
+            } catch(e) { return { L, countValStr: "-", countValNum: 0, dailyUnits: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: "KLAIDA", statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false, mMin: 0 }; }
+        });
+
+        const tsPromises = tsLines.map(async (L) => {
+            const key = READ_KEYS[L.channel];
+            try {
+                const promises = [getFieldLast(L.channel, L.fieldCount, key), (L.fieldBarcode ? getFieldLast(L.channel, L.fieldBarcode, key) : Promise.resolve(null)), getFieldHistory(L.channel, L.fieldCount, key, 50), fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, d0, calcEnd, 1)];
+                const [countData, barcodeData, history, dailyHistory] = await Promise.all(promises);
+                const dailyUnits = sumPositiveDeltas(dailyHistory).units;
+                const countValRaw = countData?.[`field${L.fieldCount}`], countValNum = parseFloat(countValRaw), hasCount = isFinite(countValNum);
+                const barcodeVal = L.fieldBarcode ? (barcodeData?.[`field${L.fieldBarcode}`] ?? "-") : "UI v5";
+                let productName = PRODUCT_MAP.get(normalizeCode(barcodeVal)) || barcodeVal;
+                let tStart = "-";
+                if(L.name === "UI perrašymas") {
+                    for(let i=1; i<dailyHistory.length; i++) { if(dailyHistory[i].v > dailyHistory[i-1].v) { tStart = toLT(dailyHistory[i].at); break; } }
+                } else {
+                    tStart = toLT(barcodeData?.created_at);
+                }
+                const tLast = toLT(countData?.created_at);
+                let latestIso = L.fieldBarcode ? ((new Date(barcodeData?.created_at||0) > new Date(countData?.created_at||0)) ? barcodeData?.created_at : countData?.created_at) : countData?.created_at;
+                let active = false, status="NEAKTYVI", statusCls="status-offline";
+                if (latestIso) { if ((now - new Date(latestIso).getTime())/60000 <= OFFLINE_MINUTES) { status="AKTYVI"; statusCls="status-online"; active = true; } }
+                let spTxt="–", gapTxt="–", spClass="", speedVal = 0;
+                const pair = getLastValidCountPair(history, L.fieldCount);
+                if (pair) {
+                    const dHours = (pair.t1 - pair.t0) / 3600000;
+                    if (dHours > 0) {
+                        speedVal = (pair.c1 - pair.c0) / dHours; spTxt = speedVal.toFixed(1); gapTxt = formatDuration(pair.t1 - pair.t0);
+                        if (speedVal > 12) spClass="good"; else if (speedVal >= 6) spClass="warn"; else spClass="bad";
+                    }
+                }
+                return { L, countValStr: hasCount?countValNum.toString():"-", countValNum: hasCount?countValNum:0, dailyUnits, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active };
+            } catch(e) { return null; }
+        });
+
+        const allResults = (await Promise.all([...tsPromises, ...adaxPromises])).filter(r => r !== null);
+        allResults.forEach(r => { totalDailyCount += r.dailyUnits; });
+
+        // Apply filters and update visibility
+        allResults.forEach(r => {
+            const active = activeFilters[r.L.name] !== false;
+            const vizItem = document.getElementById(`viz-${r.L.name}`) || document.getElementById(`pod-${r.L.name}`);
+            if(vizItem) vizItem.style.display = active ? '' : 'none';
+        });
+
+        const results = allResults.filter(r => activeFilters[r.L.name] !== false);
+
+        if (sortBy === 'units') results.sort((a, b) => b.countValNum - a.countValNum);
+        else if (sortBy === 'speed') results.sort((a, b) => b.speedVal - a.speedVal);
+
+        let html = "", adaxSeparatorDone = false;
+        results.forEach(r => {
+            if (sortBy === 'default' && r.L.apiType === 'ADAX' && !adaxSeparatorDone) {
+                html += `<tr style="background: var(--bg-panel); color: var(--text-header); border-top: 4px solid #ff5252;"><th colspan="9" style="text-align:left; padding-left:20px;">ADAX Linijos</th></tr>`;
+                adaxSeparatorDone = true;
+            }
+
+            let unitsDisplay = r.countValStr;
+            if (r.L.apiType === 'ADAX' && r.breakdown) {
+                unitsDisplay = `${r.dailyUnits} <br/><span style="font-size:12px; font-weight:normal; color:#bbb;" title="A: ≤1.5m | B: 1.5-2.5m | C: >2.5m">(${r.breakdown.a} / ${r.breakdown.b} / ${r.breakdown.c})</span>`;
+            }
+
+            html += `<tr><td>${r.L.name}</td><td class="good">${unitsDisplay}</td><td class="bar">${r.barcodeVal}</td><td>${r.productName}</td><td class="time">${r.tStart}</td><td class="time">${r.tLast}</td><td class="${r.statusCls}">${r.status}</td><td class="time">${r.gapTxt}</td><td class="${r.spClass}">${r.spTxt}</td></tr>`;
+
+            const elUnits = document.getElementById(`val-units-${r.L.name}`), elSpeed = document.getElementById(`val-speed-${r.L.name}`), elGap = document.getElementById(`val-gap-${r.L.name}`), elProd = document.getElementById(`val-prod-${r.L.name}`), elIndAct = document.getElementById(`ind-act-${r.L.name}`), elIndSpd = document.getElementById(`ind-spd-${r.L.name}`);
+            if(elUnits) elUnits.innerText = r.countValStr;
+            if(elSpeed) elSpeed.innerText = (r.spTxt !== '–') ? Math.round(r.speedVal) : '-';
+            if(elGap) elGap.innerText = r.gapTxt;
+            if(elProd) { elProd.innerText = r.productName; elProd.title = r.productName; }
+            if(elIndAct) { elIndAct.className = 'ind-circle ind-active ' + (r.active ? 'on' : 'off'); }
+            if(elIndSpd) { elIndSpd.className = 'ind-circle ind-speed ' + (r.speedVal > 12 ? 'good' : (r.speedVal >= 6 ? 'warn' : 'bad')); }
+
+            if(r.L.apiType === 'ADAX') {
+                const pod = document.getElementById(`pod-${r.L.name}`);
+                if(pod) {
+                    const arsCont = pod.querySelector('.adax-arrows-container');
+                    const mminEl = document.getElementById(`val-mmin-${r.L.name}`);
+                    if(mminEl) {
+                        mminEl.innerText = r.mMin > 0 ? r.mMin.toFixed(1) + ' m/min' : '-';
+                        mminEl.style.color = r.mMin >= 4 ? '#00d67a' : '#ffa726';
+                    }
+                    if(r.breakdown) {
+                        const elA = document.getElementById(`brk-a-${r.L.name}`);
+                        const elB = document.getElementById(`brk-b-${r.L.name}`);
+                        const elC = document.getElementById(`brk-c-${r.L.name}`);
+                        if(elA) elA.innerText = r.breakdown.a;
+                        if(elB) elB.innerText = r.breakdown.b;
+                        if(elC) elC.innerText = r.breakdown.c;
+                    }
+                    if(arsCont) {
+                        if(r.active) {
+                            const isGood = r.mMin >= 4;
+                            const dur = Math.max(1.5, Math.min(10, (ADAX_LENGTHS[r.L.lid]*2) / Math.max(0.1, r.mMin)));
+                            arsCont.innerHTML = '';
+                            for(let i=0; i<4; i++) {
+                                const arrow = document.createElement('div');
+                                arrow.className = `adax-arrow ${isGood?'green':'orange'} ${i%2===0?'left-lane':'right-lane'}`;
+                                arrow.innerText = '🠗';
+                                arrow.style.animationDuration = dur + 's';
+                                arrow.style.animationDelay = (i * (dur/4)) + 's';
+                                arsCont.appendChild(arrow);
+                            }
+                        } else {
+                            arsCont.innerHTML = '<div class="adax-arrow red-x">✖</div>';
+                        }
+                    }
+                }
+            }
+        });
+        if(tbody) tbody.innerHTML = html;
+        if(document.getElementById("summaryBox")) document.getElementById("summaryBox").innerText = `Pagaminta šiandien (06:00–23:00): ${new Intl.NumberFormat("lt-LT").format(totalDailyCount)} vnt.`;
+    };
+    setInterval(() => { timer--; if(timer<0) timer=REFRESH_MS/1000; const tb=document.getElementById("timerBox"); if(tb) tb.innerText=`Atnaujinimas po: ${Math.floor(timer/60)}:${String(timer%60).padStart(2,"0")}`; }, 1000);
+    setInterval(window.refresh, REFRESH_MS); window.refresh();
+})();
+
+/* ===================== REPORT & AI LOGIC ===================== */
+(function InitReport(){
+    let lastChartData = null, lastChartRange = {from:null, to:null}, productionChartInstance = null;
+    window.reRenderChart = () => { if(lastChartData) renderChart(lastChartData, lastChartRange.from, lastChartRange.to); };
+    async function fetchStartBarcode(channel, field, key, timeObj, tz) {
+        const endIso = toIsoLocal(timeObj), qs=new URLSearchParams({ api_key:key, end:endIso, results:'8000', timezone:tz });
+        try { const r = await fetchWithTimeout(`https://api.thingspeak.com/channels/${channel}/fields/${field}.json?${qs.toString()}`); if (!r.ok) return null; const j = await r.json(); if (j.feeds) { for (let i = j.feeds.length - 1; i >= 0; i--) { const val = j.feeds[i][`field${field}`]; if (val != null && val !== "" && String(val).toLowerCase() !== "null") return j.feeds[i]; } } } catch (e) {} return null;
+    }
+    async function fetchWholePeriodText(channel, field, readKey, tz, from, to, chunkDays=90){
+        const feeds=[]; let curStart=new Date(from.getTime());
+        while(curStart<to){ const curEnd=new Date(Math.min(to.getTime(), curStart.getTime()+chunkDays*24*3600*1000)); const js=await fetchFieldWindow(channel,field,readKey,toIsoLocal(curStart),toIsoLocal(curEnd),tz); if(js?.feeds?.length) feeds.push(...js.feeds); curStart=new Date(curEnd.getTime()+1000); }
+        const out=[]; for(const f of feeds){ const val=f[`field${field}`]; if(val!=null && val!=="") out.push({t:parseISO(f.created_at).getTime(), val:String(val), at:f.created_at}); }
+        out.sort((a,b)=>a.t-b.t); const ded=[]; let lt=-1, lv=""; for(const x of out){ if(x.t!==lt || x.val!==lv){ ded.push(x); lt=x.t; lv=x.val; } } return ded;
+    }
+    function buildSegments(barcodes, counts, tz){
+        const segs=[]; if(!counts.length) return segs; counts.sort((a,b)=>a.t-b.t); barcodes.sort((a,b)=>a.t-b.t);
+        let batchStartI = 0; for (let i = 1; i < counts.length; i++) { if (counts[i].v < counts[i-1].v) { finalizeBatch(counts.slice(batchStartI, i)); batchStartI = i; } } finalizeBatch(counts.slice(batchStartI));
+        function finalizeBatch(batchCounts) {
+            if(!batchCounts.length) return; let units = 0; for(let k=1; k<batchCounts.length; k++) { const d = batchCounts[k].v - batchCounts[k-1].v; if(d > 0) units += d; } if (batchCounts[0].v > 0 && batchCounts[0].v <= 5) units += batchCounts[0].v;
+            const endT = batchCounts[batchCounts.length-1].t; let activeB = null; for (let b of barcodes) { if (b.t <= endT) activeB = b; else break; }
+            let bVal = (activeB && activeB.val != null && activeB.val !== "null") ? activeB.val : "Nuskanuota iš seniau";
+            const prodName = PRODUCT_MAP.get(normalizeCode(bVal)) || "";
+            const durationMs = endT - batchCounts[0].t;
+            segs.push({ barcode: bVal, product: prodName, startLT: toLTString(new Date(batchCounts[0].t).toISOString(), tz), endLT: toLTString(new Date(endT).toISOString(), tz), duration: formatDuration(durationMs), units, avg: (durationMs > 0 && units > 0) ? (units / (durationMs/3600000)) : 0, startTs: batchCounts[0].t, endTs: endT, barcodeTime: activeB ? toLTString(activeB.at, tz) : "", start: toLTString(new Date(batchCounts[0].t).toISOString(), tz), end: toLTString(new Date(endT).toISOString(), tz) });
+        }
+        return segs;
+    }
+    async function exportXLSX(rows){
+        const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Ataskaita');
+        ws.columns = [ { header:'Linija', key:'line', width:14 }, { header:'Gaminio numeris', key:'barcode', width:14 }, { header:'Gaminio pavadinimas', key:'product', width:24 }, { header:'Barkodo laikas', key:'barcodeTime', width:20 }, { header:'Testavimo pradžia', key:'start', width:20 }, { header:'Pabaiga', key:'end', width:24 }, { header:'Trukmė', key:'duration', width:12 }, { header:'Vnt', key:'units', width:14 }, { header:'Vnt/val.', key:'avg', width:18 } ];
+        rows.forEach(r=>{ ws.addRow({ line: r.line, barcode: r.barcode, product: r.product, barcodeTime: r.barcodeTime, start: r.start, end: r.end, duration: r.duration, units: r.units, avg: Number(r.avg.toFixed(2)) }); });
+        const buf = await wb.xlsx.writeBuffer(); saveAs(new Blob([buf]), `GD_ataskaita_${new Date().getTime()}.xlsx`);
+    }
+    async function updateChartOnly() {
+        const st = document.getElementById('chartStatus'); st.textContent = "Kraunama...";
+        try {
+            const tz = document.getElementById('tz').value, chunkDays = parseInt(document.getElementById('chunkDays').value,10)||90, from = new Date(document.getElementById('chartFrom').value), to = new Date(document.getElementById('chartTo').value);
+            const sel = Array.from(document.getElementById('chartLines').selectedOptions).map(o=>o.value), useLines = sel.length ? LINES.filter(L=>sel.includes(L.name)) : LINES;
+            const allSegments = [], adaxAggregated = await getAllAdaxAggregated();
+            const results = await Promise.all(useLines.map(async (L) => {
+                if (L.apiType === "ADAX") { try { let data = adaxAggregated?.lines && adaxAggregated.lines[L.lid.toString()]?.data; if (!data) data = await getAdaxData(L.lid); return buildAdaxSegments(data, from, to, tz).map(s => ({ line: L.name, units: s.units, startTs: s.startTs, endTs: s.endTs, val: s.units })); } catch(e) { return []; } }
+                const key = READ_KEYS[L.channel]; try { let bar = L.fieldBarcode ? await fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays) : [{ t: from.getTime(), val: "UI v5", at: from.toISOString() }]; const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays); return buildSegments(bar, cnt, tz).map(s => ({ line: L.name, units: s.units, startTs: s.startTs, endTs: s.endTs, val: s.units })); } catch(e) { return []; }
+            }));
+            results.forEach(r => allSegments.push(...r));
+            lastChartData = allSegments; lastChartRange = { from, to }; renderChart(allSegments, from, to); st.textContent = "Atnaujinta.";
+        } catch(e) { st.textContent = "Klaida."; }
+    }
+    function renderChart(allData, from, to) {
+        const isLight = document.body.classList.contains('light-mode'), textColor = isLight ? '#333' : '#eee', gridColor = isLight ? '#ccc' : '#444';
+        const lines = [...new Set(allData.map(d => d.line))], series = [];
+        lines.forEach((lineName, idx) => {
+            const points = allData.filter(d => d.line === lineName).sort((a,b)=>a.startTs-b.startTs).map(seg => [seg.endTs || seg.startTs, seg.val]);
+            if(points.length) series.push({ name: lineName, data: points, color: ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000'][idx % 15] });
+        });
+        Highcharts.chart('productionChart', { chart: { backgroundColor: 'transparent', type: document.getElementById('chartType').value, zoomType: 'x' }, title: { text: null }, xAxis: { type: 'datetime', labels: { style: { color: textColor } }, gridLineColor: gridColor, min: from.getTime(), max: to.getTime() }, yAxis: { title: { text: 'Vnt', style: { color: textColor } }, labels: { style: { color: textColor } }, gridLineColor: gridColor }, series, credits: { enabled: false } });
+    }
+    document.getElementById('updateChartBtn').addEventListener('click', updateChartOnly);
+    document.getElementById('go').addEventListener('click', async () => {
+        const st = document.getElementById('repStatus'); st.textContent = "Generuojama...";
+        const tz = document.getElementById('tz').value, chunkDays = parseInt(document.getElementById('chunkDays').value,10)||90, from = new Date(document.getElementById('from').value), to = new Date(document.getElementById('to').value);
+        const sel = Array.from(document.getElementById('lineFilter').selectedOptions).map(o=>o.value), useLines = sel.length ? LINES.filter(L=>sel.includes(L.name)) : LINES;
+        const out = [], adaxAggregated = await getAllAdaxAggregated();
+        for(const L of useLines){
+            if (L.apiType === "ADAX") { let data = adaxAggregated?.lines && adaxAggregated.lines[L.lid.toString()]?.data; if (!data) data = await getAdaxData(L.lid); buildAdaxSegments(data, from, to, tz).forEach(s => out.push({ line: L.name, ...s })); }
+            else { const key = READ_KEYS[L.channel]; let bar = L.fieldBarcode ? await fetchWholePeriodText(L.channel, L.fieldBarcode, key, tz, from, to, chunkDays) : [{ t: from.getTime(), val: "UI v5", at: from.toISOString() }]; const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount, key, tz, from, to, chunkDays); buildSegments(bar, cnt, tz).forEach(s => out.push({ line: L.name, ...s })); }
+        }
+        await exportXLSX(out); st.textContent = "Baigta.";
+    });
+    const now = new Date(), start = new Date(now.getTime() - 86400000), fmt = d => d.toISOString().slice(0,16);
+    document.getElementById('from').value=fmt(start); document.getElementById('to').value=fmt(now); document.getElementById('chartFrom').value=fmt(start); document.getElementById('chartTo').value=fmt(now);
+    const lf=document.getElementById('lineFilter'), clf=document.getElementById('chartLines');
+    LINES.forEach(L=>{ const o=new Option(L.name, L.name, true, true); lf.add(o); clf.add(o.cloneNode(true)); });
+    document.getElementById('selectAllLines').addEventListener('change', e => { Array.from(lf.options).forEach(o=>o.selected=e.target.checked); });
+    document.getElementById('selectAllChartLines').addEventListener('change', e => { Array.from(clf.options).forEach(o=>o.selected=e.target.checked); });
+})();
+
+(function InitAI() {
+    const aiModel = window.aiModel;
+    function updateUI() {
+        let total = 0; Object.values(aiModel.products).forEach(ls => Object.values(ls).forEach(d => total += d.count));
+        if (document.getElementById('aiStatus')) document.getElementById('aiStatus').textContent = `DI statusas: Sukaupta ${total} segmentų. Atnaujinta: ${aiModel.lastUpdated||'Niekada'}`;
+        renderProductTable(); renderBreakChart();
+    }
+    function saveModel() { aiModel.lastUpdated = new Date().toLocaleString(); localStorage.setItem(AI_MODEL_KEY, JSON.stringify(aiModel)); updateUI(); }
+    function renderProductTable() {
+        const tbody = document.getElementById('aiProductTable'); if (!tbody) return; tbody.innerHTML = "";
+        Object.keys(aiModel.products).forEach(pName => {
+            const ls = aiModel.products[pName], stats = Object.keys(ls).map(L => { const d = ls[L], avg = d.sumSpeed / d.count, max = d.maxSpeed; return { line: L, avg, max, pot: ((max - avg) / avg) * 100 }; });
+            stats.forEach((s, idx) => { const tr = tbody.insertRow(); if(idx===0) tr.innerHTML = `<td rowspan="${stats.length}">${pName}</td>`; tr.innerHTML += `<td>${s.line}</td><td>${Math.round(s.avg)}</td><td>${Math.round(s.max)}</td><td style="color:${s.pot>10?'#ffa726':'#888'}">+${s.pot.toFixed(0)}%</td>`; });
+        });
+    }
+    function renderBreakChart() {
+        const seriesData = new Array(24).fill(0); Object.keys(aiModel.breaks).forEach(h => { seriesData[h] = Object.values(aiModel.breaks[h]).reduce((a,b)=>a+b, 0); });
+        Highcharts.chart('aiBreakChart', { chart: { type: 'column', backgroundColor: 'transparent' }, title: { text: null }, xAxis: { categories: Array.from({length:24}, (_,i)=>i+":00") }, series: [{ name: 'Pertraukos', data: seriesData }], credits: { enabled: false } });
+    }
+    document.getElementById('aiLearnBtn').addEventListener('click', async () => {
+        const st = document.getElementById('aiStatus'); st.textContent = "Mokomasi...";
+        const from = new Date(); from.setDate(from.getDate() - 30);
+        const adaxAggregated = await getAllAdaxAggregated();
+        for (const L of LINES) {
+            let segs = []; if (L.apiType === "ADAX") { try { let d = adaxAggregated?.lines && adaxAggregated.lines[L.lid.toString()]?.data; if (!d) d = await getAdaxData(L.lid); segs = buildAdaxSegments(d, from, new Date(), "Europe/Vilnius"); } catch(e){} }
+            else { try { const key = READ_KEYS[L.channel]; let bar = L.fieldBarcode ? await fetchWholePeriodText(L.channel, L.fieldBarcode, key, "Europe/Vilnius", from, new Date()) : [{ t: from.getTime(), val: "UI v5" }]; const cnt = await fetchWholePeriodNumeric(L.channel, L.fieldCount, key, "Europe/Vilnius", from, new Date()); segs = buildSegments(bar, cnt, "Europe/Vilnius"); } catch(e){} }
+            segs.forEach(s => {
+                const speed = s.avg, pKey = s.product || s.barcode; if (!aiModel.products[pKey]) aiModel.products[pKey] = {}; if (!aiModel.products[pKey][L.name]) aiModel.products[pKey][L.name] = { sumSpeed: 0, count: 0, maxSpeed: 0 };
+                const e = aiModel.products[pKey][L.name]; e.sumSpeed += speed; e.count++; e.maxSpeed = Math.max(e.maxSpeed, speed);
+                const h = new Date(s.startTs).getHours(), type = getInsightText((s.endTs-s.startTs)/60000, s.startTs); if (type) { if (!aiModel.breaks[h]) aiModel.breaks[h] = {}; aiModel.breaks[h][type] = (aiModel.breaks[h][type] || 0) + 1; }
+            });
+        }
+        saveModel();
+    });
+    document.getElementById('aiClearBtn').addEventListener('click', () => { if(confirm("Išvalyti?")) { aiModel.products = {}; aiModel.breaks = {}; localStorage.removeItem(AI_MODEL_KEY); updateUI(); } });
+    updateUI();
+})();
+</script>
+</body>
+</html>
