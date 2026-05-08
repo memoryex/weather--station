@@ -320,7 +320,7 @@
       <th>Gaminio testavimo pradžia</th>
       <th>Paskutinis užfiksavimas</th>
       <th>Linijos būsena</th>
-      <th>Tarpas tarp testų</th>
+      <th>Tarpas tarp testų(užsakymo vidurkis)</th>
       <th>Greitis (vnt/val.)</th>
     </tr>
     </thead>
@@ -1085,6 +1085,11 @@ function buildAdaxSegments(data, from, to, tz) {
         const durationMs = eTs - sTs;
         const avg = (durationMs > 0) ? (units / (durationMs / 3600000)) : 0;
 
+        let avgGap = "-";
+        if (units > 1) {
+            avgGap = formatDuration(durationMs / (units - 1));
+        }
+
         const startIso = new Date(sTs).toISOString();
         const endIso = new Date(eTs).toISOString();
 
@@ -1109,7 +1114,8 @@ function buildAdaxSegments(data, from, to, tz) {
             duration: formatDuration(durationMs),
             start: toLTString(startIso, tz),
             end: toLTString(endIso, tz),
-            g1, g2, g3
+            g1, g2, g3,
+            avgGap: avgGap
         });
     }
     return segs;
@@ -1465,10 +1471,13 @@ function renderVizPlaceholder(id, name, type) {
                     if (code && PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
                 }
 
-                const tStart = (firstInBatch && firstInBatch.TestavimoLaikas && typeof firstInBatch.TestavimoLaikas === 'string')
-                    ? toLT(firstInBatch.TestavimoLaikas.replace(' ', 'T')) : "-";
-                const tLast = (latest && latest.TestavimoLaikas && typeof latest.TestavimoLaikas === 'string')
-                    ? toLT(latest.TestavimoLaikas.replace(' ', 'T')) : "-";
+                const bFirst = firstInBatch;
+                const bLast = latest;
+                const tsStart = (bFirst && bFirst.NuskanavimoLaikas) ? new Date(bFirst.NuskanavimoLaikas.replace(' ', 'T')).getTime() : (bFirst && bFirst.TestavimoLaikas ? new Date(bFirst.TestavimoLaikas.replace(' ', 'T')).getTime() : 0);
+                const tsEnd = (bLast && bLast.TestavimoLaikas) ? new Date(bLast.TestavimoLaikas.replace(' ', 'T')).getTime() : 0;
+
+                const tStart = tsStart > 0 ? toLT(new Date(tsStart).toISOString()) : "-";
+                const tLast = tsEnd > 0 ? toLT(new Date(tsEnd).toISOString()) : "-";
                 const latestIso = latest ? (latest.TestavimoLaikas || latest.GamybosPabaiga) : null;
 
                 let msSinceLast = Infinity;
@@ -1495,10 +1504,20 @@ function renderVizPlaceholder(id, name, type) {
                     if (dHours > 0) {
                         speedVal = (sample.length - 1) / dHours;
                         spTxt = speedVal.toFixed(2);
-                        gapTxt = formatDuration((t1 - t0) / (sample.length - 1));
                         if (speedVal > 10) spClass="good";
                         else if (speedVal >= 5) spClass="warn";
                         else spClass="bad";
+                    }
+
+                    // Order average gap calculation for ADAX
+                    if (currentBatchRecords.length > 0 && tsStart > 0 && tsEnd > 0) {
+                        const unitsBatch = currentBatchRecords.length;
+                        const isScanStart = !!(currentBatchRecords[0].NuskanavimoLaikas);
+                        if (isScanStart) {
+                            gapTxt = formatDuration((tsEnd - tsStart) / unitsBatch);
+                        } else if (unitsBatch > 1) {
+                            gapTxt = formatDuration((tsEnd - tsStart) / (unitsBatch - 1));
+                        }
                     }
                 }
 
@@ -1641,8 +1660,24 @@ function renderVizPlaceholder(id, name, type) {
                             else if (speed >= 5) spClass="warn";
                             else spClass="bad";
                             spTxt = speed.toFixed(2);
-                            gapTxt = formatDuration(pair.t1 - pair.t0);
                         }
+                    }
+
+                    // Order average gap calculation for TS
+                    const barcodeTs = barcodeData ? new Date(barcodeData.created_at).getTime() : 0;
+                    let unitsSinceStart = 0;
+                    let tLastU = 0;
+                    for (let i = 1; i < dailyHistory.length; i++) {
+                        if (dailyHistory[i].t >= barcodeTs) {
+                            const d = dailyHistory[i].v - dailyHistory[i-1].v;
+                            if (d > 0) {
+                                unitsSinceStart += d;
+                                tLastU = dailyHistory[i].t;
+                            }
+                        }
+                    }
+                    if (unitsSinceStart > 0 && barcodeTs > 0 && tLastU > 0) {
+                        gapTxt = formatDuration((tLastU - barcodeTs) / unitsSinceStart);
                     }
                 }
 
@@ -1716,7 +1751,7 @@ function renderVizPlaceholder(id, name, type) {
                     <th style="font-size:16px;">Gaminio testavimo pradžia</th>
                     <th style="font-size:16px;">Paskutinis užfiksavimas</th>
                     <th style="font-size:16px;">Linijos būsena</th>
-                    <th style="font-size:16px;">Tarpas tarp testų</th>
+                    <th style="font-size:16px;">Tarpas tarp testų(užsakymo vidurkis)</th>
                     <th style="font-size:16px;">Greitis (vnt/val.)</th>
                 </tr>
                 `;
@@ -1734,7 +1769,7 @@ function renderVizPlaceholder(id, name, type) {
                     <th style="font-size:16px;">Gaminio testavimo pradžia</th>
                     <th style="font-size:16px;">Paskutinis užfiksavimas</th>
                     <th style="font-size:16px;">Linijos būsena</th>
-                    <th style="font-size:16px;">Tarpas tarp testų</th>
+                    <th style="font-size:16px;">Tarpas tarp testų(užsakymo vidurkis)</th>
                     <th style="font-size:16px;">Greitis (vnt/val.)</th>
                 </tr>
                 `;
@@ -2000,11 +2035,19 @@ function renderVizPlaceholder(id, name, type) {
             const endLT = toLTString(new Date(endT).toISOString(), tz);
             const bTimeLT = toLTString(bTimeStr, tz);
             const avg = (durationMs > 0 && units > 0) ? (units / (durationMs/3600000)) : 0;
+            let avgGap = "-";
+        const isScanStart = !!(r0.NuskanavimoLaikas);
+        if (isScanStart && units > 0) {
+            avgGap = formatDuration(durationMs / units);
+        } else if (units > 1) {
+                avgGap = formatDuration(durationMs / (units - 1));
+            }
             segs.push({
                 barcode: barcode, product: prodName, startLT, endLT,
                 duration: formatDuration(durationMs), units, avg,
                 startTs: startT, endTs: endT, barcodeTime: bTimeLT,
-                start: startLT, end: endLT
+                start: startLT, end: endLT,
+                avgGap: avgGap
             });
         }
         return segs;
@@ -2023,6 +2066,7 @@ function renderVizPlaceholder(id, name, type) {
             { header:'Trukmė', key:'duration', width:12 },
             { header:'Pagaminta vnt', key:'units', width:14 },
             { header:'Vidurkis vnt./val.', key:'avg', width:18 },
+            { header:'Tarpas tarp testų(užsakymo vidurkis)', key:'avgGap', width:22 },
             { header:'Grupė 1 (< 1,5 min)', key:'g1', width:20 },
             { header:'Grupė 2 (1,5-2,5 min)', key:'g2', width:20 },
             { header:'Grupė 3 (> 2,5 min)', key:'g3', width:20 }
@@ -2044,6 +2088,7 @@ function renderVizPlaceholder(id, name, type) {
                 line: r.line, barcode: r.barcode, product: r.product || "",
                 barcodeTime: r.barcodeTime || null, start: r.start || "", end: r.end || "",
                 duration: r.duration || "", units: r.units, avg: (r.avg!=null? Number(r.avg.toFixed(2)) : null),
+                avgGap: r.avgGap || "-",
                 g1: r.g1 != null ? `${r.g1} (${p1}%)` : "",
                 g2: r.g2 != null ? `${r.g2} (${p2}%)` : "",
                 g3: r.g3 != null ? `${r.g3} (${p3}%)` : ""
