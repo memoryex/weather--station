@@ -488,17 +488,6 @@
             </div>
           </div>
           <select id="lineFilter" multiple class="report-select" style="flex:1; height:300px;"></select>
-
-          <div id="adaxSummary" style="margin-top:20px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-color); display:none;">
-            <h3 style="margin:0 0 10px 0; font-size:16px;">ADAX Grupių santrauka</h3>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:14px;">
-              <div>&lt; 1.5 min:</div><div id="sumG1" style="color:#00d67a; font-weight:bold;">0</div>
-              <div>1.5 - 2.5 min:</div><div id="sumG2" style="color:#ffa726; font-weight:bold;">0</div>
-              <div>&gt; 2.5 min:</div><div id="sumG3" style="color:#ff5252; font-weight:bold;">0</div>
-              <div style="border-top:1px solid #444; padding-top:5px;">Viso ADAX:</div>
-              <div id="sumTotal" style="border-top:1px solid #444; padding-top:5px; font-weight:bold;">0</div>
-            </div>
-          </div>
         </div>
 
       </div>
@@ -553,8 +542,13 @@
 
         <!-- INSIGHTS SECTION -->
         <div id="insightsSection" style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:15px; display:none;">
-            <h3 style="margin:0 0 10px 0; font-size:18px; color:var(--text-header);">Gamybos įžvalgos (Prastovos)</h3>
-            <div id="insightsContent" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <div style="display:flex; gap:30px; align-items: flex-start;">
+                <div style="flex:1;">
+                    <h3 style="margin:0 0 10px 0; font-size:18px; color:var(--text-header);">Gamybos įžvalgos (Prastovos)</h3>
+                    <div id="insightsContent" style="display:flex; flex-direction:column; gap:8px;"></div>
+                </div>
+                <div id="adaxSummary" style="width:350px; display:none; flex-direction:column; gap:15px;"></div>
+            </div>
         </div>
 
         <div id="debugLog" style="margin-top:10px; font-size:12px; color:#0f0; background:#000; font-family:monospace; max-height:200px; overflow-y:auto; border:1px solid #555; padding:10px; display:none;"></div>
@@ -1696,7 +1690,11 @@ function renderVizPlaceholder(id, name, type) {
 
         // SORTING LOGIC
         if (sortBy === 'units') {
-            validResults.sort((a, b) => b.countValNum - a.countValNum);
+            validResults.sort((a, b) => {
+                const valA = (a.L.apiType === 'ADAX') ? a.dailyUnits : a.countValNum;
+                const valB = (b.L.apiType === 'ADAX') ? b.dailyUnits : b.countValNum;
+                return valB - valA;
+            });
         } else if (sortBy === 'speed') {
             validResults.sort((a, b) => b.speedVal - a.speedVal);
         }
@@ -1729,7 +1727,7 @@ function renderVizPlaceholder(id, name, type) {
                 html += `
                 <tr style="background: var(--bg-panel); color: var(--text-header);">
                     <th style="font-size:16px;">ADAX Linijos</th>
-                    <th style="font-size:16px;">Pagaminta vnt.<br/><span style="font-size:12px; font-weight:normal;">(<1,5 min. | 1,5-2,5 min. | >2,5 min.)</span></th>
+                    <th style="font-size:16px;">Pagaminta vnt.<br/><span style="font-size:12px; font-weight:normal;">(iki 1,5 min. | 1,5-2,5 min. | virš 2,5 min.)</span></th>
                     <th style="font-size:16px;">Užsakymo nr.</th>
                     <th style="font-size:16px;">Gaminio pavadinimas</th>
                     <th style="font-size:16px;">Gaminio testavimo pradžia</th>
@@ -1746,9 +1744,9 @@ function renderVizPlaceholder(id, name, type) {
 
             let unitsDisplay = `<span class="good">${r.countValStr}</span>`;
             if (r.L.apiType === 'ADAX' && r.adaxGroups) {
-                unitsDisplay = `<span class="good">${r.countValStr}</span><br/>` +
+                unitsDisplay = `<span class="good">${r.dailyUnits}</span><br/>` +
                                `<div style="font-size:12px; margin-top:4px; color:var(--text-muted); display:flex; justify-content:center; gap:8px;">` +
-                               `<span>${r.adaxGroups.g1}</span> | <span>${r.adaxGroups.g2}</span> | <span>${r.adaxGroups.g3}</span>` +
+                               `<span>G1: ${r.adaxGroups.g1}</span> | <span>G2: ${r.adaxGroups.g2}</span> | <span>G3: ${r.adaxGroups.g3}</span>` +
                                `</div>`;
             }
 
@@ -2020,9 +2018,9 @@ function renderVizPlaceholder(id, name, type) {
             { header:'Trukmė', key:'duration', width:12 },
             { header:'Pagaminta vnt', key:'units', width:14 },
             { header:'Vidurkis vnt./val.', key:'avg', width:18 },
-            { header:'Grupė 1 (<1.5 min)', key:'g1', width:18 },
-            { header:'Grupė 2 (1.5-2.5 min)', key:'g2', width:18 },
-            { header:'Grupė 3 (>2.5 min)', key:'g3', width:18 }
+            { header:'Grupė 1 (< 1,5 min)', key:'g1', width:18 },
+            { header:'Grupė 2 (1,5-2,5 min)', key:'g2', width:18 },
+            { header:'Grupė 3 (> 2,5 min)', key:'g3', width:18 }
         ];
         ws.getRow(1).font = { bold:true, color:{argb:'FFFFFFFF'} };
         ws.getRow(1).alignment = { vertical:'middle', horizontal:'center' };
@@ -2214,14 +2212,18 @@ function renderVizPlaceholder(id, name, type) {
             const sel=Array.from(document.getElementById('lineFilter').selectedOptions).map(o=>o.value);
             const useLines=sel.length?LINES.filter(L=>sel.includes(L.name)):LINES;
             const out=[];
-            let sumG1=0, sumG2=0, sumG3=0, adaxActive=false;
+            const adaxStats = {}; // lineName -> {g1, g2, g3}
+            let adaxActive=false;
             for(const L of useLines){
                 if (L.apiType === "ADAX") {
                     adaxActive = true;
+                    if (!adaxStats[L.name]) adaxStats[L.name] = {g1:0, g2:0, g3:0};
                     const data = await getAdaxData(L.lid);
                     if(data) buildAdaxSegments(data, from, to, tz).forEach(s => {
                         out.push({ line: L.name, ...s });
-                        sumG1 += s.g1; sumG2 += s.g2; sumG3 += s.g3;
+                        adaxStats[L.name].g1 += s.g1;
+                        adaxStats[L.name].g2 += s.g2;
+                        adaxStats[L.name].g3 += s.g3;
                     });
                 } else {
                     const key=READ_KEYS[L.channel];
@@ -2231,11 +2233,34 @@ function renderVizPlaceholder(id, name, type) {
                 }
             }
             if (adaxActive) {
-                document.getElementById('adaxSummary').style.display = 'block';
-                document.getElementById('sumG1').textContent = sumG1;
-                document.getElementById('sumG2').textContent = sumG2;
-                document.getElementById('sumG3').textContent = sumG3;
-                document.getElementById('sumTotal').textContent = sumG1 + sumG2 + sumG3;
+                const adaxSumCont = document.getElementById('adaxSummary');
+                adaxSumCont.innerHTML = "";
+                adaxSumCont.style.display = 'flex';
+                document.getElementById('insightsSection').style.display = 'block';
+
+                useLines.forEach(L => {
+                    if (L.apiType === "ADAX" && adaxStats[L.name]) {
+                        const s = adaxStats[L.name];
+                        const total = s.g1 + s.g2 + s.g3;
+                        if (total === 0) return;
+
+                        const p1 = total > 0 ? Math.round((s.g1 / total) * 100) : 0;
+                        const p2 = total > 0 ? Math.round((s.g2 / total) * 100) : 0;
+                        const p3 = total > 0 ? Math.round((s.g3 / total) * 100) : 0;
+
+                        const div = document.createElement('div');
+                        div.style.padding = '0';
+                        div.innerHTML = `
+                            <div style="font-weight:bold; font-size:18px; color:var(--text-header);">${L.name}</div>
+                            <div style="font-size:16px; color:var(--text-muted); display:flex; flex-direction:column; margin-top:2px;">
+                                <span>${s.g1} vnt. - iki 1,5 min - ${p1}%</span>
+                                <span>${s.g2} vnt. - 1,5-2,5 min - ${p2}%</span>
+                                <span>${s.g3} vnt. - virš 2,5 min - ${p3}%</span>
+                            </div>
+                        `;
+                        adaxSumCont.appendChild(div);
+                    }
+                });
             } else {
                 document.getElementById('adaxSummary').style.display = 'none';
             }
