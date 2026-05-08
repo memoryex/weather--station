@@ -2186,6 +2186,10 @@ function renderVizPlaceholder(id, name, type) {
         let hasGaps = false;
         let hasAdaxStats = false;
 
+        const header = document.createElement('div');
+        header.innerHTML = `<h3 style="margin:0 0 10px 0; font-size:18px; color:var(--text-header);">ADAX linijų surinkimo spartos grupės</h3>`;
+        adaxSumCont.appendChild(header);
+
         selectedLines.forEach(L => {
             const lineName = L.name;
             const lineData = allData.filter(d => d.line === lineName).sort((a,b) => (a.startTs||0)-(b.startTs||0));
@@ -2247,10 +2251,10 @@ function renderVizPlaceholder(id, name, type) {
                     div.style.padding = '0';
                     div.innerHTML = `
                         <div style="font-weight:bold; font-size:16px; color:var(--text-header); margin-top:10px;">${lineName}</div>
-                        <div style="font-size:13px; color:var(--text-muted); display:flex; flex-direction:column; margin-top:2px;">
-                            <span>${s.g1} vnt. - &lt; 1,5 min - ${p1}%</span>
-                            <span>${s.g2} vnt. - 1,5-2,5 min - ${p2}%</span>
-                            <span>${s.g3} vnt. - &gt; 2,5 min - ${p3}%</span>
+                        <div style="font-size:13px; display:flex; flex-direction:column; margin-top:2px; gap:2px;">
+                            <span style="color:#00d67a;">🟢 ${s.g1} vnt. - &lt; 1,5 min - ${p1}%</span>
+                            <span style="color:#ffa726;">🟠 ${s.g2} vnt. - 1,5-2,5 min - ${p2}%</span>
+                            <span style="color:#ff5252;">🔴 ${s.g3} vnt. - &gt; 2,5 min - ${p3}%</span>
                         </div>
                     `;
                     adaxSumCont.appendChild(div);
