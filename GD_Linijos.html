@@ -1091,6 +1091,7 @@ function buildAdaxSegments(data, from, to, tz) {
         // Calculate groups within this batch
         let g1=0, g2=0, g3=1; // g3 starts at 1 for the first unit
         for (let i = 1; i < batch.length; i++) {
+            if (!batch[i].TestavimoLaikas || !batch[i-1].TestavimoLaikas) continue;
             const t1 = new Date(batch[i].TestavimoLaikas.replace(' ', 'T')).getTime();
             const t0 = new Date(batch[i-1].TestavimoLaikas.replace(' ', 'T')).getTime();
             const gap = (t1 - t0) / 60000;
@@ -1744,9 +1745,13 @@ function renderVizPlaceholder(id, name, type) {
 
             let unitsDisplay = `<span class="good">${r.countValStr}</span>`;
             if (r.L.apiType === 'ADAX' && r.adaxGroups) {
+                const total = (r.adaxGroups.g1 + r.adaxGroups.g2 + r.adaxGroups.g3) || 1;
+                const p1 = Math.round((r.adaxGroups.g1 / total) * 100);
+                const p2 = Math.round((r.adaxGroups.g2 / total) * 100);
+                const p3 = Math.round((r.adaxGroups.g3 / total) * 100);
                 unitsDisplay = `<span class="good">${r.dailyUnits}</span><br/>` +
-                               `<div style="font-size:12px; margin-top:4px; color:var(--text-muted); display:flex; justify-content:center; gap:8px;">` +
-                               `<span>G1: ${r.adaxGroups.g1}</span> | <span>G2: ${r.adaxGroups.g2}</span> | <span>G3: ${r.adaxGroups.g3}</span>` +
+                               `<div style="font-size:11px; margin-top:4px; color:var(--text-muted); display:flex; justify-content:center; gap:4px; white-space:nowrap;">` +
+                               `<span>G1: ${r.adaxGroups.g1} (${p1}%)</span>|<span>G2: ${r.adaxGroups.g2} (${p2}%)</span>|<span>G3: ${r.adaxGroups.g3} (${p3}%)</span>` +
                                `</div>`;
             }
 
@@ -2018,9 +2023,9 @@ function renderVizPlaceholder(id, name, type) {
             { header:'Trukmė', key:'duration', width:12 },
             { header:'Pagaminta vnt', key:'units', width:14 },
             { header:'Vidurkis vnt./val.', key:'avg', width:18 },
-            { header:'Grupė 1 (< 1,5 min)', key:'g1', width:18 },
-            { header:'Grupė 2 (1,5-2,5 min)', key:'g2', width:18 },
-            { header:'Grupė 3 (> 2,5 min)', key:'g3', width:18 }
+            { header:'Grupė 1 (< 1,5 min)', key:'g1', width:20 },
+            { header:'Grupė 2 (1,5-2,5 min)', key:'g2', width:20 },
+            { header:'Grupė 3 (> 2,5 min)', key:'g3', width:20 }
         ];
         ws.getRow(1).font = { bold:true, color:{argb:'FFFFFFFF'} };
         ws.getRow(1).alignment = { vertical:'middle', horizontal:'center' };
@@ -2030,11 +2035,18 @@ function renderVizPlaceholder(id, name, type) {
             cell.border = { top:{style:'thin',color:{argb:'FF444444'}}, bottom:{style:'thin',color:{argb:'FF444444'}} };
         });
         rows.forEach(r=>{
+            const total = (r.g1 + r.g2 + r.g3) || 1;
+            const p1 = Math.round((r.g1 / total) * 100);
+            const p2 = Math.round((r.g2 / total) * 100);
+            const p3 = Math.round((r.g3 / total) * 100);
+
             ws.addRow({
                 line: r.line, barcode: r.barcode, product: r.product || "",
                 barcodeTime: r.barcodeTime || null, start: r.start || "", end: r.end || "",
                 duration: r.duration || "", units: r.units, avg: (r.avg!=null? Number(r.avg.toFixed(2)) : null),
-                g1: r.g1 || 0, g2: r.g2 || 0, g3: r.g3 || 0
+                g1: r.g1 != null ? `${r.g1} (${p1}%)` : "",
+                g2: r.g2 != null ? `${r.g2} (${p2}%)` : "",
+                g3: r.g3 != null ? `${r.g3} (${p3}%)` : ""
             });
         });
         ws.autoFilter = { from:{row:1,col:1}, to:{row:1,col:12} };
@@ -2091,10 +2103,19 @@ function renderVizPlaceholder(id, name, type) {
                                     });
                                 }
                             }
+                            // Also process segments for the summary panel even in raw mode
+                            const segs = buildAdaxSegments(data, from, to, tz);
+                            segs.forEach(s => pts.push({ line: L.name, units: s.units, startTs: s.startTs, endTs: s.endTs, g1: s.g1, g2: s.g2, g3: s.g3, isSummaryOnly: true }));
                             return pts;
                         } else {
                             const segs = buildAdaxSegments(data, from, to, tz);
-                            return segs.map(s => ({ line: L.name, units: s.units, startTs: s.startTs, endTs: s.endTs }));
+                            return segs.map(s => ({
+                                line: L.name,
+                                units: s.units,
+                                startTs: s.startTs,
+                                endTs: s.endTs,
+                                g1: s.g1, g2: s.g2, g3: s.g3
+                            }));
                         }
                     } catch(e) { return []; }
                 }
@@ -2133,7 +2154,7 @@ function renderVizPlaceholder(id, name, type) {
         const lines = [...new Set(allData.map(d => d.line))];
         const series = [];
         lines.forEach((lineName, idx) => {
-            const lineData = allData.filter(d => d.line === lineName).sort((a,b) => (a.startTs||0)-(b.startTs||0));
+            const lineData = allData.filter(d => d.line === lineName && !d.isSummaryOnly).sort((a,b) => (a.startTs||0)-(b.startTs||0));
             const points = [];
             if (isRaw) { lineData.forEach(pt => { if (isFinite(pt.startTs) && isFinite(pt.val)) points.push([pt.startTs, pt.val]); }); }
             else { lineData.forEach(seg => { if(seg.units > 0) { const t = seg.endTs || seg.startTs; if(isFinite(t)) points.push([t, seg.units]); } }); }
@@ -2156,13 +2177,21 @@ function renderVizPlaceholder(id, name, type) {
 
     function generateInsights(allData, selectedLines, chartEndTime, textDataByLine) {
         const content = document.getElementById('insightsContent');
-        if (!content) return;
+        const adaxSumCont = document.getElementById('adaxSummary');
+        if (!content || !adaxSumCont) return;
+
         content.innerHTML = "";
-        let hasInsights = false;
+        adaxSumCont.innerHTML = "";
+
+        let hasGaps = false;
+        let hasAdaxStats = false;
+
         selectedLines.forEach(L => {
             const lineName = L.name;
             const lineData = allData.filter(d => d.line === lineName).sort((a,b) => (a.startTs||0)-(b.startTs||0));
             if (lineData.length === 0) return;
+
+            // --- 1. GAPS/BREAKS ANALYSIS ---
             let gaps = [];
             const isRaw = document.getElementById('chartCumulative')?.checked ?? false;
             if (isRaw) {
@@ -2180,7 +2209,7 @@ function renderVizPlaceholder(id, name, type) {
                 }
             }
             if (gaps.length > 0) {
-                hasInsights = true;
+                hasGaps = true;
                 const lineDiv = document.createElement('div');
                 lineDiv.style.background = 'var(--bg-input)'; lineDiv.style.padding = '10px'; lineDiv.style.borderRadius = '6px';
                 let inner = `<b>${lineName}</b>`;
@@ -2197,8 +2226,40 @@ function renderVizPlaceholder(id, name, type) {
                 });
                 lineDiv.innerHTML = inner; content.appendChild(lineDiv);
             }
+
+            // --- 2. ADAX EFFICIENCY STATS ---
+            if (L.apiType === "ADAX") {
+                const s = { g1:0, g2:0, g3:0 };
+                lineData.forEach(seg => {
+                    if (seg.g1 != null) s.g1 += Number(seg.g1);
+                    if (seg.g2 != null) s.g2 += Number(seg.g2);
+                    if (seg.g3 != null) s.g3 += Number(seg.g3);
+                });
+
+                const total = s.g1 + s.g2 + s.g3;
+                if (total > 0) {
+                    hasAdaxStats = true;
+                    const p1 = Math.round((s.g1 / total) * 100);
+                    const p2 = Math.round((s.g2 / total) * 100);
+                    const p3 = Math.round((s.g3 / total) * 100);
+
+                    const div = document.createElement('div');
+                    div.style.padding = '0';
+                    div.innerHTML = `
+                        <div style="font-weight:bold; font-size:16px; color:var(--text-header); margin-top:10px;">${lineName}</div>
+                        <div style="font-size:13px; color:var(--text-muted); display:flex; flex-direction:column; margin-top:2px;">
+                            <span>${s.g1} vnt. - &lt; 1,5 min - ${p1}%</span>
+                            <span>${s.g2} vnt. - 1,5-2,5 min - ${p2}%</span>
+                            <span>${s.g3} vnt. - &gt; 2,5 min - ${p3}%</span>
+                        </div>
+                    `;
+                    adaxSumCont.appendChild(div);
+                }
+            }
         });
-        document.getElementById('insightsSection').style.display = hasInsights ? 'block' : 'none';
+
+        adaxSumCont.style.display = hasAdaxStats ? 'flex' : 'none';
+        document.getElementById('insightsSection').style.display = (hasGaps || hasAdaxStats) ? 'block' : 'none';
     }
 
     document.getElementById('go').addEventListener('click', async () => {
@@ -2212,18 +2273,11 @@ function renderVizPlaceholder(id, name, type) {
             const sel=Array.from(document.getElementById('lineFilter').selectedOptions).map(o=>o.value);
             const useLines=sel.length?LINES.filter(L=>sel.includes(L.name)):LINES;
             const out=[];
-            const adaxStats = {}; // lineName -> {g1, g2, g3}
-            let adaxActive=false;
             for(const L of useLines){
                 if (L.apiType === "ADAX") {
-                    adaxActive = true;
-                    if (!adaxStats[L.name]) adaxStats[L.name] = {g1:0, g2:0, g3:0};
                     const data = await getAdaxData(L.lid);
                     if(data) buildAdaxSegments(data, from, to, tz).forEach(s => {
                         out.push({ line: L.name, ...s });
-                        adaxStats[L.name].g1 += s.g1;
-                        adaxStats[L.name].g2 += s.g2;
-                        adaxStats[L.name].g3 += s.g3;
                     });
                 } else {
                     const key=READ_KEYS[L.channel];
@@ -2232,38 +2286,8 @@ function renderVizPlaceholder(id, name, type) {
                     buildSegments(bar, cnt, tz).forEach(s => out.push({ line: L.name, ...s }));
                 }
             }
-            if (adaxActive) {
-                const adaxSumCont = document.getElementById('adaxSummary');
-                adaxSumCont.innerHTML = "";
-                adaxSumCont.style.display = 'flex';
-                document.getElementById('insightsSection').style.display = 'block';
-
-                useLines.forEach(L => {
-                    if (L.apiType === "ADAX" && adaxStats[L.name]) {
-                        const s = adaxStats[L.name];
-                        const total = s.g1 + s.g2 + s.g3;
-                        if (total === 0) return;
-
-                        const p1 = total > 0 ? Math.round((s.g1 / total) * 100) : 0;
-                        const p2 = total > 0 ? Math.round((s.g2 / total) * 100) : 0;
-                        const p3 = total > 0 ? Math.round((s.g3 / total) * 100) : 0;
-
-                        const div = document.createElement('div');
-                        div.style.padding = '0';
-                        div.innerHTML = `
-                            <div style="font-weight:bold; font-size:18px; color:var(--text-header);">${L.name}</div>
-                            <div style="font-size:16px; color:var(--text-muted); display:flex; flex-direction:column; margin-top:2px;">
-                                <span>${s.g1} vnt. - iki 1,5 min - ${p1}%</span>
-                                <span>${s.g2} vnt. - 1,5-2,5 min - ${p2}%</span>
-                                <span>${s.g3} vnt. - virš 2,5 min - ${p3}%</span>
-                            </div>
-                        `;
-                        adaxSumCont.appendChild(div);
-                    }
-                });
-            } else {
-                document.getElementById('adaxSummary').style.display = 'none';
-            }
+            // Trigger insights update (including ADAX summary) manually
+            generateInsights(out, useLines, to, {});
             await exportXLSX(out); st.textContent="✓ Baigta.";
         } catch(e) { st.textContent="Klaida: "+e.message; } finally { btn.disabled=false; }
     });
