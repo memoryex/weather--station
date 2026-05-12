@@ -98,42 +98,60 @@
 
   /* --- VISUALIZATION STYLES --- */
   .viz-container {
-    position:relative; width:98%; max-width:4000px; margin:20px auto;
-    min-height:1800px;
-    background:var(--bg-panel); border-radius:12px; border:1px solid var(--border-color); padding:40px;
+    width:98%; max-width:2500px; margin:10px auto;
+    background:var(--bg-panel); border-radius:12px; border:1px solid var(--border-color);
+    padding:20px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
   }
 
   /* Apply border-box locally to visualization to keep sizing predictable */
   .viz-container, .viz-container * { box-sizing: border-box; }
 
-  .viz-group-vertical { display:flex; flex-direction:column; gap:40px; position:absolute; top:40px; left:40px; }
-  .viz-group-horizontal { display:flex; gap:40px; position:absolute; bottom:40px; left:1000px; }
+  .viz-main-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 20px;
+  }
 
-  .viz-item { display:flex; align-items:center; gap:25px; }
-  .viz-item-v { flex-direction:row; }
-  .viz-item-h { flex-direction:column-reverse; }
+  .viz-group-title {
+    grid-column: 1 / -1;
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 10px;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 5px;
+  }
+
+  .viz-item { display:flex; align-items:center; gap:15px; }
 
   .viz-box {
-    border:4px solid var(--viz-box-border); border-radius:24px;
+    border:3px solid var(--viz-box-border); border-radius:20px;
     background:var(--viz-box-bg);
     display:flex; flex-direction:row; justify-content:space-around; align-items:center;
-    padding:15px;
-    box-shadow: 0 8px 20px var(--viz-shadow);
+    padding:10px;
+    box-shadow: 0 4px 15px var(--viz-shadow);
     position: relative;
     flex-shrink: 0;
+    width: 480px; height: 160px;
   }
-  /* Vertikalioje juostoje box'ai pailgi horizontaliai */
-  .viz-box-wide { width:480px; height:180px; }
-  /* Horizontalioje juostoje box'ai aukšti vertikaliai */
-  .viz-box-tall { width:480px; height:180px; }
-  .viz-box-adax { width: 100%; height: 100%; flex-direction:column; justify-content:space-between; align-items:center; gap:0; border:none; border-radius:0; background: transparent; position: relative; padding: 40px 0; box-sizing: border-box; }
-  .viz-box-adax .viz-value-big { font-size:28px; }
-  .viz-box-adax .viz-icon { width:22px; height:22px; }
 
-  .viz-label { font-size:32px; font-weight:bold; color:var(--text-muted); }
+  .viz-box-adax { width: 100%; height: 100%; flex-direction:column; justify-content:space-between; align-items:center; gap:0; border:none; border-radius:0; background: transparent; position: relative; padding: 20px 0; box-sizing: border-box; }
+  .viz-box-adax .viz-value-big { font-size:24px; }
+  .viz-box-adax .viz-icon { width:20px; height:20px; }
+
+  .viz-label { font-size:24px; font-weight:bold; color:var(--text-muted); min-width: 140px; }
 
     /* ADAX layout */
-  .viz-group-adax { display:flex; gap:60px; position:absolute; top:40px; left:800px; }
+  .viz-group-adax {
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap:20px;
+    width: 100%;
+  }
   .adax-pod {
     display:flex; flex-direction:column; align-items:center;
     border:3px solid #444; border-radius:20px;
@@ -333,21 +351,25 @@
   <h1>Linijų vizualizacija</h1>
   <div class="viz-container">
 
-    <!-- VERTICAL STACK (Left): QRAD 1, PLXE 5, NOBO 7...2, UI perrašymas -->
-    <div class="viz-group-vertical">
-      <div id="viz-QRAD 1" class="viz-item viz-item-v"></div>
-      <div id="viz-PLXE 5" class="viz-item viz-item-v"></div>
-      <div id="viz-NOBO 7" class="viz-item viz-item-v"></div>
-      <div id="viz-NOBO 6" class="viz-item viz-item-v"></div>
-      <div id="viz-NOBO 5" class="viz-item viz-item-v"></div>
-      <div id="viz-NOBO 4" class="viz-item viz-item-v"></div>
-      <div id="viz-NOBO 3" class="viz-item viz-item-v"></div>
-      <div id="viz-UI perrašymas" class="viz-item viz-item-v"></div>
+    <div class="viz-main-grid">
+      <div class="viz-group-title">GD Linijos</div>
+      <div id="viz-QRAD 1" class="viz-item"></div>
+      <div id="viz-PLXE 5" class="viz-item"></div>
+      <div id="viz-NOBO 7" class="viz-item"></div>
+      <div id="viz-NOBO 6" class="viz-item"></div>
+      <div id="viz-NOBO 5" class="viz-item"></div>
+      <div id="viz-NOBO 4" class="viz-item"></div>
+      <div id="viz-NOBO 3" class="viz-item"></div>
+      <div id="viz-NOBO 2" class="viz-item"></div>
+      <div id="viz-NOBO 1" class="viz-item"></div>
+      <div id="viz-PLXE 4" class="viz-item"></div>
+      <div id="viz-PLXE 3" class="viz-item"></div>
+      <div id="viz-PLXE 2" class="viz-item"></div>
+      <div id="viz-PLXE 1" class="viz-item"></div>
+      <div id="viz-UI perrašymas" class="viz-item"></div>
     </div>
 
-    <!-- HORIZONTAL ROW (Bottom): NOBO1, PLXE4...PLXE1 -->
-    <!-- ADAX SECTION -->
-    <div style="position:absolute; top:10px; left:800px; width:1740px; text-align:center; font-size:32px; font-weight:bold; color:var(--text-muted);">ADAX linijos</div>
+    <div class="viz-group-title">ADAX Linijos</div>
     <div class="viz-group-adax">
        <div class="adax-pod"><div id="viz-ADAX 7" style="height:100%; width:100%;"></div></div>
        <div class="adax-pod"><div id="viz-ADAX 6" style="height:100%; width:100%;"></div></div>
@@ -355,15 +377,6 @@
        <div class="adax-pod"><div id="viz-ADAX 3" style="height:100%; width:100%;"></div></div>
        <div class="adax-pod"><div id="viz-ADAX 2" style="height:100%; width:100%;"></div></div>
        <div class="adax-pod"><div id="viz-ADAX 1" style="height:100%; width:100%;"></div></div>
-    </div>
-
-    <div class="viz-group-horizontal">
-      <div id="viz-NOBO 1" class="viz-item viz-item-h"></div>
-      <div id="viz-PLXE 4" class="viz-item viz-item-h"></div>
-      <div id="viz-PLXE 3" class="viz-item viz-item-h"></div>
-      <div id="viz-PLXE 2" class="viz-item viz-item-h"></div>
-      <div id="viz-PLXE 1" class="viz-item viz-item-h"></div>
-      <div id="viz-NOBO 2" class="viz-item viz-item-h"></div>
     </div>
 
   </div>
@@ -559,6 +572,14 @@
 
 <script>
 /* ===================== SHARED CONFIG & GLOBALS ===================== */
+// Embedded SVG Icons
+const SVG_ICONS = {
+  pulse: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="viz-icon"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+  speed: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="viz-icon"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m8 13 2 2 4-4"/></svg>`, // Using a checklist-like icon for speed as a placeholder, maybe a gauge is better
+  gauge: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="viz-icon"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>`,
+  computer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="viz-icon"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`
+};
+
 const READ_KEYS = {
   463450: "VAL3TD2W5LADX7K1", // PLXE 1-4
   703669: "S44OBKWC5C7FODZ5", // NOBO 1-4
@@ -1104,6 +1125,10 @@ function buildAdaxSegments(data, from, to, tz) {
             else if (gap <= 2.5) g2++;
             else g3++;
         }
+        // If some records are missing in the sequence, treat them as Group 3 (long/unknown gap)
+        if (units > batch.length) {
+            g3 += (units - batch.length);
+        }
 
         segs.push({
             barcode, product, units, avg,
@@ -1173,11 +1198,9 @@ function renderVizPlaceholder(id, name, type) {
   if(type === 'h') boxClass = 'viz-box-tall';
   if(type === 'adax') boxClass = 'viz-box-adax';
 
-  // Ikonėlės (paveikslėliai): Pulse (Būsena) ir Gauge (Greitis)
-  const iconPulse = `<img src="icons/pulse.png" class="viz-icon" alt="Status" />`;
-  const iconSpeed = (name === "UI perrašymas")
-      ? `<img src="icons/computer.png" class="viz-icon" alt="Speed" />`
-      : `<img src="icons/speed.jpg" class="viz-icon" alt="Speed" />`;
+  // Embedded SVG Icons
+  const iconPulse = SVG_ICONS.pulse;
+  const iconSpeed = (name === "UI perrašymas") ? SVG_ICONS.computer : SVG_ICONS.gauge;
 
   const labelHtml = (type !== 'adax') ? `<div class="viz-label">${name}</div>` : '';
 
@@ -1276,13 +1299,9 @@ function renderVizPlaceholder(id, name, type) {
 }
 
 (function InitVizLayout(){
-  // Vertical Stack
-  ['QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','UI perrašymas'].forEach(n => {
+  // GD lines
+  ['QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2','NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','UI perrašymas'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'v');
-  });
-  // Horizontal Row
-  ['NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','NOBO 2'].forEach(n => {
-    renderVizPlaceholder(`viz-${n}`, n, 'h');
   });
 
   // ADAX lines
@@ -1436,29 +1455,13 @@ function renderVizPlaceholder(id, name, type) {
                 const dailySegs = buildAdaxSegments(data, dayStart, calcEnd, tz);
                 const dailyUnits = dailySegs.reduce((sum, s) => sum + s.units, 0);
 
-                // Group production by test gap
-                let g1=0, g2=0, g3=0;
-                const todayRecords = allRecords.filter(r => {
-                    if (!r.TestavimoLaikas) return false;
-                    const t = new Date(r.TestavimoLaikas.replace(' ', 'T')).getTime();
-                    return t >= dayStart.getTime() && t <= calcEnd.getTime();
-                }).sort((a, b) => {
-                    const ta = new Date(a.TestavimoLaikas.replace(' ', 'T')).getTime();
-                    const tb = new Date(b.TestavimoLaikas.replace(' ', 'T')).getTime();
-                    return ta - tb;
-                });
-
-                if (todayRecords.length > 0) {
-                    g3++; // First unit of the day
-                    for (let i = 1; i < todayRecords.length; i++) {
-                        const t1 = new Date(todayRecords[i].TestavimoLaikas.replace(' ', 'T')).getTime();
-                        const t0 = new Date(todayRecords[i-1].TestavimoLaikas.replace(' ', 'T')).getTime();
-                        const gap = (t1 - t0) / 60000;
-                        if (gap <= 1.5) g1++;
-                        else if (gap <= 2.5) g2++;
-                        else g3++;
-                    }
-                }
+                // Group production by test gap from daily segments
+                const g1 = dailySegs.reduce((sum, s) => sum + (s.g1 || 0), 0);
+                const pG1 = dailyUnits > 0 ? Math.round((g1 / dailyUnits) * 100) : 0;
+                const g2 = dailySegs.reduce((sum, s) => sum + (s.g2 || 0), 0);
+                const pG2 = dailyUnits > 0 ? Math.round((g2 / dailyUnits) * 100) : 0;
+                const g3 = dailySegs.reduce((sum, s) => sum + (s.g3 || 0), 0);
+                const pG3 = dailyUnits > 0 ? Math.round((g3 / dailyUnits) * 100) : 0;
 
                 const countValStr = countValNum.toString();
                 const barcodeVal = latestProduct || "-";
@@ -1565,7 +1568,7 @@ function renderVizPlaceholder(id, name, type) {
 
                 if (isNaN(moveIntensity) || !isFinite(moveIntensity) || moveIntensity < 0) moveIntensity = 0;
 
-                return { L, countValStr, countValNum, dailyUnits, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, moveIntensity, adaxGroups: {g1, g2, g3} };
+                return { L, countValStr, countValNum, dailyUnits, barcodeVal, productName, tStart, tLast, status, statusCls, gapTxt, spTxt, spClass, speedVal, active, moveIntensity, adaxGroups: {g1, g2, g3, pG1, pG2, pG3} };
             } catch(e) {
                 console.error("ADAX error", L.name, e);
                 return { L, countValStr: "-", countValNum: 0, dailyUnits: 0, barcodeVal: "-", productName: "—", tStart: "-", tLast: "-", status: e.toString(), statusCls: "status-offline", gapTxt: "–", spTxt: "–", spClass: "", speedVal: 0, active: false, moveIntensity: 0 };
@@ -1780,13 +1783,11 @@ function renderVizPlaceholder(id, name, type) {
 
             let unitsDisplay = `<span class="good">${r.countValStr}</span>`;
             if (r.L.apiType === 'ADAX' && r.adaxGroups) {
-                const total = (r.adaxGroups.g1 + r.adaxGroups.g2 + r.adaxGroups.g3) || 1;
-                const p1 = Math.round((r.adaxGroups.g1 / total) * 100);
-                const p2 = Math.round((r.adaxGroups.g2 / total) * 100);
-                const p3 = Math.round((r.adaxGroups.g3 / total) * 100);
                 unitsDisplay = `<span class="good">${r.dailyUnits}</span><br/>` +
                                `<div style="font-size:11px; margin-top:4px; color:var(--text-muted); display:flex; justify-content:center; gap:4px; white-space:nowrap;">` +
-                               `<span>G1: ${r.adaxGroups.g1} (${p1}%)</span>|<span>G2: ${r.adaxGroups.g2} (${p2}%)</span>|<span>G3: ${r.adaxGroups.g3} (${p3}%)</span>` +
+                               `<span>Gr. 1: ${r.adaxGroups.g1} (${r.adaxGroups.pG1}%)</span>|` +
+                               `<span>Gr. 2: ${r.adaxGroups.g2} (${r.adaxGroups.pG2}%)</span>|` +
+                               `<span>Gr. 3: ${r.adaxGroups.g3} (${r.adaxGroups.pG3}%)</span>` +
                                `</div>`;
             }
 
@@ -2036,10 +2037,7 @@ function renderVizPlaceholder(id, name, type) {
             const bTimeLT = toLTString(bTimeStr, tz);
             const avg = (durationMs > 0 && units > 0) ? (units / (durationMs/3600000)) : 0;
             let avgGap = "-";
-        const isScanStart = !!(r0.NuskanavimoLaikas);
-        if (isScanStart && units > 0) {
-            avgGap = formatDuration(durationMs / units);
-        } else if (units > 1) {
+            if (units > 1) {
                 avgGap = formatDuration(durationMs / (units - 1));
             }
             segs.push({
@@ -2079,19 +2077,22 @@ function renderVizPlaceholder(id, name, type) {
             cell.border = { top:{style:'thin',color:{argb:'FF444444'}}, bottom:{style:'thin',color:{argb:'FF444444'}} };
         });
         rows.forEach(r=>{
-            const total = (r.g1 + r.g2 + r.g3) || 1;
-            const p1 = Math.round((r.g1 / total) * 100);
-            const p2 = Math.round((r.g2 / total) * 100);
-            const p3 = Math.round((r.g3 / total) * 100);
+            let g1Display = "", g2Display = "", g3Display = "";
+            if (r.g1 != null && r.g2 != null && r.g3 != null) {
+                const total = (Number(r.g1) + Number(r.g2) + Number(r.g3)) || 1;
+                g1Display = `${r.g1} (${Math.round((r.g1 / total) * 100)}%)`;
+                g2Display = `${r.g2} (${Math.round((r.g2 / total) * 100)}%)`;
+                g3Display = `${r.g3} (${Math.round((r.g3 / total) * 100)}%)`;
+            }
 
             ws.addRow({
                 line: r.line, barcode: r.barcode, product: r.product || "",
                 barcodeTime: r.barcodeTime || null, start: r.start || "", end: r.end || "",
                 duration: r.duration || "", units: r.units, avg: (r.avg!=null? Number(r.avg.toFixed(2)) : null),
                 avgGap: r.avgGap || "-",
-                g1: r.g1 != null ? `${r.g1} (${p1}%)` : "",
-                g2: r.g2 != null ? `${r.g2} (${p2}%)` : "",
-                g3: r.g3 != null ? `${r.g3} (${p3}%)` : ""
+                g1: g1Display,
+                g2: g2Display,
+                g3: g3Display
             });
         });
         ws.autoFilter = { from:{row:1,col:1}, to:{row:1,col:12} };
