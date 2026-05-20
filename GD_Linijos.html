@@ -324,6 +324,8 @@
         <option value="default">Numatytasis</option>
         <option value="units">Pagaminta vnt.</option>
         <option value="speed">Greitis</option>
+        <option value="active">Tik aktyvios</option>
+        <option value="inactive">Tik neaktyvios</option>
       </select>
     </div>
     <div id="statusMapInfo" class="msg"></div>
@@ -1747,69 +1749,8 @@ function renderVizPlaceholder(id, name, type) {
         let adaxSeparatorDone = false;
         let uiSeparatorDone = false;
         validResults.forEach(r => {
-            // Add separator before UI perrašymas if it's at the end
-            if (sortBy === 'default' && r.L.name === 'UI perrašymas' && !uiSeparatorDone) {
-                html += `
-                <tr style="background: var(--bg-panel); color: var(--text-header);">
-                    <th style="font-size:16px;">UI perrašymas</th>
-                    <th style="font-size:16px;">Pagaminta vnt.</th>
-                    <th style="font-size:16px;">Užsakymo nr.</th>
-                    <th style="font-size:16px;">Gaminio pavadinimas</th>
-                    <th style="font-size:16px;">Gaminio testavimo pradžia</th>
-                    <th style="font-size:16px;">Paskutinis užfiksavimas</th>
-                    <th style="font-size:16px;">Linijos būsena</th>
-                    <th style="font-size:16px;">Tarpas tarp testų(užsakymo vidurkis)</th>
-                    <th style="font-size:16px;">Greitis (vnt/val.)</th>
-                </tr>
-                `;
-                uiSeparatorDone = true;
-            }
-
-            // Add separator before first ADAX line if using default sort
-            if (sortBy === 'default' && r.L.apiType === 'ADAX' && !adaxSeparatorDone) {
-                html += `
-                <tr style="background: var(--bg-panel); color: var(--text-header);">
-                    <th style="font-size:16px;">ADAX Linijos</th>
-                    <th style="font-size:16px;">Pagaminta vnt.<br/><span style="font-size:12px; font-weight:normal;">(iki 1,5 min. | 1,5-2,5 min. | virš 2,5 min.)</span></th>
-                    <th style="font-size:16px;">Užsakymo nr.</th>
-                    <th style="font-size:16px;">Gaminio pavadinimas</th>
-                    <th style="font-size:16px;">Gaminio testavimo pradžia</th>
-                    <th style="font-size:16px;">Paskutinis užfiksavimas</th>
-                    <th style="font-size:16px;">Linijos būsena</th>
-                    <th style="font-size:16px;">Tarpas tarp testų(užsakymo vidurkis)</th>
-                    <th style="font-size:16px;">Greitis (vnt/val.)</th>
-                </tr>
-                `;
-                adaxSeparatorDone = true;
-            }
-
-            const barcodeDisplay = r.barcodeVal;
-
-            let unitsDisplay = `<span class="good">${r.countValStr}</span>`;
-            if (r.L.apiType === 'ADAX' && r.adaxGroups) {
-                unitsDisplay = `<span class="good">${r.dailyUnits}</span><br/>` +
-                               `<div style="font-size:11px; margin-top:4px; color:var(--text-muted); display:flex; justify-content:center; gap:4px; white-space:nowrap;">` +
-                               `<span>Gr. 1: ${r.adaxGroups.g1} (${r.adaxGroups.pG1}%)</span>|` +
-                               `<span>Gr. 2: ${r.adaxGroups.g2} (${r.adaxGroups.pG2}%)</span>|` +
-                               `<span>Gr. 3: ${r.adaxGroups.g3} (${r.adaxGroups.pG3}%)</span>` +
-                               `</div>`;
-            }
-
-            html += `
-            <tr>
-                <td>${r.L.name}</td>
-                <td>${unitsDisplay}</td>
-                <td class="bar">${barcodeDisplay}</td>
-                <td>${r.productName}</td>
-                <td class="time">${r.tStart}</td>
-                <td class="time">${r.tLast}</td>
-                <td class="${r.statusCls}">${r.status}</td>
-                <td class="time">${r.gapTxt}</td>
-                <td class="${r.spClass}">${r.spTxt}</td>
-            </tr>
-            `;
-
             // --- UPDATE VISUALIZATION (Side Effect) ---
+            // ALWAYS update visualization regardless of table filtering
             try {
                 const elUnits = document.getElementById(`val-units-${r.L.name}`);
                 if(elUnits) elUnits.innerText = r.countValStr;
@@ -1908,6 +1849,73 @@ function renderVizPlaceholder(id, name, type) {
                     }
                 }
             } catch(e) { }
+
+            // --- TABLE FILTERING ---
+            if (sortBy === 'active' && !r.active) return;
+            if (sortBy === 'inactive' && r.active) return;
+
+            // Add separator before UI perrašymas if it's at the end
+            const isGroupedSort = (sortBy === 'default' || sortBy === 'active' || sortBy === 'inactive');
+            if (isGroupedSort && r.L.name === 'UI perrašymas' && !uiSeparatorDone) {
+                html += `
+                <tr style="background: var(--bg-panel); color: var(--text-header);">
+                    <th style="font-size:16px;">UI perrašymas</th>
+                    <th style="font-size:16px;">Pagaminta vnt.</th>
+                    <th style="font-size:16px;">Užsakymo nr.</th>
+                    <th style="font-size:16px;">Gaminio pavadinimas</th>
+                    <th style="font-size:16px;">Gaminio testavimo pradžia</th>
+                    <th style="font-size:16px;">Paskutinis užfiksavimas</th>
+                    <th style="font-size:16px;">Linijos būsena</th>
+                    <th style="font-size:16px;">Tarpas tarp testų(užsakymo vidurkis)</th>
+                    <th style="font-size:16px;">Greitis (vnt/val.)</th>
+                </tr>
+                `;
+                uiSeparatorDone = true;
+            }
+
+            // Add separator before first ADAX line if using default sort or active/inactive filter
+            if (isGroupedSort && r.L.apiType === 'ADAX' && !adaxSeparatorDone) {
+                html += `
+                <tr style="background: var(--bg-panel); color: var(--text-header);">
+                    <th style="font-size:16px;">ADAX Linijos</th>
+                    <th style="font-size:16px;">Pagaminta vnt.<br/><span style="font-size:12px; font-weight:normal;">(iki 1,5 min. | 1,5-2,5 min. | virš 2,5 min.)</span></th>
+                    <th style="font-size:16px;">Užsakymo nr.</th>
+                    <th style="font-size:16px;">Gaminio pavadinimas</th>
+                    <th style="font-size:16px;">Gaminio testavimo pradžia</th>
+                    <th style="font-size:16px;">Paskutinis užfiksavimas</th>
+                    <th style="font-size:16px;">Linijos būsena</th>
+                    <th style="font-size:16px;">Tarpas tarp testų(užsakymo vidurkis)</th>
+                    <th style="font-size:16px;">Greitis (vnt/val.)</th>
+                </tr>
+                `;
+                adaxSeparatorDone = true;
+            }
+
+            const barcodeDisplay = r.barcodeVal;
+
+            let unitsDisplay = `<span class="good">${r.countValStr}</span>`;
+            if (r.L.apiType === 'ADAX' && r.adaxGroups) {
+                unitsDisplay = `<span class="good">${r.dailyUnits}</span><br/>` +
+                               `<div style="font-size:11px; margin-top:4px; color:var(--text-muted); display:flex; justify-content:center; gap:4px; white-space:nowrap;">` +
+                               `<span>Gr. 1: ${r.adaxGroups.g1} (${r.adaxGroups.pG1}%)</span>|` +
+                               `<span>Gr. 2: ${r.adaxGroups.g2} (${r.adaxGroups.pG2}%)</span>|` +
+                               `<span>Gr. 3: ${r.adaxGroups.g3} (${r.adaxGroups.pG3}%)</span>` +
+                               `</div>`;
+            }
+
+            html += `
+            <tr>
+                <td>${r.L.name}</td>
+                <td>${unitsDisplay}</td>
+                <td class="bar">${barcodeDisplay}</td>
+                <td>${r.productName}</td>
+                <td class="time">${r.tStart}</td>
+                <td class="time">${r.tLast}</td>
+                <td class="${r.statusCls}">${r.status}</td>
+                <td class="time">${r.gapTxt}</td>
+                <td class="${r.spClass}">${r.spTxt}</td>
+            </tr>
+            `;
         });
 
         if(tbody) tbody.innerHTML = html;
