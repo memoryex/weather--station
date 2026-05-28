@@ -1,10 +1,9 @@
 /*
-  RFID ADAX v1.2 - Optimized
-  - Removed Blynk dependencies
-  - Consolidated RFID handling logic
-  - Optimized authorized ID check with binary search
-  - Cleaned up redundant code and comments
-  - Streamlined ThingSpeak reporting
+  RFID ADAX v1.3 - Optimized & Enhanced
+  - Integrated ThingSpeak library
+  - Non-blocking 5s relay/LED timer (retriggerable)
+  - Scheduled restart at 00:00 (NTP)
+  - Verbose Serial logging for startup and events
 */
 
 #include <ESP8266WiFi.h>
@@ -12,12 +11,16 @@
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h>
+#include <ThingSpeak.h>
 
 // --- Configuration ---
 const char* WIFI_SSID = "Adax_Sandelys";
 const char* WIFI_PASS = "noriu42interneto";
-const char* THINGSPEAK_SERVER = "api.thingspeak.com";
-const char* API_KEY = "9RO3MUI3LNTMQ0WO";
+
+// ThingSpeak Configuration
+// Note: Replace 0 with your actual Channel ID number.
+const unsigned long TS_CHANNEL_ID = 0;
+const char* TS_API_KEY = "9RO3MUI3LNTMQ0WO";
 
 // Pin Definitions (Wemos D1 Mini)
 const int PIN_RFID0_RX = 5;  // D1
@@ -27,7 +30,7 @@ const int PIN_RELAY    = 12; // D6
 const int PIN_LED      = 13; // D7
 
 const unsigned long CODE_READ_DELAY = 1000;
-const unsigned long RESTART_INTERVAL = 86400000; // 24 hours
+const unsigned long RELAY_ACTIVE_DURATION = 5000; // 5 seconds
 
 // Authorized RFID Tags (Sorted for Binary Search)
 const unsigned long AUTHORIZED_TAGS[] = {
@@ -51,11 +54,11 @@ rdm630 rfid0(PIN_RFID0_RX, 0);
 rdm630 rfid1(PIN_RFID1_RX, 0);
 
 unsigned long nextCodeReadTime = 0;
-unsigned long lastRestartMillis = 0;
+unsigned long relayOffTime = 0;
+bool restartedToday = false;
 
 void logMessage(String msg) {
-  Serial.print(timeClient.getFormattedTime());
-  Serial.print(" - ");
+  Serial.print("[" + timeClient.getFormattedTime() + "] ");
   Serial.println(msg);
 }
 
@@ -85,51 +88,43 @@ unsigned long readRFID(rdm630 &rfid) {
   return result;
 }
 
-void sendToThingSpeak(String field, String value) {
-  if (client.connect(THINGSPEAK_SERVER, 80)) {
-    client.print("GET /update?api_key=");
-    client.print(API_KEY);
-    client.print("&");
-    client.print(field);
-    client.print("=");
-    client.print(value);
-    client.println(" HTTP/1.1");
-    client.print("Host: ");
-    client.println(THINGSPEAK_SERVER);
-    client.println("Connection: close");
-    client.println();
-    logMessage("Sent: " + field + "=" + value);
+void reportToThingSpeak(int field, String value) {
+  logMessage("Reporting to ThingSpeak: Field" + String(field) + " = " + value);
+  int response = ThingSpeak.writeField(TS_CHANNEL_ID, field, value, TS_API_KEY);
+  if (response == 200) {
+    logMessage("ThingSpeak update successful.");
   } else {
-    logMessage("ThingSpeak connection failed!");
+    logMessage("ThingSpeak error! Code: " + String(response));
   }
 }
 
 void processRFID(rdm630 &rfid, int fieldNum, String direction) {
   if (rfid.available() > 0) {
     unsigned long code = readRFID(rfid);
-    logMessage("RFID Scanned (" + direction + "): " + String(code));
+    logMessage("TAG READ (" + direction + "): " + String(code));
 
     if (millis() < nextCodeReadTime) {
-      logMessage("Ignored (delay active)");
+      logMessage("...skipped (debounce)");
       return;
     }
 
     if (isAuthorized(code)) {
-      logMessage("ACCESS GRANTED (" + direction + ")");
-      digitalWrite(PIN_RELAY, LOW);
-      digitalWrite(PIN_LED, HIGH);
+      logMessage(">>> ACCESS GRANTED (" + direction + ") <<<");
 
-      sendToThingSpeak("field" + String(fieldNum), String(code) + " " + direction);
+      // Non-blocking timer: set/reset relay off time to 5s from now
+      relayOffTime = millis() + RELAY_ACTIVE_DURATION;
+      logMessage("Relay & LED active for 5s (retriggerable).");
 
-      delay(250);
-      digitalWrite(PIN_RELAY, HIGH);
-      digitalWrite(PIN_LED, LOW);
+      // Reporting to ThingSpeak
+      reportToThingSpeak(fieldNum, String(code) + " " + direction);
+
       nextCodeReadTime = millis() + CODE_READ_DELAY;
     } else {
-      logMessage("ACCESS DENIED!");
-      for (int i = 0; i < 2; i++) {
-        digitalWrite(PIN_LED, HIGH); delay(150);
-        digitalWrite(PIN_LED, LOW); delay(150);
+      logMessage("!!! ACCESS DENIED - UNKNOWN ID !!!");
+      // Rapid blink for error
+      for (int i = 0; i < 3; i++) {
+        digitalWrite(PIN_LED, HIGH); delay(100);
+        digitalWrite(PIN_LED, LOW); delay(100);
       }
     }
   }
@@ -137,8 +132,8 @@ void processRFID(rdm630 &rfid, int fieldNum, String direction) {
 
 void checkAlarm() {
   if (digitalRead(PIN_ALARM) == LOW) {
-    logMessage("ALARM BUTTON PRESSED!");
-    sendToThingSpeak("field3", "ALARM");
+    logMessage("!!! ALARM BUTTON PRESSED !!!");
+    reportToThingSpeak(3, "ALARM");
     for (int i = 0; i < 5; i++) {
       digitalWrite(PIN_LED, HIGH); delay(500);
       digitalWrite(PIN_LED, LOW); delay(500);
@@ -148,51 +143,97 @@ void checkAlarm() {
 
 void setup() {
   Serial.begin(115200);
+  delay(1000);
+  Serial.println("\n\n===============================================");
+  Serial.println("      ADAX RFID EL.BARAS v1.3 STARTING         ");
+  Serial.println("===============================================");
+
+  Serial.println("[INIT] Configuring Pins...");
   pinMode(PIN_RELAY, OUTPUT);
   pinMode(PIN_LED, OUTPUT);
   pinMode(PIN_ALARM, INPUT);
 
-  digitalWrite(PIN_RELAY, HIGH); // Relay off
+  digitalWrite(PIN_RELAY, HIGH); // Relay OFF (Commonly High=OFF for relay modules)
+  digitalWrite(PIN_LED, LOW);
 
-  // Initial blink
+  Serial.println("[INIT] Running LED Test...");
   for (int i = 0; i < 4; i++) {
     digitalWrite(PIN_LED, HIGH); delay(80);
     digitalWrite(PIN_LED, LOW); delay(80);
   }
 
+  Serial.print("[WIFI] Connecting to: ");
+  Serial.println(WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
+
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 60) {
     digitalWrite(PIN_LED, !digitalRead(PIN_LED));
     delay(500);
     Serial.print(".");
+    attempts++;
   }
-  Serial.println("\nConnected! IP: " + WiFi.localIP().toString());
 
-  ArduinoOTA.setHostname("ADAX RFID EL.BARAS v1.2");
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[WIFI] CONNECTED!");
+    Serial.print("[WIFI] IP: "); Serial.println(WiFi.localIP());
+    Serial.print("[WIFI] RSSI: "); Serial.print(WiFi.RSSI()); Serial.println(" dBm");
+  } else {
+    Serial.println("\n[WIFI] Connection Failed. Continuing in offline mode.");
+  }
+
+  Serial.println("[OTA] Starting ArduinoOTA...");
+  ArduinoOTA.setHostname("ADAX RFID EL.BARAS v1.3");
   ArduinoOTA.begin();
 
+  Serial.println("[TIME] Synchronizing NTP Time...");
   timeClient.begin();
+  timeClient.update();
+
+  Serial.println("[RFID] Initializing Readers...");
   rfid0.begin();
   rfid1.begin();
 
-  logMessage("System ready. Free Heap: " + String(ESP.getFreeHeap()) + " B");
+  Serial.println("[TS] Initializing ThingSpeak Library...");
+  ThingSpeak.begin(client);
+
+  Serial.print("[BOOT] Free Heap: ");
+  Serial.print(ESP.getFreeHeap());
+  Serial.println(" B");
+
+  Serial.println("===============================================");
+  Serial.println("            SYSTEM READY FOR OPERATION         ");
+  Serial.println("===============================================\n");
 }
 
 void loop() {
   ArduinoOTA.handle();
   timeClient.update();
 
+  // Non-blocking Relay and LED control
+  if (millis() < relayOffTime) {
+    digitalWrite(PIN_RELAY, LOW); // ON
+    digitalWrite(PIN_LED, HIGH); // ON
+  } else {
+    digitalWrite(PIN_RELAY, HIGH); // OFF
+    digitalWrite(PIN_LED, LOW); // OFF
+  }
+
   processRFID(rfid0, 1, "IN");
   processRFID(rfid1, 2, "OUT");
 
   checkAlarm();
 
-  // Daily restart
-  if (millis() - lastRestartMillis > RESTART_INTERVAL) {
-    logMessage("Scheduled restart...");
-    sendToThingSpeak("field3", "RESTART");
-    delay(1000);
-    ESP.restart();
+  // Scheduled daily restart at 00:00:00
+  if (timeClient.getHours() == 0 && timeClient.getMinutes() == 0 && timeClient.getSeconds() == 0) {
+    if (!restartedToday) {
+      restartedToday = true;
+      logMessage("SCHEDULED RESTART (00:00)...");
+      ThingSpeak.writeField(TS_CHANNEL_ID, 3, "DAILY_RESTART", TS_API_KEY);
+      delay(2000);
+      ESP.restart();
+    }
+  } else {
+    restartedToday = false;
   }
 }
