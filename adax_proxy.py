@@ -1,0 +1,308 @@
+import http.server
+import urllib.request
+import urllib.parse
+import sys
+import threading
+import time
+import json
+import socket
+import os
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+except Exception:
+    pystray = None
+
+import ctypes
+
+# ADAX Proxy Server
+# This script helps to bypass browser security restrictions (CORS and Mixed Content)
+# when the dashboard is running on HTTPS but needs to access ADAX API on a local HTTP IP.
+#
+# NEW: Background fetching and data aggregation for all ADAX lines (1, 2, 3, 4, 6, 7)
+
+PORT = 8081
+ADAX_LIDS = [1, 2, 3, 4, 6, 7]
+ADAX_BASE_URL = "http://10.12.24.51:8088/api/index.php"
+
+# Thread-safe global cache
+cache_lock = threading.Lock()
+adax_cache = {
+    "last_update": None,
+    "lines": {lid: {"data": None, "error": "Laukiama duomenų...", "timestamp": None} for lid in ADAX_LIDS}
+}
+
+import re
+
+def parse_php_var_dump(content):
+    # Pattern to find the array(5) blocks which represent individual records
+    record_pattern = re.compile(r'array\(\d+\)\s*\{([^}]+)\}', re.DOTALL)
+
+    # Patterns for fields within a record
+    field_patterns = {
+        "Produktas": re.compile(r'\["Produktas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "Linija": re.compile(r'\["Linija"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "PusgaminioNr": re.compile(r'\["PusgaminioNr"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "TotalPusgaminiai": re.compile(r'\["TotalPusgaminiai"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "TestavimoLaikas": re.compile(r'\["TestavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "GamybosPabaiga": re.compile(r'\["GamybosPabaiga"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "NuskanavimoLaikas": re.compile(r'\["NuskanavimoLaikas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "GamybosPradzia": re.compile(r'\["GamybosPradzia"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "ItemID": re.compile(r'\["ItemID"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "ItemId": re.compile(r'\["ItemId"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE),
+        "Pavadinimas": re.compile(r'\["Pavadinimas"\]=>\s*string\(\d+\)\s*"([^"]+)"', re.IGNORECASE)
+    }
+
+    results = []
+    for record_match in record_pattern.finditer(content):
+        record_text = record_match.group(1)
+        record_data = {}
+        for field, pattern in field_patterns.items():
+            field_match = pattern.search(record_text)
+            if field_match:
+                record_data[field] = field_match.group(1).strip()
+
+        if record_data:
+            results.append(normalize_adax_record(record_data))
+    return results
+
+def create_image():
+    # Generate a simple icon: a blue square with a white 'A'
+    width = 64
+    height = 64
+    color1 = "blue"
+    color2 = "white"
+    image = Image.new('RGB', (width, height), color1)
+    dc = ImageDraw.Draw(image)
+    # Draw a simple 'A' shape or just a square
+    dc.rectangle((width // 4, height // 4, width * 3 // 4, height * 3 // 4), fill=color2)
+    return image
+
+def hide_console():
+    if os.name == 'nt':
+        try:
+            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+            if hwnd != 0:
+                ctypes.windll.user32.ShowWindow(hwnd, 0) # 0 = SW_HIDE
+        except Exception:
+            pass
+
+def normalize_adax_record(r):
+    # Map alternative field names to standard ones
+    # "TotalPusgaminiai" -> "PusgaminioNr"
+    # "GamybosPabaiga" -> "TestavimoLaikas"
+    # "GamybosPradzia" -> "NuskanavimoLaikas"
+
+    if "TotalPusgaminiai" in r and "PusgaminioNr" not in r:
+        r["PusgaminioNr"] = r["TotalPusgaminiai"]
+    if "GamybosPabaiga" in r and "TestavimoLaikas" not in r:
+        r["TestavimoLaikas"] = r["GamybosPabaiga"]
+    if "GamybosPradzia" in r and "NuskanavimoLaikas" not in r:
+        r["NuskanavimoLaikas"] = r["GamybosPradzia"]
+    if "ItemId" in r and "ItemID" not in r:
+        r["ItemID"] = r["ItemId"]
+
+    return r
+
+def fetch_adax_data(lid):
+    url = f"{ADAX_BASE_URL}?lid={lid}&group=1"
+    try:
+        req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'Mozilla/5.0 ADAX-Proxy-Background')
+        req.add_header('Accept-Encoding', 'identity')
+        with urllib.request.urlopen(req, timeout=15) as response:
+            content = response.read().decode('utf-8', errors='ignore')
+
+            # 1. Try direct JSON parsing first
+            try:
+                data = json.loads(content)
+                if isinstance(data, list):
+                    data = [normalize_adax_record(r) for r in data]
+                elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+                    # Handle {"data": [...]} wrapper
+                    data = [normalize_adax_record(r) for r in data["data"]]
+                return data, None
+            except json.JSONDecodeError:
+                pass
+
+            # 2. Try to find the largest JSON block (heuristics)
+            best_data = None
+            start_arr = content.find('[')
+            end_arr = content.rfind(']')
+            if start_arr != -1 and end_arr > start_arr:
+                try:
+                    cand = json.loads(content[start_arr:end_arr+1])
+                    if isinstance(cand, list):
+                        best_data = [normalize_adax_record(r) for r in cand]
+                except json.JSONDecodeError:
+                    pass
+
+            start_obj = content.find('{')
+            end_obj = content.rfind('}')
+            if start_obj != -1 and end_obj > start_obj:
+                try:
+                    obj_data = json.loads(content[start_obj:end_obj+1])
+                    if not best_data or (end_obj - start_obj > end_arr - start_arr):
+                        best_data = obj_data
+                except json.JSONDecodeError:
+                    pass
+
+            if best_data:
+                return best_data, None
+
+            # 3. Try PHP var_dump parsing
+            if "array(" in content:
+                data = parse_php_var_dump(content)
+                if data:
+                    return data, None
+
+            return None, f"No valid JSON or var_dump found. Content snippet: {content[:200]}..."
+    except socket.timeout:
+        return None, "Timeout (15s)"
+    except Exception as e:
+        return None, str(e)
+
+def background_fetcher():
+    print(f"Background fetcher started. Targeting LIDs: {ADAX_LIDS}")
+    while True:
+        for lid in ADAX_LIDS:
+            # print(f"Background fetching LID {lid}...")
+            data, error = fetch_adax_data(lid)
+
+            with cache_lock:
+                adax_cache["lines"][lid]["data"] = data
+                adax_cache["lines"][lid]["error"] = error
+                adax_cache["lines"][lid]["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+            # Small delay between lines to avoid overwhelming the target server
+            time.sleep(2)
+
+        with cache_lock:
+            adax_cache["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            # print(f"ADAX cache updated at {adax_cache['last_update']}")
+
+        # Wait 60 seconds before next full cycle
+        time.sleep(60)
+
+class ProxyHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/adax/all":
+            self.send_aggregated_data()
+            return
+
+        if "?url=" not in self.path:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"Missing 'url' parameter. Usage: http://localhost:8081/?url=TARGET_URL or /adax/all")
+            return
+
+        # Extract everything after the first occurrence of ?url=
+        target_url = self.path.split("?url=", 1)[1]
+        target_url = urllib.parse.unquote(target_url)
+
+        # Security check: only allow authorized ADAX host
+        if not target_url.startswith("http://10.12.24.51:8088/"):
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b"403 Forbidden: Unauthorized proxy target.")
+            return
+
+        try:
+            req = urllib.request.Request(target_url)
+            req.add_header('User-Agent', 'Mozilla/5.0 ADAX-Proxy')
+
+            with urllib.request.urlopen(req, timeout=15) as response:
+                content = response.read()
+                self.send_response(200)
+                self.send_cors_headers()
+                ctype = response.info().get_content_type() or 'application/json'
+                self.send_header('Content-Type', ctype)
+                self.end_headers()
+                self.wfile.write(content)
+        except (ConnectionAbortedError, BrokenPipeError):
+            # Client closed the connection prematurely, ignore
+            pass
+        except Exception as e:
+            # print(f"Error proxying request: {e}")
+            try:
+                self.send_response(500)
+                self.send_cors_headers()
+                self.end_headers()
+                self.wfile.write(str(e).encode())
+            except (ConnectionAbortedError, BrokenPipeError):
+                pass
+
+    def send_aggregated_data(self):
+        try:
+            with cache_lock:
+                response_json = json.dumps(adax_cache)
+
+            self.send_response(200)
+            self.send_cors_headers()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(response_json.encode())
+        except (ConnectionAbortedError, BrokenPipeError):
+            pass
+
+    def send_cors_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', '*')
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        # Quiet mode for proxy logs
+        return
+
+class AdaxProxyServer(http.server.HTTPServer):
+    def handle_error(self, request, client_address):
+        # Suppress ConnectionAbortedError tracebacks in console
+        exc_type, exc_value, _ = sys.exc_info()
+        if exc_type in [ConnectionAbortedError, BrokenPipeError]:
+            return
+        super().handle_error(request, client_address)
+
+if __name__ == "__main__":
+    # Start background fetcher thread
+    fetcher_thread = threading.Thread(target=background_fetcher, daemon=True)
+    fetcher_thread.start()
+
+    def start_server():
+        try:
+            server = AdaxProxyServer(('127.0.0.1', PORT), ProxyHandler)
+            print("========================================")
+            print(f" ADAX Proxy + Aggregator started on port {PORT}")
+            print("========================================")
+            print(f"Aggregated endpoint: http://localhost:{PORT}/adax/all")
+            server.serve_forever()
+        except Exception as e:
+            print(f"Server error: {e}")
+
+    server_thread = threading.Thread(target=start_server, daemon=True)
+    server_thread.start()
+
+    if pystray:
+        # Only hide console if tray icon is actually going to run
+        hide_console()
+
+        def on_quit(icon, item):
+            icon.stop()
+            os._exit(0)
+
+        icon = pystray.Icon("adax_proxy", create_image(), "ADAX Proxy Server", menu=pystray.Menu(
+            pystray.MenuItem("Quit", on_quit)
+        ))
+        icon.run()
+    else:
+        print("Pystray not found, running in console mode.")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\nStopping proxy server...")
+            sys.exit(0)
