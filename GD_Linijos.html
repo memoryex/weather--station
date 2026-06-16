@@ -387,9 +387,10 @@
   <h1>Linijų vizualizacija</h1>
   <div class="viz-container">
 
-    <div class="viz-main-grid">
+        <div class="viz-main-grid">
       <div class="viz-group-title">GD Linijos</div>
       <div id="viz-QRAD 1" class="viz-item"></div>
+      <div id="viz-XLE 1" class="viz-item"></div>
       <div id="viz-PLXE 5" class="viz-item"></div>
       <div id="viz-NOBO 7" class="viz-item"></div>
       <div id="viz-NOBO 6" class="viz-item"></div>
@@ -620,7 +621,7 @@ const READ_KEYS = {
   463450: "VAL3TD2W5LADX7K1", // PLXE 1-4
   703669: "S44OBKWC5C7FODZ5", // NOBO 1-4
   802414: "I6NIZAVZYLPVV1ME", // NOBO 5-7, PLXE 5
-  807602: ""                  // UI perrašymas (Public)
+  807602: "WUO1DG7GXYNZP6SG"  // UI perrašymas (Public)
 };
 
 const WRITE_KEYS = {
@@ -632,6 +633,7 @@ const WRITE_KEYS = {
 
 const LINES = [
   { name:"QRAD 1", channel:807602, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"XLE 1",  channel:807602, fieldCount:5, fieldBarcode:6, apiType: "TS" },
   { name:"PLXE 1", channel:463450, fieldCount:1, fieldBarcode:2, apiType: "TS" },
   { name:"PLXE 2", channel:463450, fieldCount:3, fieldBarcode:4, apiType: "TS" },
   { name:"PLXE 3", channel:463450, fieldCount:5, fieldBarcode:6, apiType: "TS" },
@@ -1625,7 +1627,7 @@ function renderVizPlaceholder(id, name, type) {
 
 (function InitVizLayout(){
   // GD lines
-  ['QRAD 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2','NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','UI perrašymas'].forEach(n => {
+  ['QRAD 1','XLE 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2','NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','UI perrašymas'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'v');
   });
 
