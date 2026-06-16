@@ -906,6 +906,27 @@ const PRODUCT_MAP = new Map([
 ]);
 
 /* ===================== RESET LOGIC ===================== */
+window.updateResetUI = function(lineName) {
+  const btn = document.getElementById(`btn-reset-${lineName}`);
+  const rState = window.resetStates[lineName] || { status: 'idle' };
+
+  if (btn) {
+    btn.classList.remove('waiting', 'resetting');
+    btn.disabled = false;
+
+    if (rState.status === 'waiting' || rState.status === 'resetting') {
+      btn.innerText = "LAUKITE...";
+      btn.classList.add(rState.status);
+      btn.disabled = true;
+    } else {
+      btn.innerText = "RESET";
+      // If we just finished resetting, show 0 immediately
+      const text = document.getElementById(`val-units-text-${lineName}`);
+      if (text) text.innerText = "0";
+    }
+  }
+};
+
 window.triggerReset = function(lineName) {
   const line = LINES.find(l => l.name === lineName);
   if (!line) return;
@@ -915,8 +936,8 @@ window.triggerReset = function(lineName) {
   window.resetStates[lineName] = { status: 'waiting', lastAction: Date.now() };
   window.resetQueue.push(lineName);
 
-  // Refresh UI to show "Laukite..."
-  if (window.refresh) window.refresh();
+  // Update UI to show "LAUKITE..." without full refresh
+  window.updateResetUI(lineName);
 
   if (!window.isProcessingReset) {
     window.processResetQueue();
@@ -935,14 +956,14 @@ window.processResetQueue = async function() {
 
   if (line) {
     window.resetStates[lineName].status = 'resetting';
-    if (window.refresh) window.refresh();
+    window.updateResetUI(lineName);
 
     const success = await window.performReset(line);
     if (success) {
       window.pollUntilZero(line);
     } else {
       window.resetStates[lineName].status = 'idle';
-      if (window.refresh) window.refresh();
+      window.updateResetUI(lineName);
     }
   }
 
@@ -975,7 +996,7 @@ window.pollUntilZero = async function(line) {
       const val = parseFloat(data[`field${line.fieldCount}`]);
       if (val === 0) {
         window.resetStates[line.name].status = 'idle';
-        if (window.refresh) window.refresh();
+        window.updateResetUI(line.name);
       } else {
         setTimeout(check, 5000); // Check every 5 seconds
       }
@@ -2191,7 +2212,7 @@ function renderVizPlaceholder(id, name, type) {
 
             const barcodeDisplay = r.barcodeVal;
 
-            let unitsDisplay = `<span class="good">${r.countValStr}</span>`;
+            let unitsDisplay = `<span class="good" id="val-units-text-${r.L.name}">${r.countValStr}</span>`;
             if (r.L.apiType === 'ADAX' && r.adaxGroups) {
                 unitsDisplay = `<span class="good">${r.dailyUnits}</span><br/>` +
                                `<div style="font-size:11px; margin-top:4px; color:var(--text-muted); display:flex; justify-content:center; gap:4px; white-space:nowrap;">` +
@@ -2205,17 +2226,13 @@ function renderVizPlaceholder(id, name, type) {
                 let btnCls = "reset-btn";
                 let disabled = "";
 
-                if (rState.status === 'waiting') {
-                  btnTxt = "Laukite...";
-                  btnCls += " waiting";
-                  disabled = "disabled";
-                } else if (rState.status === 'resetting') {
-                  btnTxt = "Resetting...";
-                  btnCls += " resetting";
+                if (rState.status === 'waiting' || rState.status === 'resetting') {
+                  btnTxt = "LAUKITE...";
+                  btnCls += " " + rState.status;
                   disabled = "disabled";
                 }
 
-                unitsDisplay += `<button class="${btnCls}" onclick="triggerReset('${r.L.name}')" ${disabled}>${btnTxt}</button>`;
+                unitsDisplay += `<button id="btn-reset-${r.L.name}" class="${btnCls}" onclick="triggerReset('${r.L.name}')" ${disabled}>${btnTxt}</button>`;
             }
 
             html += `
