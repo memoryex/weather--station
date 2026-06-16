@@ -232,6 +232,39 @@
   @keyframes spin-slow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   .ai-icon-spin { animation: spin-slow 10s linear infinite; }
 
+  /* Reset Button Styles */
+  .reset-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    margin-left: 8px;
+    background: #555;
+    border: 1px solid #777;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    transition: 0.2s;
+    text-transform: uppercase;
+    font-weight: bold;
+    vertical-align: middle;
+  }
+  .reset-btn:hover:not(:disabled) {
+    background: #ff5252;
+    border-color: #ff5252;
+  }
+  .reset-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #333;
+  }
+  .reset-btn.waiting {
+    background: #ffa726;
+    border-color: #ffa726;
+  }
+  .reset-btn.resetting {
+    background: #d32f2f;
+    border-color: #d32f2f;
+  }
+
       /* ADAX Arrow Animation */
   @keyframes adax-move {
     0% { transform: translate(-50%, -100px); opacity: 0; }
@@ -590,6 +623,13 @@ const READ_KEYS = {
   807602: ""                  // UI perrašymas (Public)
 };
 
+const WRITE_KEYS = {
+  463450: "9RO3MUI3LNTMQ0WO",
+  703669: "XPIME2EC8RKX9JO3",
+  802414: "DNPJZCU9G6NJD0VF",
+  807602: "O7IB88R7L2ELXR3Q"
+};
+
 const LINES = [
   { name:"QRAD 1", channel:807602, fieldCount:3, fieldBarcode:4, apiType: "TS" },
   { name:"PLXE 1", channel:463450, fieldCount:1, fieldBarcode:2, apiType: "TS" },
@@ -614,6 +654,11 @@ const LINES = [
 ];
 // Alias for Status code compatibility
 const LINE_MAP = LINES;
+
+/* --- RESET LOGIC GLOBALS --- */
+window.resetQueue = [];
+window.resetStates = {}; // lineName -> { status: 'idle'|'waiting'|'resetting', lastAction: timestamp }
+window.isProcessingReset = false;
 
 // Shared Map: "090775" -> "PLX070E"
 const PRODUCT_MAP = new Map([
@@ -859,6 +904,88 @@ const PRODUCT_MAP = new Map([
   ["82940412", "OTJ4T 12 1250W 400V  Zebra"],
   ["UI v5", "ECU-2Rw"]
 ]);
+
+/* ===================== RESET LOGIC ===================== */
+window.triggerReset = function(lineName) {
+  const line = LINES.find(l => l.name === lineName);
+  if (!line) return;
+
+  if (window.resetStates[lineName] && window.resetStates[lineName].status !== 'idle') return;
+
+  window.resetStates[lineName] = { status: 'waiting', lastAction: Date.now() };
+  window.resetQueue.push(lineName);
+
+  // Refresh UI to show "Laukite..."
+  if (window.refresh) window.refresh();
+
+  if (!window.isProcessingReset) {
+    window.processResetQueue();
+  }
+};
+
+window.processResetQueue = async function() {
+  if (window.resetQueue.length === 0) {
+    window.isProcessingReset = false;
+    return;
+  }
+
+  window.isProcessingReset = true;
+  const lineName = window.resetQueue.shift();
+  const line = LINES.find(l => l.name === lineName);
+
+  if (line) {
+    window.resetStates[lineName].status = 'resetting';
+    if (window.refresh) window.refresh();
+
+    const success = await window.performReset(line);
+    if (success) {
+      window.pollUntilZero(line);
+    } else {
+      window.resetStates[lineName].status = 'idle';
+      if (window.refresh) window.refresh();
+    }
+  }
+
+  // Wait 15 seconds before processing the next one in queue
+  setTimeout(window.processResetQueue, 15500);
+};
+
+window.performReset = async function(line) {
+  const writeKey = WRITE_KEYS[line.channel];
+  if (!writeKey) return false;
+
+  const url = `https://api.thingspeak.com/update?api_key=${writeKey}&field${line.fieldCount}=0`;
+  try {
+    const r = await fetch(url, { method: 'POST' });
+    return r.ok;
+  } catch (e) {
+    console.error("Reset failed for " + line.name, e);
+    return false;
+  }
+};
+
+window.pollUntilZero = async function(line) {
+  const readKey = READ_KEYS[line.channel];
+  const url = `https://api.thingspeak.com/channels/${line.channel}/fields/${line.fieldCount}/last.json?api_key=${readKey}`;
+
+  const check = async () => {
+    try {
+      const r = await fetch(url);
+      const data = await r.json();
+      const val = parseFloat(data[`field${line.fieldCount}`]);
+      if (val === 0) {
+        window.resetStates[line.name].status = 'idle';
+        if (window.refresh) window.refresh();
+      } else {
+        setTimeout(check, 5000); // Check every 5 seconds
+      }
+    } catch (e) {
+      setTimeout(check, 5000);
+    }
+  };
+
+  check();
+};
 
 /* ===================== TAB LOGIC ===================== */
 function openTab(tabName) {
@@ -2072,6 +2199,23 @@ function renderVizPlaceholder(id, name, type) {
                                `<span>Gr. 2: ${r.adaxGroups.g2} (${r.adaxGroups.pG2}%)</span>|` +
                                `<span>Gr. 3: ${r.adaxGroups.g3} (${r.adaxGroups.pG3}%)</span>` +
                                `</div>`;
+            } else if (r.L.apiType === 'TS') {
+                const rState = window.resetStates[r.L.name] || { status: 'idle' };
+                let btnTxt = "RESET";
+                let btnCls = "reset-btn";
+                let disabled = "";
+
+                if (rState.status === 'waiting') {
+                  btnTxt = "Laukite...";
+                  btnCls += " waiting";
+                  disabled = "disabled";
+                } else if (rState.status === 'resetting') {
+                  btnTxt = "Resetting...";
+                  btnCls += " resetting";
+                  disabled = "disabled";
+                }
+
+                unitsDisplay += `<button class="${btnCls}" onclick="triggerReset('${r.L.name}')" ${disabled}>${btnTxt}</button>`;
             }
 
             html += `
