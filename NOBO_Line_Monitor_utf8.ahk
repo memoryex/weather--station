@@ -18,6 +18,7 @@ Global g_ih := 0
 Global LogFile := ""
 Global ResetPending := false
 Global ResetDeadline := 0
+Global DecStartTime := 0
 
 ; Settings globals
 Global COM_PORT := "COM3"
@@ -151,20 +152,21 @@ OverlayGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 WinSetTransparent(200, OverlayGui)
 
 ; CtrlGui - Interaction Layer
-CtrlGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound")
+CtrlGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound +Owner" OverlayGui.Hwnd)
 CtrlGui.BackColor := "010101"
 WinSetTransColor("010101", CtrlGui)
 
-ResetBtn := CtrlGui.Add("Text", "x5 y5 w155 h30 Center BackgroundRed cWhite", "RESET")
+; Reset button - Full width
+ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h30 Center BackgroundRed cWhite +0x100", "RESET")
 ResetBtn.SetFont("s10 bold", "Verdana")
 
-; Small "-" button on the right side
-DecBtn := CtrlGui.Add("Text", "x165 y5 w30 h30 Center BackgroundBlack cWhite", "-")
+; Small "-" button in vertical middle on the right
+DecBtn := CtrlGui.Add("Text", "x165 y85 w30 h30 Center BackgroundBlack cWhite +0x100", "-")
 DecBtn.SetFont("s14 bold")
 
-; Gear icon bottom right
-CtrlGui.SetFont("s15", "Segoe UI Symbol")
-GearBtn := CtrlGui.Add("Text", "x170 y170 w25 h25 Center BackgroundTrans cWhite", "⚙")
+; Gear icon bottom right - solid background to ensure clickability
+GearBtn := CtrlGui.Add("Text", "x170 y170 w25 h25 Center BackgroundBlue cWhite +0x100", "⚙")
+GearBtn.SetFont("s15", "Segoe UI Symbol")
 
 CancelBtn := CtrlGui.Add("Button", "x5 y5 w190 h30 Hidden", "ATŠAUKTI")
 
@@ -173,6 +175,7 @@ CtrlGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 ResetBtn.OnEvent("Click", StartResetCountdown)
 GearBtn.OnEvent("Click", ShowSettings)
 CancelBtn.OnEvent("Click", CancelReset)
+DecBtn.OnEvent("Click", (*) => 0) ; Dummy to enable notifications for WM_LBUTTONDOWN
 
 OnMessage(0x0201, WM_LBUTTONDOWN)
 OnMessage(0x0202, WM_LBUTTONUP)
@@ -193,19 +196,35 @@ EnsureTopMost() {
 ; MOUSE EVENTS (For hold logic)
 ; =======================================================
 WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
-    global NewFilesCount, DecBtn
-    if (hwnd = DecBtn.Hwnd) {
-        if (NewFilesCount > 0) {
-            DecBtn.Value := "!"
-            SetTimer DoDecrement, -2000
+    global DecBtn, DecStartTime, NewFilesCount
+    try {
+        ctrl := GuiCtrlFromHwnd(hwnd)
+        if (ctrl && ctrl.Hwnd = DecBtn.Hwnd) {
+            if (NewFilesCount > 0) {
+                DecStartTime := A_TickCount
+                SetTimer UpdateDecCountdown, 100
+            }
         }
     }
 }
 
 WM_LBUTTONUP(wParam, lParam, msg, hwnd) {
     global DecBtn
-    SetTimer DoDecrement, 0
-    DecBtn.Value := "-"
+    SetTimer UpdateDecCountdown, 0
+    if (DecBtn.Value != "-") {
+        DecBtn.Value := "-"
+    }
+}
+
+UpdateDecCountdown() {
+    global DecBtn, DecStartTime
+    Elapsed := A_TickCount - DecStartTime
+    if (Elapsed >= 2000) {
+        SetTimer UpdateDecCountdown, 0
+        DoDecrement()
+    } else {
+        DecBtn.Value := Format("{:0.1f}", (2000 - Elapsed) / 1000)
+    }
 }
 
 DoDecrement() {
