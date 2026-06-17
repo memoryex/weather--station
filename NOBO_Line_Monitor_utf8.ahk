@@ -32,22 +32,20 @@ Global TS_API_KEY := "O7IB88R7L2ELXR3Q"
 Global TS_FIELD_COUNT := "field5"
 Global TS_FIELD_BARCODE := "field6"
 
-Global TS_ENDPOINT := "https://api.thingspeak.com/update"
 Global TS_MIN_INTERVAL := 15000
 Global TS_FLUSH_INTERVAL := 1000
-Global TS_LOG_ERRORS := true
 
 Global IniFile := A_ScriptDir "\settings.ini"
 
-; Line Data Map
+; Line Data Map - Consistent with GD_Linijos.html
 Global LineMap := Map(
     "PLXE 1", {ID: "463450", Read: "VAL3TD2W5LADX7K1", Write: "9RO3MUI3LNTMQ0WO", Count: "field1", Barcode: "field2"},
     "PLXE 2", {ID: "463450", Read: "VAL3TD2W5LADX7K1", Write: "9RO3MUI3LNTMQ0WO", Count: "field3", Barcode: "field4"},
     "PLXE 3", {ID: "463450", Read: "VAL3TD2W5LADX7K1", Write: "9RO3MUI3LNTMQ0WO", Count: "field5", Barcode: "field6"},
     "PLXE 4", {ID: "463450", Read: "VAL3TD2W5LADX7K1", Write: "9RO3MUI3LNTMQ0WO", Count: "field7", Barcode: "field8"},
-    "NOBO 1", {ID: "703669", Read: "S44OBKWC5C7FODZ2", Write: "XPIME2EC8RKX9JO3", Count: "field1", Barcode: "field2"},
-    "NOBO 2", {ID: "703669", Read: "S44OBKWC5C7FODZ3", Write: "XPIME2EC8RKX9JO3", Count: "field3", Barcode: "field4"},
-    "NOBO 3", {ID: "703669", Read: "S44OBKWC5C7FODZ4", Write: "XPIME2EC8RKX9JO3", Count: "field5", Barcode: "field6"},
+    "NOBO 1", {ID: "703669", Read: "S44OBKWC5C7FODZ5", Write: "XPIME2EC8RKX9JO3", Count: "field1", Barcode: "field2"},
+    "NOBO 2", {ID: "703669", Read: "S44OBKWC5C7FODZ5", Write: "XPIME2EC8RKX9JO3", Count: "field3", Barcode: "field4"},
+    "NOBO 3", {ID: "703669", Read: "S44OBKWC5C7FODZ5", Write: "XPIME2EC8RKX9JO3", Count: "field5", Barcode: "field6"},
     "NOBO 4", {ID: "703669", Read: "S44OBKWC5C7FODZ5", Write: "XPIME2EC8RKX9JO3", Count: "field7", Barcode: "field8"},
     "NOBO 5", {ID: "802414", Read: "I6NIZAVZYLPVV1ME", Write: "DNPJZCU9G6NJD0VF", Count: "field1", Barcode: "field2"},
     "NOBO 6", {ID: "802414", Read: "I6NIZAVZYLPVV1ME", Write: "DNPJZCU9G6NJD0VF", Count: "field3", Barcode: "field4"},
@@ -89,6 +87,8 @@ FormatTS() => FormatTime(, "yyyy-MM-dd HH:mm:ss")
 
 LogAppend(line) {
     global LogFile
+    if (LogFile = "")
+        return
     try FileAppend line "`r`n", LogFile, "UTF-8"
 }
 LogBarcode(code) {
@@ -96,18 +96,6 @@ LogBarcode(code) {
 }
 LogCount(count) {
     LogAppend(FormatTS() " " count " gaminys")
-}
-
-MakeWindowClickThrough(hwnd) {
-    WinSetExStyle("+0x20", "ahk_id " hwnd)
-}
-
-EnsureTopMost() {
-    global OverlayGui, CtrlGui
-    if WinActive("ahk_id " OverlayGui.Hwnd) || WinActive("ahk_id " CtrlGui.Hwnd)
-        return
-    OverlayGui.Opt("+AlwaysOnTop")
-    CtrlGui.Opt("+AlwaysOnTop")
 }
 
 RelayPulse() {
@@ -151,48 +139,41 @@ Loop Files, Stebimas_Katalogas "\*.*"
 ; GUI
 ; =======================================================
 Lango_Dydis := 200
-Pagrindine_Spalva := "Blue"
-Langas_Skaidrumas := 200
 Start_X := 420
 Start_Y := 800
 
-OverlayGui := Gui("+AlwaysOnTop +ToolWindow -Caption")
-OverlayGui.BackColor := Pagrindine_Spalva
+; OverlayGui - Background and Big Number
+OverlayGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound +E0x20")
+OverlayGui.BackColor := "Blue"
 OverlayGui.SetFont("s65 bold cWhite", "Arial")
-CountText := OverlayGui.Add("Text", "x0 y80 w" Lango_Dydis " h100 Center", "0")
-
-OverlayGui.SetFont("s20", "Segoe UI Symbol")
-GearBtn := OverlayGui.Add("Text", "x165 y5 w30 h30 Center BackgroundTrans cWhite", "⚙")
-GearBtn.OnEvent("Click", ShowSettings)
-
+CountText := OverlayGui.Add("Text", "x0 y50 w" Lango_Dydis " h120 Center", "0")
 OverlayGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
-WinSetTransparent(Langas_Skaidrumas, OverlayGui)
-MakeWindowClickThrough(OverlayGui.Hwnd)
+WinSetTransparent(200, OverlayGui)
 
-BtnWidth := 160
-BtnHeight := 38
-BtnGap := 8
-CtrlOffsetX := 10
-CtrlOffsetY := 10
+; CtrlGui - Interaction Layer
+CtrlGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound")
+CtrlGui.BackColor := "010101"
+WinSetTransColor("010101", CtrlGui)
 
-CtrlGui := Gui("+AlwaysOnTop +ToolWindow -Caption")
-CtrlGui.BackColor := Pagrindine_Spalva
-CtrlGui.SetFont("s10 bold cWhite", "Verdana")
+ResetBtn := CtrlGui.Add("Text", "x5 y5 w155 h30 Center BackgroundRed cWhite", "RESET")
+ResetBtn.SetFont("s10 bold", "Verdana")
 
-ResetBtn := CtrlGui.Add("Text", "x10 y10 w" BtnWidth " h" BtnHeight " Center BackgroundRed", "RESET")
-CancelBtn := CtrlGui.Add("Button", "x10 y" (10 + BtnHeight + BtnGap) " w" BtnWidth " h28 Hidden", "ATŠAUKTI")
-DecBtn := CtrlGui.Add("Text", "x10 y" (10 + BtnHeight + BtnGap) " w" BtnWidth " h" BtnHeight " Center BackgroundBlack cWhite", "-")
+; Small "-" button on the right side
+DecBtn := CtrlGui.Add("Text", "x165 y5 w30 h30 Center BackgroundBlack cWhite", "-")
+DecBtn.SetFont("s14 bold")
 
-CtrlGuiW := BtnWidth + 20
-CtrlGuiH := 10 + (BtnHeight + BtnGap) * 2 + 10
-CtrlGui.Show("x" (Start_X + CtrlOffsetX) " y" (Start_Y + CtrlOffsetY) " w" CtrlGuiW " h" CtrlGuiH)
-WinSetTransparent(Langas_Skaidrumas, CtrlGui)
+; Gear icon bottom right
+CtrlGui.SetFont("s15", "Segoe UI Symbol")
+GearBtn := CtrlGui.Add("Text", "x170 y170 w25 h25 Center BackgroundTrans cWhite", "⚙")
+
+CancelBtn := CtrlGui.Add("Button", "x5 y5 w190 h30 Hidden", "ATŠAUKTI")
+
+CtrlGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 
 ResetBtn.OnEvent("Click", StartResetCountdown)
+GearBtn.OnEvent("Click", ShowSettings)
 CancelBtn.OnEvent("Click", CancelReset)
 
-; Custom hold logic for DecBtn
-DecBtn.OnEvent("Click", (*) => 0) ; Dummy click handler
 OnMessage(0x0201, WM_LBUTTONDOWN)
 OnMessage(0x0202, WM_LBUTTONUP)
 
@@ -200,21 +181,30 @@ SetTimer EnsureTopMost, 500
 SetTimer TikrintiKataloga, 1000
 SetTimer CheckExternalReset, 20000
 
+EnsureTopMost() {
+    global OverlayGui, CtrlGui
+    if WinActive("ahk_id " OverlayGui.Hwnd) || WinActive("ahk_id " CtrlGui.Hwnd)
+        return
+    OverlayGui.Opt("+AlwaysOnTop")
+    CtrlGui.Opt("+AlwaysOnTop")
+}
+
 ; =======================================================
 ; MOUSE EVENTS (For hold logic)
 ; =======================================================
 WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
     global NewFilesCount, DecBtn
     if (hwnd = DecBtn.Hwnd) {
-        if (NewFilesCount <= 0) return
-        DecBtn.Value := "2s..."
-        SetTimer DoDecrement, -2000 ; Run once after 2s
+        if (NewFilesCount > 0) {
+            DecBtn.Value := "!"
+            SetTimer DoDecrement, -2000
+        }
     }
 }
 
 WM_LBUTTONUP(wParam, lParam, msg, hwnd) {
     global DecBtn
-    SetTimer DoDecrement, 0 ; Cancel if released early
+    SetTimer DoDecrement, 0
     DecBtn.Value := "-"
 }
 
@@ -343,6 +333,7 @@ StartResetCountdown(*) {
     ResetPending := true
     ResetDeadline := A_TickCount + 5000
     CancelBtn.Visible := true
+    ResetBtn.Visible := false
     DecBtn.Visible := false
     SetTimer UpdateResetCountdown, 50
 }
@@ -358,12 +349,13 @@ UpdateResetCountdown() {
         SetTimer UpdateResetCountdown, 0
         CancelBtn.Visible := false
         DecBtn.Visible := true
+        ResetBtn.Visible := true
         ResetPending := false
         ResetBtn.Value := "RESET"
         Nunulinti()
         return
     }
-    ResetBtn.Value := "Atšaukti: " Format("{:0.1f}s", RemainingMs/1000)
+    CancelBtn.Text := "ATŠAUKTI (" Format("{:0.1f}s", RemainingMs/1000) ")"
 }
 
 CancelReset(*) {
@@ -372,6 +364,7 @@ CancelReset(*) {
     SetTimer UpdateResetCountdown, 0
     CancelBtn.Visible := false
     DecBtn.Visible := true
+    ResetBtn.Visible := true
     ResetBtn.Value := "RESET"
     SoundBeep 500, 120
 }
