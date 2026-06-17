@@ -1,4 +1,6 @@
-#Requires AutoHotkey v2.0
+import re
+
+ahk_content = r'''#Requires AutoHotkey v2.0
 CoordMode "Mouse", "Screen"
 CoordMode "ToolTip", "Screen"
 
@@ -480,3 +482,11 @@ TSFlush() {
 
 F4::Nunulinti()
 F8::RelayPulse()
+'''
+
+with open('NOBO_Line_Monitor_utf8.ahk', 'w', encoding='utf-8') as f:
+    f.write(ahk_content)
+with open('NOBO_Line_Monitor.ahk', 'w', encoding='utf-8') as f:
+    f.write(ahk_content)
+
+print("Saved AHK scripts.")

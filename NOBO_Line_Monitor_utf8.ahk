@@ -123,6 +123,23 @@ RelayPulse() {
     DllCall("CloseHandle", "Ptr", hPort)
 }
 
+GetAvailableComPorts() {
+    ports := []
+    try {
+        for device in ComObjGet("winmgmts:").ExecQuery("Select * from Win32_PnPEntity where Name Like '%(COM[0-9]%)'") {
+            ports.Push(device.Name)
+        }
+    } catch {
+        Loop 20
+            ports.Push("Serial Port (COM" A_Index ")")
+    }
+    if (ports.Length = 0) {
+        Loop 20
+            ports.Push("Serial Port (COM" A_Index ")")
+    }
+    return ports
+}
+
 ; =======================================================
 ; START
 ; =======================================================
@@ -148,6 +165,11 @@ OverlayGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound +E0x20")
 OverlayGui.BackColor := "Blue"
 OverlayGui.SetFont("s65 bold cWhite", "Arial")
 CountText := OverlayGui.Add("Text", "x0 y50 w" Lango_Dydis " h120 Center", "0")
+
+; Version Label bottom-left (Yellowish color as in photo)
+OverlayGui.SetFont("s10 italic cD4AF37", "Arial")
+OverlayGui.Add("Text", "x5 y175 w50 h20 BackgroundTrans", "v2.3")
+
 OverlayGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 WinSetTransparent(200, OverlayGui)
 
@@ -157,15 +179,15 @@ CtrlGui.BackColor := "010101"
 WinSetTransColor("010101", CtrlGui)
 
 ; Reset button - Full width
-ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h30 Center BackgroundRed cWhite +0x100", "RESET")
+ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h30 Center +0x100 BackgroundRed cWhite", "RESET")
 ResetBtn.SetFont("s10 bold", "Verdana")
 
 ; Small "-" button in vertical middle on the right
-DecBtn := CtrlGui.Add("Text", "x165 y85 w30 h30 Center BackgroundBlack cWhite +0x100", "-")
+DecBtn := CtrlGui.Add("Text", "x165 y85 w30 h30 Center +0x100 BackgroundBlack cWhite", "-")
 DecBtn.SetFont("s14 bold")
 
 ; Gear icon bottom right - solid background to ensure clickability
-GearBtn := CtrlGui.Add("Text", "x170 y170 w25 h25 Center BackgroundBlue cWhite +0x100", "⚙")
+GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 BackgroundBlue cWhite", "⚙")
 GearBtn.SetFont("s15", "Segoe UI Symbol")
 
 CancelBtn := CtrlGui.Add("Button", "x5 y5 w190 h30 Hidden", "ATŠAUKTI")
@@ -175,7 +197,7 @@ CtrlGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 ResetBtn.OnEvent("Click", StartResetCountdown)
 GearBtn.OnEvent("Click", ShowSettings)
 CancelBtn.OnEvent("Click", CancelReset)
-DecBtn.OnEvent("Click", (*) => 0) ; Dummy to enable notifications for WM_LBUTTONDOWN
+DecBtn.OnEvent("Click", (*) => 0) ; Dummy to enable notifications for OnMessage
 
 OnMessage(0x0201, WM_LBUTTONDOWN)
 OnMessage(0x0202, WM_LBUTTONUP)
@@ -246,14 +268,17 @@ ShowSettings(*) {
     SettingsGui := Gui("+AlwaysOnTop", "Nustatymai")
 
     SettingsGui.Add("Text", , "COM Prievadas:")
-    comList := "COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|COM10|COM11|COM12|COM13|COM14|COM15|COM16|COM17|COM18|COM19|COM20"
-    comChoice := SettingsGui.Add("DropDownList", "vComPort w100", StrSplit(comList, "|"))
-    Loop StrSplit(comList, "|").Length {
-        if StrSplit(comList, "|")[A_Index] = COM_PORT {
-            comChoice.Choose(A_Index)
+    comPorts := GetAvailableComPorts()
+    comChoice := SettingsGui.Add("DropDownList", "vComPort w300", comPorts)
+
+    selectedIdx := 1
+    for idx, port in comPorts {
+        if InStr(port, "(" COM_PORT ")") {
+            selectedIdx := idx
             break
         }
     }
+    comChoice.Choose(selectedIdx)
 
     SettingsGui.Add("Text", , "Stebimas katalogas:")
     folderEdit := SettingsGui.Add("Edit", "w300 vFolder", Stebimas_Katalogas)
@@ -272,7 +297,11 @@ ShowSettings(*) {
     }
 
     saveBtn := SettingsGui.Add("Button", "w120 Default", "Save & Restart")
-    saveBtn.OnEvent("Click", (*) => SaveAndRestart(comChoice.Text, folderEdit.Value, lineChoice.Text))
+    saveBtn.OnEvent("Click", (*) => {
+        RegExMatch(comChoice.Text, "COM\d+", &match)
+        portName := match ? match[0] : "COM3"
+        SaveAndRestart(portName, folderEdit.Value, lineChoice.Text)
+    })
 
     SettingsGui.Show()
 }
