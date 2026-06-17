@@ -608,6 +608,7 @@
 </div>
 
 <script>
+
 /* ===================== SHARED CONFIG & GLOBALS ===================== */
 // Embedded SVG Icons
 const SVG_ICONS = {
@@ -659,8 +660,10 @@ const LINE_MAP = LINES;
 
 /* --- RESET LOGIC GLOBALS --- */
 window.resetQueue = [];
-window.resetStates = {}; // lineName -> { status: 'idle'|'waiting'|'resetting', lastAction: timestamp }
+window.resetStates = {}; // lineName -> { status: 'idle'|'waiting'|'resetting'|'countdown', lastAction: timestamp }
 window.isProcessingReset = false;
+window.resetCountdownTimers = {};
+window.resetCountdownIntervals = {};
 
 // Shared Map: "090775" -> "PLX070E"
 const PRODUCT_MAP = new Map([
@@ -907,41 +910,23 @@ const PRODUCT_MAP = new Map([
   ["UI v5", "ECU-2Rw"]
 ]);
 
-
-
 /* ===================== RESET LOGIC ===================== */
 window.updateResetUI = function(lineName) {
   const btn = document.getElementById(`btn-reset-${lineName}`);
   const rState = window.resetStates[lineName] || { status: 'idle' };
 
   if (btn) {
-    btn.classList.remove('waiting', 'resetting');
+    btn.classList.remove('waiting', 'resetting', 'countdown');
     btn.disabled = false;
 
     if (rState.status === 'waiting' || rState.status === 'resetting') {
       btn.innerText = "LAUKITE...";
       btn.classList.add(rState.status);
       btn.disabled = true;
+    } else if (rState.status === 'countdown') {
+      btn.classList.add('countdown');
     } else {
       btn.innerText = "RESET";
-      // If we just finished resetting, show 0 immediately
-      const text = document.getElementById(`val-units-text-${lineName}`);
-      if (text) text.innerText = "0";
-    }
-  }
-};
-
-  if (btn) {
-    btn.classList.remove('waiting', 'resetting');
-    btn.disabled = false;
-
-    if (rState.status === 'waiting' || rState.status === 'resetting') {
-      btn.innerText = "LAUKITE...";
-      btn.classList.add(rState.status);
-      btn.disabled = true;
-    } else {
-      btn.innerText = "RESET";
-      // If we just finished resetting, show 0 immediately
       const text = document.getElementById(`val-units-text-${lineName}`);
       if (text) text.innerText = "0";
     }
@@ -952,16 +937,41 @@ window.triggerReset = function(lineName) {
   const line = LINES.find(l => l.name === lineName);
   if (!line) return;
 
-  if (window.resetStates[lineName] && window.resetStates[lineName].status !== 'idle') return;
+  if (!window.resetStates[lineName]) window.resetStates[lineName] = { status: 'idle' };
+  const rState = window.resetStates[lineName];
 
-  window.resetStates[lineName] = { status: 'waiting', lastAction: Date.now() };
-  window.resetQueue.push(lineName);
+  if (rState.status === 'countdown') {
+      clearTimeout(window.resetCountdownTimers[lineName]);
+      if (window.resetCountdownIntervals[lineName]) clearInterval(window.resetCountdownIntervals[lineName]);
+      rState.status = 'idle';
+      window.updateResetUI(lineName);
+      return;
+  }
 
+  if (rState.status !== 'idle') return;
+
+  rState.status = 'countdown';
+  rState.deadline = Date.now() + 5000;
   window.updateResetUI(lineName);
 
-  if (!window.isProcessingReset) {
-    window.processResetQueue();
-  }
+  const updateText = () => {
+      const remaining = Math.max(0, (rState.deadline - Date.now()) / 1000);
+      const btn = document.getElementById(`btn-reset-${lineName}`);
+      if (btn) btn.innerText = `Atšaukti per ${remaining.toFixed(1)}s`;
+  };
+  updateText();
+  window.resetCountdownIntervals[lineName] = setInterval(updateText, 100);
+
+  window.resetCountdownTimers[lineName] = setTimeout(() => {
+    if (window.resetCountdownIntervals[lineName]) clearInterval(window.resetCountdownIntervals[lineName]);
+    rState.status = 'waiting';
+    rState.lastAction = Date.now();
+    window.resetQueue.push(lineName);
+    window.updateResetUI(lineName);
+    if (!window.isProcessingReset) {
+      window.processResetQueue();
+    }
+  }, 5000);
 };
 
 window.processResetQueue = async function() {
@@ -1005,10 +1015,8 @@ window.performReset = async function(line) {
 };
 
 window.pollUntilZero = async function(line) {
-
   const readKey = READ_KEYS[line.channel];
   const url = `https://api.thingspeak.com/channels/${line.channel}/fields/${line.fieldCount}/last.json?api_key=${readKey}`;
-
   const check = async () => {
     try {
       const r = await fetch(url);
@@ -1018,33 +1026,14 @@ window.pollUntilZero = async function(line) {
         window.resetStates[line.name].status = 'idle';
         window.updateResetUI(line.name);
       } else {
-        setTimeout(check, 5000); // Check every 5 seconds
+        setTimeout(check, 5000);
       }
     } catch (e) {
       setTimeout(check, 5000);
     }
   };
-
   check();
 };
-
-/* ===================== TAB LOGIC ===================== */
-function openTab(tabName) {
-  const tabs = document.getElementsByClassName("tab-pane");
-  for (let i = 0; i < tabs.length; i++) {
-    tabs[i].classList.remove("active");
-  }
-  const btns = document.getElementsByClassName("tab-btn");
-  for (let i = 0; i < btns.length; i++) {
-    // Skip theme toggle button which has class tab-btn but no specific active logic for tabs
-    if(btns[i].id !== 'themeToggle') btns[i].classList.remove("active");
-  }
-
-  document.getElementById("tab-" + tabName).classList.add("active");
-  const clickedBtn = Array.from(btns).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + tabName + "'"));
-  if(clickedBtn) clickedBtn.classList.add("active");
-}
-
 /* ===================== THEME LOGIC ===================== */
 let themeDebounce = 0;
 function toggleTheme(e) {
@@ -1645,7 +1634,7 @@ function renderVizPlaceholder(id, name, type) {
 
 (function InitVizLayout(){
   // GD lines
-  ['QRAD 1','XLE 1','XLE 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2','NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','UI perrašymas'].forEach(n => {
+  ['QRAD 1','XLE 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2','NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','UI perrašymas'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'v');
   });
 
