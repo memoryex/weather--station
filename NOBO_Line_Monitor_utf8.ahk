@@ -107,24 +107,24 @@ CtrlGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound +Owner" OverlayGui.
 CtrlGui.BackColor := "010101"
 WinSetTransColor("010101", CtrlGui)
 
-ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h40 Center +0x100 +0x200 BackgroundRed cWhite", "RESET")
-ResetBtn.SetFont("s12 bold", "Verdana")
+ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h50 Center +0x100 +0x200 BackgroundRed cWhite", "RESET")
+ResetBtn.SetFont("s14 bold", "Verdana")
 
-DecBtn := CtrlGui.Add("Text", "x160 y80 w35 h35 Center +0x100 +0x200 BackgroundBlack cWhite", "-")
-DecBtn.SetFont("s18 bold")
+DecBtn := CtrlGui.Add("Text", "x140 y70 w50 h55 Center +0x100 +0x200 Background333333 cWhite", "-")
+DecBtn.SetFont("s26 bold")
 
 GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 +0x200 BackgroundBlue cWhite", "⚙")
 GearBtn.SetFont("s15", "Segoe UI Symbol")
 
-CancelBtn := CtrlGui.Add("Button", "x5 y5 w190 h100 Hidden", "ATŠAUKTI")
+CancelBtn := CtrlGui.Add("Text", "x5 y5 w190 h135 Center +0x100 +0x200 BackgroundOrange cWhite Hidden", "")
+CancelBtn.SetFont("s11 bold", "Verdana")
 
-UpdateBtn := CtrlGui.Add("Text", "x5 y45 w190 h30 Center +0x100 +0x200 BackgroundE67E22 cWhite Hidden", "YRA NAUJA VERSIJA")
+UpdateBtn := CtrlGui.Add("Text", "x5 y55 w190 h35 Center +0x100 +0x200 BackgroundE67E22 cWhite Hidden", "ATNAUJINTI")
 UpdateBtn.SetFont("s9 bold")
 
 CtrlGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 
-; Event Handlers
-CancelBtn.OnEvent("Click", CancelCountdown)
+; Įvykių apdorojimas per pranešimus (v2 skaidriems langams patikimiau)
 OnMessage(0x0201, WM_LBUTTONDOWN)
 
 SetTimer EnsureTopMost, 500
@@ -136,17 +136,28 @@ SetTimer CheckForUpdates, -1000
 SetTimer CheckForUpdates, 60000
 
 WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
-    global ResetBtn, DecBtn, GearBtn, UpdateBtn, CountdownPending
+    global ResetBtn, DecBtn, GearBtn, UpdateBtn, CancelBtn, CountdownPending
+
+    ctrl := GuiCtrlFromHwnd(hwnd)
+    if (!ctrl)
+        return
+
+    ; Jei rodomas atšaukimo mygtukas, tikriname tik jį
+    if (CancelBtn.Visible && ctrl.Hwnd == CancelBtn.Hwnd) {
+        CancelCountdown()
+        return
+    }
+
     if (CountdownPending)
         return
 
-    if (hwnd == ResetBtn.Hwnd)
+    if (ctrl.Hwnd == ResetBtn.Hwnd)
         StartCountdown("RESET")
-    else if (hwnd == DecBtn.Hwnd)
+    else if (ctrl.Hwnd == DecBtn.Hwnd)
         StartCountdown("DEC")
-    else if (hwnd == GearBtn.Hwnd)
+    else if (ctrl.Hwnd == GearBtn.Hwnd)
         ShowSettings()
-    else if (hwnd == UpdateBtn.Hwnd && UpdateBtn.Visible)
+    else if (UpdateBtn.Visible && ctrl.Hwnd == UpdateBtn.Hwnd)
         StartUpdate()
 }
 
@@ -214,7 +225,7 @@ StartUpdate(*) {
         }
     } catch Error as e {
         MsgBox "Klaida atnaujinant: " . e.Message, "Klaida", "Iconx"
-        UpdateBtn.Value := "YRA NAUJA VERSIJA"
+        UpdateBtn.Value := "ATNAUJINTI"
     }
 }
 
@@ -356,7 +367,7 @@ ResetCountColor() {
 Nunulinti() {
     global NewFilesCount, CountText
     NewFilesCount := 0
-    CountText.Value := 0
+    CountText.Value := "0"
     SoundBeep 700, 150
     TSQueueCount(0)
 }
@@ -381,6 +392,7 @@ StartCountdown(action) {
     global ResetBtn, CancelBtn, DecBtn, CountdownPending, CountdownDeadline, CountdownAction, NewFilesCount
     if (CountdownPending)
         return
+
     if (action == "DEC" && NewFilesCount <= 0) {
         SoundBeep 300, 100
         return
@@ -393,8 +405,10 @@ StartCountdown(action) {
     CancelBtn.Visible := true
     ResetBtn.Visible := false
     DecBtn.Visible := false
+
+    UpdateCountdown() ; Atnaujinti tekstą iškart
     SetTimer UpdateCountdown, 50
-    SoundBeep 600, 100
+    SoundBeep 600, 150
 }
 UpdateCountdown() {
     global ResetBtn, CancelBtn, DecBtn, CountdownPending, CountdownDeadline, CountdownAction
@@ -418,7 +432,7 @@ UpdateCountdown() {
         return
     }
     actionText := (CountdownAction == "RESET") ? "NUNULINIMĄ" : "GAMINĮ -1"
-    CancelBtn.Text := "ATŠAUKTI " actionText " (" Format("{:0.1f}s", RemainingMs/1000) ")"
+    CancelBtn.Value := "ATŠAUKTI`n" actionText "`n(" Format("{:0.1f}s", RemainingMs/1000) ")"
 }
 CancelCountdown(*) {
     global ResetBtn, CancelBtn, DecBtn, CountdownPending
