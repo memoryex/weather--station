@@ -12,9 +12,10 @@ Global LastHttpStatus := "0"
 Global LastRawResponse := "nieko"
 Global LastCallUrl := "dar nebuvo užklausos"
 
-; Google Drive Direct Download nuorodos:
-Global UPDATE_CHECK_URL := "https://docs.google.com/uc?export=download&id=1HG_aCqHaaXuHoLNjyoW1L3qNY1UqtMgt"
-Global SCRIPT_DOWNLOAD_URL := "https://docs.google.com/uc?export=download&id=1zqCrySODTcXA29o_6aESCiuXQA3RtJUI"
+; GitHub Gist "Raw" nuorodos (Pavyzdys):
+; Jums reikia paspausti "Raw" mygtuką GitHub svetainėje ir nukopijuoti adresą čia.
+Global UPDATE_CHECK_URL := "https://gist.githubusercontent.com/Modestas/ID/raw/version.txt"
+Global SCRIPT_DOWNLOAD_URL := "https://gist.githubusercontent.com/Modestas/ID/raw/auto_skait.ahk"
 
 Global CountText := 0
 Global ResetBtn := 0
@@ -149,14 +150,12 @@ EnsureTopMost() {
 }
 
 ; =======================================================
-; UPDATE LOGIC
+; UPDATE LOGIC (Optimizuota GitHub / Raw tekstui)
 ; =======================================================
 CheckForUpdates() {
     global RemoteVersion, LastHttpStatus, LastRawResponse, LastCallUrl, UpdateBtn, CURRENT_VERSION, UPDATE_CHECK_URL
 
-    ; Debug: patvirtiname kad funkcija pasileido
     LastCallUrl := UPDATE_CHECK_URL
-
     TempFile := A_Temp "\version_check.txt"
     if FileExist(TempFile)
         FileDelete(TempFile)
@@ -166,15 +165,13 @@ CheckForUpdates() {
 
         if FileExist(TempFile) {
             Content := FileRead(TempFile, "UTF-8")
-            LastHttpStatus := "200 (Download OK)"
+            LastHttpStatus := "OK (Download)"
             LastRawResponse := SubStr(Content, 1, 200)
 
-            if (InStr(Content, "<html") || InStr(Content, "<body")) {
-                RemoteVersion := "KLAIDA: Gautas HTML"
-                return
-            }
-
+            ; GitHub gauname gryną tekstą, tad jokių HTML patikrų nereikia
+            ; Tiesiog išvalome viską išskyrus skaičius ir tašką
             RemoteVersion := Trim(RegExReplace(Content, "[^\d\.]"))
+
             if (RemoteVersion != "" && RemoteVersion != CURRENT_VERSION) {
                 UpdateBtn.Visible := true
             }
@@ -202,7 +199,8 @@ StartUpdate(*) {
 
         if FileExist(TempScript) {
             NewCode := FileRead(TempScript, "UTF-8")
-            if (InStr(NewCode, "#Requires AutoHotkey") && !InStr(NewCode, "<html")) {
+            ; Patikriname ar tai tikrai AHK kodas
+            if (InStr(NewCode, "#Requires AutoHotkey")) {
                 f := FileOpen(A_ScriptFullPath, "w", "UTF-8")
                 f.Write(NewCode)
                 f.Close()
@@ -219,7 +217,7 @@ StartUpdate(*) {
 }
 
 ; =======================================================
-; MOUSE EVENTS
+; MOUSE EVENTS (Correction button logic)
 ; =======================================================
 WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
     global DecBtn, DecStartTime, NewFilesCount
@@ -312,6 +310,10 @@ SaveAndRestart(c, f, l) {
     IniWrite(l, IniFile, "Settings", "Line")
     Reload()
 }
+
+; =======================================================
+; FAILŲ TIKRINIMAS IR PAGALBINĖS
+; =======================================================
 FormatTS() {
     return FormatTime(, "yyyy-MM-dd HH:mm:ss")
 }
