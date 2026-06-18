@@ -12,7 +12,7 @@ Global LastHttpStatus := 0
 Global LastRawResponse := "nieko"
 Global LastCallUrl := ""
 
-; Google Drive Direct Download nuorodos (iš Jūsų ID):
+; Google Drive Direct Download nuorodos (naudojame docs.google.com):
 Global UPDATE_CHECK_URL := "https://docs.google.com/uc?export=download&id=1HG_aCqHaaXuHoLNjyoW1L3qNY1UqtMgt"
 Global SCRIPT_DOWNLOAD_URL := "https://docs.google.com/uc?export=download&id=1zqCrySODTcXA29o_6aESCiuXQA3RtJUI"
 
@@ -24,7 +24,7 @@ Global GearBtn := 0
 Global UpdateBtn := 0
 
 Global NewFilesCount := 0
-Global LastFileCount := 0
+Global LastFileCount := -1
 Global g_ih := 0
 Global LogFile := ""
 Global ResetPending := false
@@ -83,7 +83,6 @@ LoadSettings() {
         TS_FIELD_BARCODE := data.Barcode
     }
 }
-
 LoadSettings()
 
 ; =======================================================
@@ -147,7 +146,7 @@ EnsureTopMost() {
 }
 
 ; =======================================================
-; UPDATE LOGIC (Robust for Google Drive)
+; UPDATE LOGIC
 ; =======================================================
 CheckForUpdates() {
     global UPDATE_CHECK_URL, CURRENT_VERSION, UpdateBtn, RemoteVersion, LastHttpStatus, LastRawResponse, LastCallUrl
@@ -168,10 +167,9 @@ CheckForUpdates() {
 
         if (whr.Status == 200) {
             if (InStr(whr.ResponseText, "<html") || InStr(whr.ResponseText, "<body")) {
-                RemoteVersion := "KLAIDA: Gautas HTML (ne failas)"
+                RemoteVersion := "KLAIDA: Gautas HTML"
                 return
             }
-
             RemoteVersion := Trim(RegExReplace(whr.ResponseText, "[^\d\.]"))
             if (RemoteVersion != "" && RemoteVersion != CURRENT_VERSION) {
                 UpdateBtn.Visible := true
@@ -186,7 +184,6 @@ StartUpdate(*) {
     global SCRIPT_DOWNLOAD_URL, UpdateBtn
     if (MsgBox("Ar norite atnaujinti programą į naują versiją?", "Atnaujinimas", 4) == "No")
         return
-
     try {
         UpdateBtn.Value := "SIUNČIAMA..."
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
@@ -194,7 +191,6 @@ StartUpdate(*) {
         whr.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         whr.Send()
         whr.WaitForResponse(30)
-
         if (whr.Status == 200) {
             NewCode := whr.ResponseText
             if (InStr(NewCode, "#Requires AutoHotkey") && !InStr(NewCode, "<html")) {
@@ -204,7 +200,7 @@ StartUpdate(*) {
                 MsgBox "Atnaujinta sėkmingai! Programa persikraus.", "Baigta", "Iconi"
                 Reload()
             } else {
-                throw Error("Parsiųstas failas neatrodo kaip teisingas kodas (gautas HTML).")
+                throw Error("Parsiųstas failas neatrodo kaip teisingas kodas.")
             }
         }
     } catch Error as e {
@@ -284,7 +280,7 @@ ShowSettings(*) {
         lineNames.Push(name)
     lineChoice := SettingsGui.Add("DropDownList", "w200", lineNames)
     Loop lineNames.Length {
-        if lineNames[A_Index] == Selected_Line {
+        if lineNames[A_Index] = Selected_Line {
             lineChoice.Choose(A_Index)
             break
         }
@@ -309,13 +305,41 @@ SaveAndRestart(c, f, l) {
 }
 
 ; =======================================================
-; FAILŲ TIKRINIMAS IR PAGALBINĖS
+; FAILŲ TIKRINIMAS IR PAGALBINĖS (PATAISYTA)
 ; =======================================================
+
+; Standard function definitions to avoid local/global ambiguity in AHK v2
+FormatTS() {
+    return FormatTime(, "yyyy-MM-dd HH:mm:ss")
+}
+
+LogAppend(line) {
+    global LogFile
+    if (LogFile == "")
+        return
+    try FileAppend(line "`r`n", LogFile, "UTF-8")
+}
+
+LogBarcode(code) {
+    LogAppend(FormatTS() " nuskanuotas barkodas ~" code "~")
+}
+
+LogCount(count) {
+    LogAppend(FormatTS() " " count " gaminys")
+}
+
 TikrintiKataloga() {
     global NewFilesCount, LastFileCount, CountText, Stebimas_Katalogas
     CurrentCount := 0
     Loop Files, Stebimas_Katalogas "\*.*"
         CurrentCount++
+
+    ; Pirmas užkrovimas - tiesiog užfiksuojame kiek yra failų dabar
+    if (LastFileCount == -1) {
+        LastFileCount := CurrentCount
+        return
+    }
+
     if (CurrentCount > LastFileCount) {
         Diff := CurrentCount - LastFileCount
         NewFilesCount += Diff
@@ -328,12 +352,20 @@ TikrintiKataloga() {
     }
     LastFileCount := CurrentCount
 }
+
 UpdateCountDisplay() {
     global NewFilesCount, CountText
     CountText.Value := NewFilesCount
     CountText.SetFont("cLime")
-    SetTimer () => CountText.SetFont("cWhite"), -350
+    ; Robust timer call
+    SetTimer ResetCountColor, -350
 }
+
+ResetCountColor() {
+    global CountText
+    CountText.SetFont("cWhite")
+}
+
 Nunulinti() {
     global NewFilesCount, CountText, ResetBtn
     NewFilesCount := 0
@@ -342,6 +374,7 @@ Nunulinti() {
     SoundBeep 700, 150
     TSQueueCount(0)
 }
+
 CheckExternalReset() {
     global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount
     if (NewFilesCount == 0)
@@ -359,6 +392,7 @@ CheckExternalReset() {
         }
     }
 }
+
 StartResetCountdown(*) {
     global ResetBtn, CancelBtn, DecBtn, ResetPending, ResetDeadline
     if (ResetPending)
@@ -370,6 +404,7 @@ StartResetCountdown(*) {
     DecBtn.Visible := false
     SetTimer UpdateResetCountdown, 50
 }
+
 UpdateResetCountdown() {
     global ResetBtn, CancelBtn, DecBtn, ResetPending, ResetDeadline
     if (!ResetPending) {
@@ -389,6 +424,7 @@ UpdateResetCountdown() {
     }
     CancelBtn.Text := "ATŠAUKTI (" Format("{:0.1f}s", RemainingMs/1000) ")"
 }
+
 CancelReset(*) {
     global ResetBtn, CancelBtn, DecBtn, ResetPending
     ResetPending := false
@@ -399,18 +435,7 @@ CancelReset(*) {
     ResetBtn.Value := "RESET"
     SoundBeep 500, 120
 }
-LogAppend(line) {
-    global LogFile
-    if (LogFile == "")
-        return
-    try FileAppend line "`r`n", LogFile, "UTF-8"
-}
-LogBarcode(code) {
-    LogAppend(FormatTS() " nuskanuotas barkodas ~" code "~")
-}
-LogCount(count) {
-    LogAppend(FormatTS() " " count " gaminys")
-}
+
 RelayPulse() {
     global COM_PORT, COM_BAUD
     hPort := DllCall("CreateFile", "Str", "\\.\" COM_PORT, "UInt", 0x40000000, "UInt", 0, "Ptr", 0, "UInt", 3, "UInt", 0, "Ptr", 0, "Ptr")
@@ -433,6 +458,7 @@ RelayPulse() {
     DllCall("WriteFile", "Ptr", hPort, "Ptr", VarOut, "UInt", 1, "Ptr", Buffer(4, 0), "Ptr", 0)
     DllCall("CloseHandle", "Ptr", hPort)
 }
+
 GetAvailableComPorts() {
     ports := []
     try {
@@ -503,4 +529,4 @@ TSFlush() {
 }
 F4::Nunulinti()
 F8::RelayPulse()
-F9::MsgBox "Dabartinė: " CURRENT_VERSION "`nNuotolinė: " RemoteVersion "`nHTTP Status: " LastHttpStatus "`nURL: " LastCallUrl "`nRaw: " LastRawResponse
+F9::MsgBox "Dabartinė: " CURRENT_VERSION "`nNuotolinė: " RemoteVersion "`nHTTP Status: " LastHttpStatus "`nRaw: " LastRawResponse "`nURL: " LastCallUrl
