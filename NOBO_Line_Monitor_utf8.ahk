@@ -6,14 +6,13 @@ CoordMode "ToolTip", "Screen"
 ; GLOBALAI (Super-global)
 ; =======================================================
 Global OverlayGui, CtrlGui, SettingsGui
-Global CURRENT_VERSION := "2.4"
+Global CURRENT_VERSION := "2.6"
 Global RemoteVersion := "laukiama..."
 Global LastHttpStatus := "0"
 Global LastRawResponse := "nieko"
 Global LastCallUrl := "dar nebuvo užklausos"
 
 ; GitHub Gist "Raw" nuorodos:
-; SVARBU: Nuoroda turi prasidėti 'gist.githubusercontent.com' ir baigtis '/raw/failo_pavadinimas'
 Global UPDATE_CHECK_URL := "https://gist.githubusercontent.com/memoryex/f364f28f1288c9229faac5d385738613/raw/version.txt"
 Global SCRIPT_DOWNLOAD_URL := "https://gist.githubusercontent.com/memoryex/f364f28f1288c9229faac5d385738613/raw/auto_skait.ahk"
 
@@ -108,27 +107,25 @@ CtrlGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound +Owner" OverlayGui.
 CtrlGui.BackColor := "010101"
 WinSetTransColor("010101", CtrlGui)
 
-ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h30 Center +0x100 BackgroundRed cWhite", "RESET")
-ResetBtn.SetFont("s10 bold", "Verdana")
+ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h40 Center +0x100 +0x200 BackgroundRed cWhite", "RESET")
+ResetBtn.SetFont("s12 bold", "Verdana")
 
-DecBtn := CtrlGui.Add("Text", "x165 y85 w30 h30 Center +0x100 BackgroundBlack cWhite", "-")
-DecBtn.SetFont("s14 bold")
+DecBtn := CtrlGui.Add("Text", "x160 y80 w35 h35 Center +0x100 +0x200 BackgroundBlack cWhite", "-")
+DecBtn.SetFont("s18 bold")
 
-GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 BackgroundBlue cWhite", "⚙")
+GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 +0x200 BackgroundBlue cWhite", "⚙")
 GearBtn.SetFont("s15", "Segoe UI Symbol")
 
-CancelBtn := CtrlGui.Add("Button", "x5 y5 w190 h30 Hidden", "ATŠAUKTI")
+CancelBtn := CtrlGui.Add("Button", "x5 y5 w190 h100 Hidden", "ATŠAUKTI")
 
-UpdateBtn := CtrlGui.Add("Text", "x5 y40 w190 h25 Center +0x100 BackgroundE67E22 cWhite Hidden", "YRA NAUJA VERSIJA")
+UpdateBtn := CtrlGui.Add("Text", "x5 y45 w190 h30 Center +0x100 +0x200 BackgroundE67E22 cWhite Hidden", "YRA NAUJA VERSIJA")
 UpdateBtn.SetFont("s9 bold")
-UpdateBtn.OnEvent("Click", StartUpdate)
 
 CtrlGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 
-ResetBtn.OnEvent("Click", (*) => StartCountdown("RESET"))
-GearBtn.OnEvent("Click", ShowSettings)
+; Event Handlers
 CancelBtn.OnEvent("Click", CancelCountdown)
-DecBtn.OnEvent("Click", (*) => StartCountdown("DEC"))
+OnMessage(0x0201, WM_LBUTTONDOWN)
 
 SetTimer EnsureTopMost, 500
 SetTimer TikrintiKataloga, 1000
@@ -137,6 +134,21 @@ SetTimer CheckExternalReset, 20000
 ; PATIKRINTI IŠKART IR TADA KAS MINUTĘ
 SetTimer CheckForUpdates, -1000
 SetTimer CheckForUpdates, 60000
+
+WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
+    global ResetBtn, DecBtn, GearBtn, UpdateBtn, CountdownPending
+    if (CountdownPending)
+        return
+
+    if (hwnd == ResetBtn.Hwnd)
+        StartCountdown("RESET")
+    else if (hwnd == DecBtn.Hwnd)
+        StartCountdown("DEC")
+    else if (hwnd == GearBtn.Hwnd)
+        ShowSettings()
+    else if (hwnd == UpdateBtn.Hwnd && UpdateBtn.Visible)
+        StartUpdate()
+}
 
 EnsureTopMost() {
     global OverlayGui, CtrlGui
@@ -164,19 +176,13 @@ CheckForUpdates() {
             Content := FileRead(TempFile, "UTF-8")
             LastHttpStatus := "OK (Download)"
             LastRawResponse := SubStr(Content, 1, 200)
-
-            ; GitHub gauname gryną tekstą, tad jokių HTML patikrų nereikia
-            ; Tiesiog išvalome viską išskyrus skaičius ir tašką
             RemoteVersion := Trim(RegExReplace(Content, "[^\d\.]"))
 
-            if (RemoteVersion != "" && RemoteVersion != CURRENT_VERSION) {
+            if (RemoteVersion != "" && VerCompare(RemoteVersion, CURRENT_VERSION) > 0) {
                 UpdateBtn.Visible := true
             } else {
                 UpdateBtn.Visible := false
             }
-        } else {
-            LastHttpStatus := "KLAIDA"
-            LastRawResponse := "Failas nerastas po atsisiuntimo"
         }
     } catch Error as e {
         LastHttpStatus := "KLAIDA (Exception)"
@@ -198,15 +204,12 @@ StartUpdate(*) {
 
         if FileExist(TempScript) {
             NewCode := FileRead(TempScript, "UTF-8")
-            ; Patikriname ar tai tikrai AHK kodas
             if (InStr(NewCode, "#Requires AutoHotkey")) {
                 f := FileOpen(A_ScriptFullPath, "w", "UTF-8")
                 f.Write(NewCode)
                 f.Close()
                 MsgBox "Atnaujinta sėkmingai! Programa persikraus.", "Baigta", "Iconi"
                 Reload()
-            } else {
-                throw Error("Parsiųstas failas neatrodo kaip teisingas kodas.`n`nTikėtina, kad naudojate ne 'Raw' nuorodą arba Gist faile nėra teksto '#Requires AutoHotkey'.")
             }
         }
     } catch Error as e {
@@ -216,7 +219,7 @@ StartUpdate(*) {
 }
 
 DoDecrement() {
-    global NewFilesCount, DecBtn
+    global NewFilesCount, CountText
     if (NewFilesCount > 0) {
         NewFilesCount -= 1
         UpdateCountDisplay()
@@ -229,6 +232,30 @@ DoDecrement() {
 ; SETTINGS GUI
 ; =======================================================
 ShowSettings(*) {
+    global SettingsGui, COM_PORT, Stebimas_Katalogas, Selected_Line
+
+    ; Slaptažodžio užklausa
+    PwdGui := Gui("+AlwaysOnTop", "Saugumas")
+    PwdGui.Add("Text", , "Įveskite nustatymų slaptažodį:")
+    pwdEdit := PwdGui.Add("Edit", "w200 Password")
+    pwdBtn := PwdGui.Add("Button", "w200 Default", "Patvirtinti")
+
+    pwdBtn.OnEvent("Click", (*) => CheckPassword())
+
+    CheckPassword() {
+        if (pwdEdit.Value == "4321") {
+            PwdGui.Destroy()
+            OpenSettings()
+        } else {
+            MsgBox "Neteisingas slaptažodis!", "Klaida", "Iconx"
+            pwdEdit.Value := ""
+        }
+    }
+
+    PwdGui.Show()
+}
+
+OpenSettings() {
     global SettingsGui, COM_PORT, Stebimas_Katalogas, Selected_Line
     SettingsGui := Gui("+AlwaysOnTop", "Nustatymai")
     SettingsGui.Add("Text", , "COM Prievadas:")
@@ -327,10 +354,9 @@ ResetCountColor() {
     CountText.SetFont("cWhite")
 }
 Nunulinti() {
-    global NewFilesCount, CountText, ResetBtn
+    global NewFilesCount, CountText
     NewFilesCount := 0
     CountText.Value := 0
-    ResetBtn.Value := "RESET"
     SoundBeep 700, 150
     TSQueueCount(0)
 }
@@ -355,8 +381,10 @@ StartCountdown(action) {
     global ResetBtn, CancelBtn, DecBtn, CountdownPending, CountdownDeadline, CountdownAction, NewFilesCount
     if (CountdownPending)
         return
-    if (action == "DEC" && NewFilesCount <= 0)
+    if (action == "DEC" && NewFilesCount <= 0) {
+        SoundBeep 300, 100
         return
+    }
 
     CountdownAction := action
     CountdownPending := true
@@ -366,6 +394,7 @@ StartCountdown(action) {
     ResetBtn.Visible := false
     DecBtn.Visible := false
     SetTimer UpdateCountdown, 50
+    SoundBeep 600, 100
 }
 UpdateCountdown() {
     global ResetBtn, CancelBtn, DecBtn, CountdownPending, CountdownDeadline, CountdownAction
