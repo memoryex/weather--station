@@ -12,7 +12,7 @@ Global LastHttpStatus := 0
 Global LastRawResponse := "nieko"
 Global LastCallUrl := ""
 
-; Naudojame docs.google.com - patikimiausias būdas tiesioginiam failo nuskaitymui
+; Google Drive Direct Download nuorodos (iš Jūsų ID):
 Global UPDATE_CHECK_URL := "https://docs.google.com/uc?export=download&id=1HG_aCqHaaXuHoLNjyoW1L3qNY1UqtMgt"
 Global SCRIPT_DOWNLOAD_URL := "https://docs.google.com/uc?export=download&id=1zqCrySODTcXA29o_6aESCiuXQA3RtJUI"
 
@@ -153,7 +153,6 @@ CheckForUpdates() {
     global UPDATE_CHECK_URL, CURRENT_VERSION, UpdateBtn, RemoteVersion, LastHttpStatus, LastRawResponse, LastCallUrl
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
-        ; Patikriname ar URL jau turi klaustuką
         Separator := InStr(UPDATE_CHECK_URL, "?") ? "&" : "?"
         LastCallUrl := UPDATE_CHECK_URL . Separator . "t=" . A_TickCount
 
@@ -168,7 +167,6 @@ CheckForUpdates() {
         LastRawResponse := SubStr(whr.ResponseText, 1, 200)
 
         if (whr.Status == 200) {
-            ; Jei gautas HTML, vadinasi tai ne grynas tekstas
             if (InStr(whr.ResponseText, "<html") || InStr(whr.ResponseText, "<body")) {
                 RemoteVersion := "KLAIDA: Gautas HTML (ne failas)"
                 return
@@ -215,7 +213,9 @@ StartUpdate(*) {
     }
 }
 
-; [MOUSE EVENTS, SETTINGS, HELPERS etc.]
+; =======================================================
+; MOUSE EVENTS
+; =======================================================
 WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
     global DecBtn, DecStartTime, NewFilesCount
     try {
@@ -255,6 +255,10 @@ DoDecrement() {
     }
     DecBtn.Value := "-"
 }
+
+; =======================================================
+; SETTINGS GUI
+; =======================================================
 ShowSettings(*) {
     global SettingsGui, COM_PORT, Stebimas_Katalogas, Selected_Line
     SettingsGui := Gui("+AlwaysOnTop", "Nustatymai")
@@ -280,7 +284,7 @@ ShowSettings(*) {
         lineNames.Push(name)
     lineChoice := SettingsGui.Add("DropDownList", "w200", lineNames)
     Loop lineNames.Length {
-        if lineNames[A_Index] = Selected_Line {
+        if lineNames[A_Index] == Selected_Line {
             lineChoice.Choose(A_Index)
             break
         }
@@ -298,59 +302,15 @@ SelectFolder() {
     return DirSelect(Stebimas_Katalogas, 3, "Pasirinkite stebimą katalogą")
 }
 SaveAndRestart(c, f, l) {
-    SaveSettings(c, f, l)
+    IniWrite(c, IniFile, "Settings", "ComPort")
+    IniWrite(f, IniFile, "Settings", "Folder")
+    IniWrite(l, IniFile, "Settings", "Line")
     Reload()
 }
-FormatTS() => FormatTime(, "yyyy-MM-dd HH:mm:ss")
-LogAppend(line) {
-    global LogFile
-    if (LogFile == "")
-        return
-    try FileAppend line "`r`n", LogFile, "UTF-8"
-}
-LogBarcode(code) {
-    LogAppend(FormatTS() " nuskanuotas barkodas ~" code "~")
-}
-LogCount(count) {
-    LogAppend(FormatTS() " " count " gaminys")
-}
-RelayPulse() {
-    global COM_PORT, COM_BAUD
-    hPort := DllCall("CreateFile", "Str", "\\.\" COM_PORT, "UInt", 0x40000000, "UInt", 0, "Ptr", 0, "UInt", 3, "UInt", 0, "Ptr", 0, "Ptr")
-    if (hPort == -1)
-        return
-    DCB := Buffer(28, 0)
-    if DllCall("GetCommState", "Ptr", hPort, "Ptr", DCB) {
-        NumPut("UInt", COM_BAUD, DCB, 4)
-        NumPut("UInt", 0x0001, DCB, 8)
-        NumPut("UChar", 8, DCB, 18)
-        NumPut("UChar", 0, DCB, 19)
-        NumPut("UChar", 0, DCB, 20)
-        DllCall("SetCommState", "Ptr", hPort, "Ptr", DCB)
-    }
-    VarOut := Buffer(1, 0)
-    NumPut("UChar", Ord("1"), VarOut, 0)
-    BytesWritten := Buffer(4, 0)
-    DllCall("WriteFile", "Ptr", hPort, "Ptr", VarOut, "UInt", 1, "Ptr", BytesWritten, "Ptr", 0)
-    Sleep 1000
-    NumPut("UChar", Ord("0"), VarOut, 0)
-    DllCall("WriteFile", "Ptr", hPort, "Ptr", VarOut, "UInt", 1, "Ptr", BytesWritten, "Ptr", 0)
-    DllCall("CloseHandle", "Ptr", hPort)
-}
-GetAvailableComPorts() {
-    ports := []
-    try {
-        colItems := ComObjGet("winmgmts:").ExecQuery("Select Name from Win32_PnPEntity where Name LIKE '%(COM%)'")
-        for objItem in colItems
-            ports.Push(objItem.Name)
-    } catch {
-    }
-    if (ports.Length == 0) {
-        Loop 20
-            ports.Push("Serial Port (COM" A_Index ")")
-    }
-    return ports
-}
+
+; =======================================================
+; FAILŲ TIKRINIMAS IR PAGALBINĖS
+; =======================================================
 TikrintiKataloga() {
     global NewFilesCount, LastFileCount, CountText, Stebimas_Katalogas
     CurrentCount := 0
@@ -439,6 +399,56 @@ CancelReset(*) {
     ResetBtn.Value := "RESET"
     SoundBeep 500, 120
 }
+LogAppend(line) {
+    global LogFile
+    if (LogFile == "")
+        return
+    try FileAppend line "`r`n", LogFile, "UTF-8"
+}
+LogBarcode(code) {
+    LogAppend(FormatTS() " nuskanuotas barkodas ~" code "~")
+}
+LogCount(count) {
+    LogAppend(FormatTS() " " count " gaminys")
+}
+RelayPulse() {
+    global COM_PORT, COM_BAUD
+    hPort := DllCall("CreateFile", "Str", "\\.\" COM_PORT, "UInt", 0x40000000, "UInt", 0, "Ptr", 0, "UInt", 3, "UInt", 0, "Ptr", 0, "Ptr")
+    if (hPort == -1)
+        return
+    DCB := Buffer(28, 0)
+    if DllCall("GetCommState", "Ptr", hPort, "Ptr", DCB) {
+        NumPut("UInt", COM_BAUD, DCB, 4)
+        NumPut("UInt", 0x0001, DCB, 8)
+        NumPut("UChar", 8, DCB, 18)
+        NumPut("UChar", 0, DCB, 19)
+        NumPut("UChar", 0, DCB, 20)
+        DllCall("SetCommState", "Ptr", hPort, "Ptr", DCB)
+    }
+    VarOut := Buffer(1, 0)
+    NumPut("UChar", Ord("1"), VarOut, 0)
+    DllCall("WriteFile", "Ptr", hPort, "Ptr", VarOut, "UInt", 1, "Ptr", Buffer(4, 0), "Ptr", 0)
+    Sleep 1000
+    NumPut("UChar", Ord("0"), VarOut, 0)
+    DllCall("WriteFile", "Ptr", hPort, "Ptr", VarOut, "UInt", 1, "Ptr", Buffer(4, 0), "Ptr", 0)
+    DllCall("CloseHandle", "Ptr", hPort)
+}
+GetAvailableComPorts() {
+    ports := []
+    try {
+        colItems := ComObjGet("winmgmts:").ExecQuery("Select Name from Win32_PnPEntity where Name LIKE '%(COM%)'")
+        for objItem in colItems
+            ports.Push(objItem.Name)
+    } catch {
+    }
+    if (ports.Length == 0) {
+        Loop 20
+            ports.Push("Serial Port (COM" A_Index ")")
+    }
+    return ports
+}
+
+; BARCODE + THINGSPEAK
 g_ih := InputHook("V T0.15", "{Enter}")
 g_ih.Start()
 SetTimer CheckBarcode, 80
@@ -493,4 +503,4 @@ TSFlush() {
 }
 F4::Nunulinti()
 F8::RelayPulse()
-F9::MsgBox "Dabartinė: " CURRENT_VERSION "`nNuotolinė: " RemoteVersion "`nHTTP Status: " LastHttpStatus "`nRaw: " LastRawResponse "`nURL: " LastCallUrl
+F9::MsgBox "Dabartinė: " CURRENT_VERSION "`nNuotolinė: " RemoteVersion "`nHTTP Status: " LastHttpStatus "`nURL: " LastCallUrl "`nRaw: " LastRawResponse
