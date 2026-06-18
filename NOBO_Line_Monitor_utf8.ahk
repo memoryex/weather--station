@@ -297,11 +297,13 @@ ShowSettings(*) {
     }
 
     saveBtn := SettingsGui.Add("Button", "w120 Default", "Save & Restart")
-    saveBtn.OnEvent("Click", (*) => {
+    saveBtn.OnEvent("Click", ProcessSave)
+
+    ProcessSave(*) {
         RegExMatch(comChoice.Text, "COM\d+", &match)
         portName := match ? match[0] : "COM3"
         SaveAndRestart(portName, folderEdit.Value, lineChoice.Text)
-    })
+    }
 
     SettingsGui.Show()
 }
