@@ -28,9 +28,9 @@ Global NewFilesCount := 0
 Global LastFileCount := -1
 Global g_ih := 0
 Global LogFile := ""
-Global ResetPending := false
-Global ResetDeadline := 0
-Global DecStartTime := 0
+Global CountdownPending := false
+Global CountdownDeadline := 0
+Global CountdownAction := ""
 
 ; Settings globals
 Global COM_PORT := "COM3"
@@ -125,13 +125,10 @@ UpdateBtn.OnEvent("Click", StartUpdate)
 
 CtrlGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 
-ResetBtn.OnEvent("Click", StartResetCountdown)
+ResetBtn.OnEvent("Click", (*) => StartCountdown("RESET"))
 GearBtn.OnEvent("Click", ShowSettings)
-CancelBtn.OnEvent("Click", CancelReset)
-DecBtn.OnEvent("Click", (*) => 0)
-
-OnMessage(0x0201, WM_LBUTTONDOWN)
-OnMessage(0x0202, WM_LBUTTONUP)
+CancelBtn.OnEvent("Click", CancelCountdown)
+DecBtn.OnEvent("Click", (*) => StartCountdown("DEC"))
 
 SetTimer EnsureTopMost, 500
 SetTimer TikrintiKataloga, 1000
@@ -218,38 +215,6 @@ StartUpdate(*) {
     }
 }
 
-; =======================================================
-; MOUSE EVENTS (Correction button logic)
-; =======================================================
-WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
-    global DecBtn, DecStartTime, NewFilesCount
-    try {
-        ctrl := GuiCtrlFromHwnd(hwnd)
-        if (ctrl && ctrl.Hwnd == DecBtn.Hwnd) {
-            if (NewFilesCount > 0) {
-                DecStartTime := A_TickCount
-                SetTimer UpdateDecCountdown, 100
-            }
-        }
-    }
-}
-WM_LBUTTONUP(wParam, lParam, msg, hwnd) {
-    global DecBtn
-    SetTimer UpdateDecCountdown, 0
-    if (DecBtn.Value != "-") {
-        DecBtn.Value := "-"
-    }
-}
-UpdateDecCountdown() {
-    global DecBtn, DecStartTime
-    Elapsed := A_TickCount - DecStartTime
-    if (Elapsed >= 2000) {
-        SetTimer UpdateDecCountdown, 0
-        DoDecrement()
-    } else {
-        DecBtn.Value := Format("{:0.1f}", (2000 - Elapsed) / 1000)
-    }
-}
 DoDecrement() {
     global NewFilesCount, DecBtn
     if (NewFilesCount > 0) {
@@ -258,7 +223,6 @@ DoDecrement() {
         TSQueueCount(NewFilesCount)
         SoundBeep 400, 100
     }
-    DecBtn.Value := "-"
 }
 
 ; =======================================================
@@ -387,44 +351,53 @@ CheckExternalReset() {
         }
     }
 }
-StartResetCountdown(*) {
-    global ResetBtn, CancelBtn, DecBtn, ResetPending, ResetDeadline
-    if (ResetPending)
+StartCountdown(action) {
+    global ResetBtn, CancelBtn, DecBtn, CountdownPending, CountdownDeadline, CountdownAction, NewFilesCount
+    if (CountdownPending)
         return
-    ResetPending := true
-    ResetDeadline := A_TickCount + 5000
+    if (action == "DEC" && NewFilesCount <= 0)
+        return
+
+    CountdownAction := action
+    CountdownPending := true
+    CountdownDeadline := A_TickCount + 5000
+
     CancelBtn.Visible := true
     ResetBtn.Visible := false
     DecBtn.Visible := false
-    SetTimer UpdateResetCountdown, 50
+    SetTimer UpdateCountdown, 50
 }
-UpdateResetCountdown() {
-    global ResetBtn, CancelBtn, DecBtn, ResetPending, ResetDeadline
-    if (!ResetPending) {
-        SetTimer UpdateResetCountdown, 0
+UpdateCountdown() {
+    global ResetBtn, CancelBtn, DecBtn, CountdownPending, CountdownDeadline, CountdownAction
+    if (!CountdownPending) {
+        SetTimer UpdateCountdown, 0
         return
     }
-    RemainingMs := ResetDeadline - A_TickCount
+    RemainingMs := CountdownDeadline - A_TickCount
     if (RemainingMs <= 0) {
-        SetTimer UpdateResetCountdown, 0
+        SetTimer UpdateCountdown, 0
         CancelBtn.Visible := false
         DecBtn.Visible := true
         ResetBtn.Visible := true
-        ResetPending := false
-        ResetBtn.Value := "RESET"
-        Nunulinti()
+        CountdownPending := false
+
+        if (CountdownAction == "RESET")
+            Nunulinti()
+        else if (CountdownAction == "DEC")
+            DoDecrement()
+
         return
     }
-    CancelBtn.Text := "ATŠAUKTI (" Format("{:0.1f}s", RemainingMs/1000) ")"
+    actionText := (CountdownAction == "RESET") ? "NUNULINIMĄ" : "GAMINĮ -1"
+    CancelBtn.Text := "ATŠAUKTI " actionText " (" Format("{:0.1f}s", RemainingMs/1000) ")"
 }
-CancelReset(*) {
-    global ResetBtn, CancelBtn, DecBtn, ResetPending
-    ResetPending := false
-    SetTimer UpdateResetCountdown, 0
+CancelCountdown(*) {
+    global ResetBtn, CancelBtn, DecBtn, CountdownPending
+    CountdownPending := false
+    SetTimer UpdateCountdown, 0
     CancelBtn.Visible := false
     DecBtn.Visible := true
     ResetBtn.Visible := true
-    ResetBtn.Value := "RESET"
     SoundBeep 500, 120
 }
 RelayPulse() {
