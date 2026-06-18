@@ -3,16 +3,16 @@ CoordMode "Mouse", "Screen"
 CoordMode "ToolTip", "Screen"
 
 ; =======================================================
-; GLOBALAI
+; GLOBALAI (Super-global)
 ; =======================================================
 Global OverlayGui, CtrlGui, SettingsGui
 Global CURRENT_VERSION := "2.3"
 Global RemoteVersion := "laukiama..."
-Global LastHttpStatus := 0
+Global LastHttpStatus := "0"
 Global LastRawResponse := "nieko"
-Global LastCallUrl := ""
+Global LastCallUrl := "dar nebuvo užklausos"
 
-; Google Drive Direct Download nuorodos (naudojame docs.google.com):
+; Google Drive Direct Download nuorodos:
 Global UPDATE_CHECK_URL := "https://docs.google.com/uc?export=download&id=1HG_aCqHaaXuHoLNjyoW1L3qNY1UqtMgt"
 Global SCRIPT_DOWNLOAD_URL := "https://docs.google.com/uc?export=download&id=1zqCrySODTcXA29o_6aESCiuXQA3RtJUI"
 
@@ -135,7 +135,10 @@ OnMessage(0x0202, WM_LBUTTONUP)
 SetTimer EnsureTopMost, 500
 SetTimer TikrintiKataloga, 1000
 SetTimer CheckExternalReset, 20000
-SetTimer CheckForUpdates, 30000
+
+; PATIKRINTI IŠKART IR TADA KAS MINUTĘ
+SetTimer CheckForUpdates, -1000
+SetTimer CheckForUpdates, 60000
 
 EnsureTopMost() {
     global OverlayGui, CtrlGui
@@ -149,34 +152,39 @@ EnsureTopMost() {
 ; UPDATE LOGIC
 ; =======================================================
 CheckForUpdates() {
-    global UPDATE_CHECK_URL, CURRENT_VERSION, UpdateBtn, RemoteVersion, LastHttpStatus, LastRawResponse, LastCallUrl
+    global RemoteVersion, LastHttpStatus, LastRawResponse, LastCallUrl, UpdateBtn, CURRENT_VERSION, UPDATE_CHECK_URL
+
+    ; Debug: patvirtiname kad funkcija pasileido
+    LastCallUrl := UPDATE_CHECK_URL
+
+    TempFile := A_Temp "\version_check.txt"
+    if FileExist(TempFile)
+        FileDelete(TempFile)
+
     try {
-        whr := ComObject("WinHttp.WinHttpRequest.5.1")
-        Separator := InStr(UPDATE_CHECK_URL, "?") ? "&" : "?"
-        LastCallUrl := UPDATE_CHECK_URL . Separator . "t=" . A_TickCount
+        Download(UPDATE_CHECK_URL, TempFile)
 
-        whr.Open("GET", LastCallUrl, true)
-        whr.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        whr.SetRequestHeader("Pragma", "no-cache")
-        whr.SetRequestHeader("Cache-Control", "no-cache")
-        whr.Send()
-        whr.WaitForResponse(10)
+        if FileExist(TempFile) {
+            Content := FileRead(TempFile, "UTF-8")
+            LastHttpStatus := "200 (Download OK)"
+            LastRawResponse := SubStr(Content, 1, 200)
 
-        LastHttpStatus := whr.Status
-        LastRawResponse := SubStr(whr.ResponseText, 1, 200)
-
-        if (whr.Status == 200) {
-            if (InStr(whr.ResponseText, "<html") || InStr(whr.ResponseText, "<body")) {
+            if (InStr(Content, "<html") || InStr(Content, "<body")) {
                 RemoteVersion := "KLAIDA: Gautas HTML"
                 return
             }
-            RemoteVersion := Trim(RegExReplace(whr.ResponseText, "[^\d\.]"))
+
+            RemoteVersion := Trim(RegExReplace(Content, "[^\d\.]"))
             if (RemoteVersion != "" && RemoteVersion != CURRENT_VERSION) {
                 UpdateBtn.Visible := true
             }
+        } else {
+            LastHttpStatus := "KLAIDA"
+            LastRawResponse := "Failas nerastas po atsisiuntimo"
         }
     } catch Error as e {
-        LastHttpStatus := "KLAIDA: " . e.Message
+        LastHttpStatus := "KLAIDA (Exception)"
+        LastRawResponse := e.Message
     }
 }
 
@@ -186,13 +194,14 @@ StartUpdate(*) {
         return
     try {
         UpdateBtn.Value := "SIUNČIAMA..."
-        whr := ComObject("WinHttp.WinHttpRequest.5.1")
-        whr.Open("GET", SCRIPT_DOWNLOAD_URL . "?t=" . A_TickCount, true)
-        whr.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        whr.Send()
-        whr.WaitForResponse(30)
-        if (whr.Status == 200) {
-            NewCode := whr.ResponseText
+        TempScript := A_Temp "\update_script.ahk"
+        if FileExist(TempScript)
+            FileDelete(TempScript)
+
+        Download(SCRIPT_DOWNLOAD_URL, TempScript)
+
+        if FileExist(TempScript) {
+            NewCode := FileRead(TempScript, "UTF-8")
             if (InStr(NewCode, "#Requires AutoHotkey") && !InStr(NewCode, "<html")) {
                 f := FileOpen(A_ScriptFullPath, "w", "UTF-8")
                 f.Write(NewCode)
@@ -303,43 +312,30 @@ SaveAndRestart(c, f, l) {
     IniWrite(l, IniFile, "Settings", "Line")
     Reload()
 }
-
-; =======================================================
-; FAILŲ TIKRINIMAS IR PAGALBINĖS (PATAISYTA)
-; =======================================================
-
-; Standard function definitions to avoid local/global ambiguity in AHK v2
 FormatTS() {
     return FormatTime(, "yyyy-MM-dd HH:mm:ss")
 }
-
 LogAppend(line) {
     global LogFile
     if (LogFile == "")
         return
     try FileAppend(line "`r`n", LogFile, "UTF-8")
 }
-
 LogBarcode(code) {
     LogAppend(FormatTS() " nuskanuotas barkodas ~" code "~")
 }
-
 LogCount(count) {
     LogAppend(FormatTS() " " count " gaminys")
 }
-
 TikrintiKataloga() {
     global NewFilesCount, LastFileCount, CountText, Stebimas_Katalogas
     CurrentCount := 0
     Loop Files, Stebimas_Katalogas "\*.*"
         CurrentCount++
-
-    ; Pirmas užkrovimas - tiesiog užfiksuojame kiek yra failų dabar
     if (LastFileCount == -1) {
         LastFileCount := CurrentCount
         return
     }
-
     if (CurrentCount > LastFileCount) {
         Diff := CurrentCount - LastFileCount
         NewFilesCount += Diff
@@ -352,20 +348,16 @@ TikrintiKataloga() {
     }
     LastFileCount := CurrentCount
 }
-
 UpdateCountDisplay() {
     global NewFilesCount, CountText
     CountText.Value := NewFilesCount
     CountText.SetFont("cLime")
-    ; Robust timer call
     SetTimer ResetCountColor, -350
 }
-
 ResetCountColor() {
     global CountText
     CountText.SetFont("cWhite")
 }
-
 Nunulinti() {
     global NewFilesCount, CountText, ResetBtn
     NewFilesCount := 0
@@ -374,7 +366,6 @@ Nunulinti() {
     SoundBeep 700, 150
     TSQueueCount(0)
 }
-
 CheckExternalReset() {
     global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount
     if (NewFilesCount == 0)
@@ -392,7 +383,6 @@ CheckExternalReset() {
         }
     }
 }
-
 StartResetCountdown(*) {
     global ResetBtn, CancelBtn, DecBtn, ResetPending, ResetDeadline
     if (ResetPending)
@@ -404,7 +394,6 @@ StartResetCountdown(*) {
     DecBtn.Visible := false
     SetTimer UpdateResetCountdown, 50
 }
-
 UpdateResetCountdown() {
     global ResetBtn, CancelBtn, DecBtn, ResetPending, ResetDeadline
     if (!ResetPending) {
@@ -424,7 +413,6 @@ UpdateResetCountdown() {
     }
     CancelBtn.Text := "ATŠAUKTI (" Format("{:0.1f}s", RemainingMs/1000) ")"
 }
-
 CancelReset(*) {
     global ResetBtn, CancelBtn, DecBtn, ResetPending
     ResetPending := false
@@ -435,7 +423,6 @@ CancelReset(*) {
     ResetBtn.Value := "RESET"
     SoundBeep 500, 120
 }
-
 RelayPulse() {
     global COM_PORT, COM_BAUD
     hPort := DllCall("CreateFile", "Str", "\\.\" COM_PORT, "UInt", 0x40000000, "UInt", 0, "Ptr", 0, "UInt", 3, "UInt", 0, "Ptr", 0, "Ptr")
@@ -458,7 +445,6 @@ RelayPulse() {
     DllCall("WriteFile", "Ptr", hPort, "Ptr", VarOut, "UInt", 1, "Ptr", Buffer(4, 0), "Ptr", 0)
     DllCall("CloseHandle", "Ptr", hPort)
 }
-
 GetAvailableComPorts() {
     ports := []
     try {
@@ -473,8 +459,6 @@ GetAvailableComPorts() {
     }
     return ports
 }
-
-; BARCODE + THINGSPEAK
 g_ih := InputHook("V T0.15", "{Enter}")
 g_ih.Start()
 SetTimer CheckBarcode, 80
@@ -529,4 +513,8 @@ TSFlush() {
 }
 F4::Nunulinti()
 F8::RelayPulse()
-F9::MsgBox "Dabartinė: " CURRENT_VERSION "`nNuotolinė: " RemoteVersion "`nHTTP Status: " LastHttpStatus "`nRaw: " LastRawResponse "`nURL: " LastCallUrl
+F9:: {
+    global
+    CheckForUpdates()
+    MsgBox "Dabartinė: " CURRENT_VERSION "`nNuotolinė: " RemoteVersion "`nHTTP Status: " LastHttpStatus "`nRaw: " LastRawResponse "`nURL: " LastCallUrl
+}
