@@ -108,16 +108,16 @@ CtrlGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound +Owner" OverlayGui.
 CtrlGui.BackColor := "010101"
 WinSetTransColor("010101", CtrlGui)
 
-ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h50 Center +0x100 +0x200 BackgroundRed cWhite", "RESET")
+ResetBtn := CtrlGui.Add("Text", "x5 y5 w190 h50 Center +0x100 +0x200 BackgroundFF0000 cWhite", "RESET")
 ResetBtn.SetFont("s14 bold", "Verdana")
 
 DecBtn := CtrlGui.Add("Text", "x140 y70 w50 h55 Center +0x100 +0x200 Background333333 cWhite", "-")
 DecBtn.SetFont("s26 bold")
 
-GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 +0x200 BackgroundBlue cWhite", "⚙")
+GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 +0x200 Background0000FF cWhite", "⚙")
 GearBtn.SetFont("s15", "Segoe UI Symbol")
 
-CancelBtn := CtrlGui.Add("Text", "x5 y5 w190 h135 Center +0x100 +0x200 BackgroundOrange cWhite Hidden", "")
+CancelBtn := CtrlGui.Add("Text", "x5 y5 w190 h135 Center +0x100 +0x200 BackgroundFF8800 cWhite Hidden", "")
 CancelBtn.SetFont("s11 bold", "Verdana")
 
 UpdateBtn := CtrlGui.Add("Text", "x5 y55 w190 h35 Center +0x100 +0x200 BackgroundE67E22 cWhite Hidden", "ATNAUJINTI")
