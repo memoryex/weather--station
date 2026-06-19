@@ -6,7 +6,7 @@ CoordMode "ToolTip", "Screen"
 ; GLOBALAI (Super-global)
 ; =======================================================
 Global OverlayGui, CtrlGui, SettingsGui
-Global CURRENT_VERSION := "2.6"
+Global CURRENT_VERSION := "2.7"
 Global RemoteVersion := "laukiama..."
 Global LastHttpStatus := "0"
 Global LastRawResponse := "nieko"
@@ -73,6 +73,7 @@ LoadSettings() {
     COM_PORT := IniRead(IniFile, "Settings", "ComPort", "COM3")
     Stebimas_Katalogas := IniRead(IniFile, "Settings", "Folder", A_Desktop)
     Selected_Line := IniRead(IniFile, "Settings", "Line", "XLE 1")
+    NewFilesCount := IniRead(IniFile, "State", Selected_Line "_Count", 0)
 
     if LineMap.Has(Selected_Line) {
         data := LineMap[Selected_Line]
@@ -95,7 +96,7 @@ Start_Y := 800
 OverlayGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound +E0x20")
 OverlayGui.BackColor := "Blue"
 OverlayGui.SetFont("s65 bold cWhite", "Arial")
-CountText := OverlayGui.Add("Text", "x0 y50 w" Lango_Dydis " h120 Center", "0")
+CountText := OverlayGui.Add("Text", "x0 y50 w" Lango_Dydis " h120 Center", NewFilesCount)
 
 OverlayGui.SetFont("s10 italic cD4AF37", "Arial")
 OverlayGui.Add("Text", "x5 y175 w50 h20 BackgroundTrans", "v" CURRENT_VERSION)
@@ -229,12 +230,18 @@ StartUpdate(*) {
     }
 }
 
+SaveState() {
+    global Selected_Line, NewFilesCount, IniFile
+    IniWrite(NewFilesCount, IniFile, "State", Selected_Line "_Count")
+}
+
 DoDecrement() {
     global NewFilesCount, CountText
     if (NewFilesCount > 0) {
         NewFilesCount -= 1
         UpdateCountDisplay()
         TSQueueCount(NewFilesCount)
+        SaveState()
         SoundBeep 400, 100
     }
 }
@@ -351,6 +358,7 @@ TikrintiKataloga() {
         UpdateCountDisplay()
         LogCount(NewFilesCount)
         TSQueueCount(NewFilesCount)
+        SaveState()
     }
     LastFileCount := CurrentCount
 }
@@ -368,8 +376,9 @@ Nunulinti() {
     global NewFilesCount, CountText
     NewFilesCount := 0
     CountText.Value := "0"
-    SoundBeep 700, 150
     TSQueueCount(0)
+    SaveState()
+    SoundBeep 700, 150
 }
 CheckExternalReset() {
     global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount
