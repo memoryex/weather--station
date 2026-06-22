@@ -122,8 +122,8 @@ InfoBtn.SetFont("s15 bold italic", "Times New Roman")
 GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 +0x200 Background0000FF cWhite", "⚙")
 GearBtn.SetFont("s15", "Segoe UI Symbol")
 
-CancelBtn := CtrlGui.Add("Text", "x5 y5 w190 h135 Center +0x100 +0x200 BackgroundFF8800 cWhite Hidden", "")
-CancelBtn.SetFont("s11 bold", "Verdana")
+CancelBtn := CtrlGui.Add("Text", "x5 y5 w190 h80 Center +0x100 +0x200 BackgroundFF8800 cWhite Hidden", "")
+CancelBtn.SetFont("s10 bold", "Verdana")
 
 UpdateBtn := CtrlGui.Add("Text", "x5 y55 w190 h35 Center +0x100 +0x200 BackgroundE67E22 cWhite Hidden", "YRA NAUJA VERSIJA")
 UpdateBtn.SetFont("s9 bold")
