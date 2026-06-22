@@ -123,7 +123,7 @@ GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 +0x200 Backgroun
 GearBtn.SetFont("s15", "Segoe UI Symbol")
 
 CancelBtn := CtrlGui.Add("Text", "x5 y5 w190 h80 Center +0x100 +0x200 BackgroundFF8800 cWhite Hidden", "")
-CancelBtn.SetFont("s10 bold", "Verdana")
+CancelBtn.SetFont("s8 bold", "Verdana")
 
 UpdateBtn := CtrlGui.Add("Text", "x5 y55 w190 h35 Center +0x100 +0x200 BackgroundE67E22 cWhite Hidden", "YRA NAUJA VERSIJA")
 UpdateBtn.SetFont("s9 bold")
@@ -488,7 +488,7 @@ UpdateCountdown() {
 
         return
     }
-    actionText := (CountdownAction == "RESET") ? "NUNULINIMĄ" : "GAMINĮ -1"
+    actionText := (CountdownAction == "RESET") ? " RESET" : "GAMINĮ -1"
     CancelBtn.Value := "ATŠAUKTI`n" actionText "`n(" Format("{:0.1f}s", RemainingMs/1000) ")"
 }
 CancelCountdown(*) {
