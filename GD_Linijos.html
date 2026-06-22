@@ -256,13 +256,35 @@
     cursor: not-allowed;
     background: #333;
   }
-  .reset-btn.waiting {
+  .reset-btn.waiting, .dec-btn.waiting {
     background: #ffa726;
     border-color: #ffa726;
   }
-  .reset-btn.resetting {
+  .reset-btn.resetting, .dec-btn.resetting, .reset-btn.updating, .dec-btn.updating {
     background: #d32f2f;
     border-color: #d32f2f;
+  }
+
+  .dec-btn {
+    padding: 4px 8px;
+    font-size: 14px;
+    margin-left: 4px;
+    background: #444;
+    border: 1px solid #666;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    transition: 0.2s;
+    font-weight: bold;
+    vertical-align: middle;
+  }
+  .dec-btn:hover:not(:disabled) {
+    background: #666;
+    border-color: #888;
+  }
+  .dec-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
       /* ADAX Arrow Animation */
@@ -659,10 +681,10 @@ const LINES = [
 // Alias for Status code compatibility
 const LINE_MAP = LINES;
 
-/* --- RESET LOGIC GLOBALS --- */
-window.resetQueue = [];
-window.resetStates = {}; // lineName -> { status: 'idle'|'waiting'|'resetting', lastAction: timestamp }
-window.isProcessingReset = false;
+/* --- ACTION LOGIC GLOBALS --- */
+window.actionQueue = [];
+window.actionStates = {}; // lineName -> { status: 'idle'|'waiting'|'updating', lastAction: timestamp }
+window.isProcessingAction = false;
 
 // Shared Map: "090775" -> "PLX070E"
 const PRODUCT_MAP = new Map([
@@ -925,86 +947,99 @@ function openTab(tabName) {
   if(clickedBtn) clickedBtn.classList.add("active");
 }
 
-/* ===================== RESET LOGIC ===================== */
-window.updateResetUI = function(lineName) {
-  const btn = document.getElementById(`btn-reset-${lineName}`);
-  const rState = window.resetStates[lineName] || { status: 'idle' };
+/* ===================== ACTION LOGIC (RESET & DEC) ===================== */
+window.updateActionUI = function(lineName) {
+  const btnReset = document.getElementById(`btn-reset-${lineName}`);
+  const btnDec = document.getElementById(`btn-dec-${lineName}`);
+  const aState = window.actionStates[lineName] || { status: 'idle' };
 
-  if (btn) {
-    btn.classList.remove('waiting', 'resetting');
-    btn.disabled = false;
+  [btnReset, btnDec].forEach(btn => {
+    if (btn) {
+      btn.classList.remove('waiting', 'resetting', 'updating');
+      btn.disabled = false;
 
-    if (rState.status === 'waiting' || rState.status === 'resetting') {
-      btn.innerText = "LAUKITE...";
-      btn.classList.add(rState.status);
-      btn.disabled = true;
-    } else {
-      btn.innerText = "RESET";
-      const text = document.getElementById(`val-units-text-${lineName}`);
-      if (text) text.innerText = "0";
+      if (aState.status === 'waiting' || aState.status === 'resetting' || aState.status === 'updating') {
+        if (btn.id.includes('reset')) btn.innerText = "LAUKITE...";
+        else btn.innerText = "...";
+        btn.classList.add(aState.status);
+        btn.disabled = true;
+      } else {
+        if (btn.id.includes('reset')) btn.innerText = "RESET";
+        else btn.innerText = "-";
+      }
     }
-  }
+  });
 };
 
 window.triggerReset = function(lineName) {
+  window.queueAction(lineName, 0);
+};
+
+window.triggerDecrement = function(lineName, currentVal) {
+  const target = Math.max(0, currentVal - 1);
+  window.queueAction(lineName, target);
+};
+
+window.queueAction = function(lineName, targetValue) {
   const line = LINES.find(l => l.name === lineName);
   if (!line) return;
 
-  if (!window.resetStates[lineName]) window.resetStates[lineName] = { status: 'idle' };
-  const rState = window.resetStates[lineName];
+  if (!window.actionStates[lineName]) window.actionStates[lineName] = { status: 'idle' };
+  const aState = window.actionStates[lineName];
 
-  if (rState.status !== 'idle') return;
+  if (aState.status !== 'idle') return;
 
-  rState.status = 'waiting';
-  rState.lastAction = Date.now();
-  window.resetQueue.push(lineName);
-  window.updateResetUI(lineName);
-  if (!window.isProcessingReset) {
-    window.processResetQueue();
+  aState.status = 'waiting';
+  aState.lastAction = Date.now();
+  window.actionQueue.push({ lineName, targetValue });
+  window.updateActionUI(lineName);
+
+  if (!window.isProcessingAction) {
+    window.processActionQueue();
   }
 };
 
-window.processResetQueue = async function() {
-  if (window.resetQueue.length === 0) {
-    window.isProcessingReset = false;
+window.processActionQueue = async function() {
+  if (window.actionQueue.length === 0) {
+    window.isProcessingAction = false;
     return;
   }
 
-  window.isProcessingReset = true;
-  const lineName = window.resetQueue.shift();
-  const line = LINES.find(l => l.name === lineName);
+  window.isProcessingAction = true;
+  const action = window.actionQueue.shift();
+  const line = LINES.find(l => l.name === action.lineName);
 
   if (line) {
-    window.resetStates[lineName].status = 'resetting';
-    window.updateResetUI(lineName);
+    window.actionStates[action.lineName].status = 'updating';
+    window.updateActionUI(action.lineName);
 
-    const success = await window.performReset(line);
+    const success = await window.performUpdate(line, action.targetValue);
     if (success) {
-      window.pollUntilZero(line);
+      window.pollUntilValue(line, action.targetValue);
     } else {
-      window.resetStates[lineName].status = 'idle';
-      window.updateResetUI(lineName);
+      window.actionStates[action.lineName].status = 'idle';
+      window.updateActionUI(action.lineName);
     }
   }
 
-  setTimeout(window.processResetQueue, 15500);
+  setTimeout(window.processActionQueue, 15500);
 };
 
-window.performReset = async function(line) {
+window.performUpdate = async function(line, value) {
   const writeKey = WRITE_KEYS[line.channel];
   if (!writeKey) return false;
 
-  const url = `https://api.thingspeak.com/update?api_key=${writeKey}&field${line.fieldCount}=0`;
+  const url = `https://api.thingspeak.com/update?api_key=${writeKey}&field${line.fieldCount}=${value}`;
   try {
     const r = await fetch(url, { method: 'POST' });
     return r.ok;
   } catch (e) {
-    console.error("Reset failed for " + line.name, e);
+    console.error("Update failed for " + line.name, e);
     return false;
   }
 };
 
-window.pollUntilZero = async function(line) {
+window.pollUntilValue = async function(line, targetValue) {
   const readKey = READ_KEYS[line.channel];
   const url = `https://api.thingspeak.com/channels/${line.channel}/fields/${line.fieldCount}/last.json?api_key=${readKey}`;
   const check = async () => {
@@ -1012,9 +1047,9 @@ window.pollUntilZero = async function(line) {
       const r = await fetch(url);
       const data = await r.json();
       const val = parseFloat(data[`field${line.fieldCount}`]);
-      if (val === 0) {
-        window.resetStates[line.name].status = 'idle';
-        window.updateResetUI(line.name);
+      if (val === targetValue) {
+        window.actionStates[line.name].status = 'idle';
+        window.updateActionUI(line.name);
       } else {
         setTimeout(check, 5000);
       }
@@ -2220,18 +2255,23 @@ function renderVizPlaceholder(id, name, type) {
                                `<span>Gr. 3: ${r.adaxGroups.g3} (${r.adaxGroups.pG3}%)</span>` +
                                `</div>`;
                         } else if (r.L.apiType === 'TS') {
-                const rState = window.resetStates[r.L.name] || { status: 'idle' };
+                const aState = window.actionStates[r.L.name] || { status: 'idle' };
                 let btnTxt = "RESET";
                 let btnCls = "reset-btn";
+                let decTxt = "-";
+                let decCls = "dec-btn";
                 let disabled = "";
 
-                if (rState.status === 'waiting' || rState.status === 'resetting') {
+                if (aState.status === 'waiting' || aState.status === 'resetting' || aState.status === 'updating') {
                   btnTxt = "LAUKITE...";
-                  btnCls += " " + rState.status;
+                  decTxt = "...";
+                  btnCls += " " + aState.status;
+                  decCls += " " + aState.status;
                   disabled = "disabled";
                 }
 
                 unitsDisplay += `<button id="btn-reset-${r.L.name}" class="${btnCls}" onclick="triggerReset('${r.L.name}')" ${disabled}>${btnTxt}</button>`;
+                unitsDisplay += `<button id="btn-dec-${r.L.name}" class="${decCls}" onclick="triggerDecrement('${r.L.name}', ${r.countValNum})" ${disabled}>${decTxt}</button>`;
             }
 
             html += `
