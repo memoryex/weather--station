@@ -6,7 +6,7 @@ CoordMode "ToolTip", "Screen"
 ; GLOBALAI (Super-global)
 ; =======================================================
 Global OverlayGui, CtrlGui, SettingsGui
-Global CURRENT_VERSION := "2.7"
+Global CURRENT_VERSION := "2.4"
 Global RemoteVersion := "laukiama..."
 Global LastHttpStatus := "0"
 Global LastRawResponse := "nieko"
@@ -20,6 +20,7 @@ Global CountText := 0
 Global ResetBtn := 0
 Global CancelBtn := 0
 Global DecBtn := 0
+Global InfoBtn := 0
 Global GearBtn := 0
 Global UpdateBtn := 0
 
@@ -74,6 +75,8 @@ LoadSettings() {
     Stebimas_Katalogas := IniRead(IniFile, "Settings", "Folder", A_Desktop)
     Selected_Line := IniRead(IniFile, "Settings", "Line", "XLE 1")
     NewFilesCount := IniRead(IniFile, "State", Selected_Line "_Count", 0)
+    global Start_X := IniRead(IniFile, "Settings", "PosX", 420)
+    global Start_Y := IniRead(IniFile, "Settings", "PosY", 800)
 
     if LineMap.Has(Selected_Line) {
         data := LineMap[Selected_Line]
@@ -90,8 +93,7 @@ LoadSettings()
 ; GUI SETUP
 ; =======================================================
 Lango_Dydis := 200
-Start_X := 420
-Start_Y := 800
+; Start_X ir Start_Y užkraunami iš LoadSettings()
 
 OverlayGui := Gui("+AlwaysOnTop +ToolWindow -Caption +LastFound +E0x20")
 OverlayGui.BackColor := "Blue"
@@ -114,13 +116,16 @@ ResetBtn.SetFont("s14 bold", "Verdana")
 DecBtn := CtrlGui.Add("Text", "x140 y70 w50 h55 Center +0x100 +0x200 Background333333 cWhite Hidden", "-")
 DecBtn.SetFont("s26 bold")
 
+InfoBtn := CtrlGui.Add("Text", "x130 y165 w30 h30 Center +0x100 +0x200 Background0000FF cWhite", "i")
+InfoBtn.SetFont("s15 bold italic", "Times New Roman")
+
 GearBtn := CtrlGui.Add("Text", "x165 y165 w30 h30 Center +0x100 +0x200 Background0000FF cWhite", "⚙")
 GearBtn.SetFont("s15", "Segoe UI Symbol")
 
 CancelBtn := CtrlGui.Add("Text", "x5 y5 w190 h135 Center +0x100 +0x200 BackgroundFF8800 cWhite Hidden", "")
 CancelBtn.SetFont("s11 bold", "Verdana")
 
-UpdateBtn := CtrlGui.Add("Text", "x5 y55 w190 h35 Center +0x100 +0x200 BackgroundE67E22 cWhite Hidden", "ATNAUJINTI")
+UpdateBtn := CtrlGui.Add("Text", "x5 y55 w190 h35 Center +0x100 +0x200 BackgroundE67E22 cWhite Hidden", "YRA NAUJA VERSIJA")
 UpdateBtn.SetFont("s9 bold")
 
 CtrlGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
@@ -156,6 +161,8 @@ WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
         StartCountdown("RESET")
     else if (DecBtn.Visible && ctrl.Hwnd == DecBtn.Hwnd)
         StartCountdown("DEC")
+    else if (ctrl.Hwnd == InfoBtn.Hwnd)
+        ShowInfo()
     else if (ctrl.Hwnd == GearBtn.Hwnd)
         ShowSettings()
     else if (UpdateBtn.Visible && ctrl.Hwnd == UpdateBtn.Hwnd)
@@ -215,18 +222,29 @@ StartUpdate(*) {
         Download(SCRIPT_DOWNLOAD_URL, TempScript)
 
         if FileExist(TempScript) {
-            NewCode := FileRead(TempScript, "UTF-8")
-            if (InStr(NewCode, "#Requires AutoHotkey")) {
-                f := FileOpen(A_ScriptFullPath, "w", "UTF-8")
-                f.Write(NewCode)
-                f.Close()
-                MsgBox "Atnaujinta sėkmingai! Programa persikraus.", "Baigta", "Iconi"
-                Reload()
-            }
+            ; Naudojame bat failą kad pakeistume veikiantį EXE/AHK
+            BatFile := A_Temp "\update_nobo.bat"
+            if FileExist(BatFile)
+                FileDelete(BatFile)
+
+            ; Sukuriame komandų failą kuris palauks kol išsijungsime, pakeis failą ir paleis iš naujo
+            BatchContent := '
+            (
+            @echo off
+            timeout /t 2 /nobreak > nul
+            move /y "{1}" "{2}"
+            start "" "{2}"
+            del "%~f0"
+            )'
+            BatchContent := Format(BatchContent, TempScript, A_ScriptFullPath)
+
+            FileAppend(BatchContent, BatFile, "CP0")
+            Run(BatFile, , "Hide")
+            ExitApp()
         }
     } catch Error as e {
         MsgBox "Klaida atnaujinant: " . e.Message, "Klaida", "Iconx"
-        UpdateBtn.Value := "ATNAUJINTI"
+        UpdateBtn.Value := "YRA NAUJA VERSIJA"
     }
 }
 
@@ -273,8 +291,24 @@ ShowSettings(*) {
     PwdGui.Show()
 }
 
+ShowInfo(*) {
+    global Stebimas_Katalogas
+    total := 0
+    oldest := ""
+    Loop Files, Stebimas_Katalogas "\*.*" {
+        total++
+        try {
+            ctime := FileGetTime(A_LoopFileFullPath, "C")
+            if (oldest == "" || ctime < oldest)
+                oldest := ctime
+        }
+    }
+    dateStr := (oldest == "") ? "nėra failų" : FormatTime(oldest, "yyyy-MM-dd HH:MM:ss")
+    MsgBox("Viso gaminiu pagaminta: " total "`nLinija paleista nuo: " dateStr, "Informacija", "Iconi")
+}
+
 OpenSettings() {
-    global SettingsGui, COM_PORT, Stebimas_Katalogas, Selected_Line
+    global SettingsGui, COM_PORT, Stebimas_Katalogas, Selected_Line, Start_X, Start_Y
     SettingsGui := Gui("+AlwaysOnTop", "Nustatymai")
     SettingsGui.Add("Text", , "COM Prievadas:")
     comPorts := GetAvailableComPorts()
@@ -303,22 +337,29 @@ OpenSettings() {
             break
         }
     }
-    saveBtn := SettingsGui.Add("Button", "w120 Default", "Save & Restart")
+
+    SettingsGui.Add("Text", "xm", "Lango kordinatės (X ir Y):")
+    editX := SettingsGui.Add("Edit", "w60", Start_X)
+    editY := SettingsGui.Add("Edit", "x+5 w60", Start_Y)
+
+    saveBtn := SettingsGui.Add("Button", "xm w120 Default", "Save & Restart")
     saveBtn.OnEvent("Click", ProcessSave)
     ProcessSave(*) {
         RegExMatch(comChoice.Text, "COM\d+", &match)
         portName := match ? match[0] : "COM3"
-        SaveAndRestart(portName, folderEdit.Value, lineChoice.Text)
+        SaveAndRestart(portName, folderEdit.Value, lineChoice.Text, editX.Value, editY.Value)
     }
     SettingsGui.Show()
 }
 SelectFolder() {
     return DirSelect(Stebimas_Katalogas, 3, "Pasirinkite stebimą katalogą")
 }
-SaveAndRestart(c, f, l) {
+SaveAndRestart(c, f, l, x, y) {
     IniWrite(c, IniFile, "Settings", "ComPort")
     IniWrite(f, IniFile, "Settings", "Folder")
     IniWrite(l, IniFile, "Settings", "Line")
+    IniWrite(x, IniFile, "Settings", "PosX")
+    IniWrite(y, IniFile, "Settings", "PosY")
     Reload()
 }
 
