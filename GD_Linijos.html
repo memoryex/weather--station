@@ -1050,6 +1050,7 @@ window.pollUntilValue = async function(line, targetValue) {
       if (val === targetValue) {
         window.actionStates[line.name].status = 'idle';
         window.updateActionUI(line.name);
+        window.refresh(); // Iškart atnaujiname dashboardą
       } else {
         setTimeout(check, 5000);
       }

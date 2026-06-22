@@ -130,7 +130,7 @@ OnMessage(0x0201, WM_LBUTTONDOWN)
 
 SetTimer EnsureTopMost, 500
 SetTimer TikrintiKataloga, 1000
-SetTimer CheckExternalReset, 20000
+SetTimer CheckExternalUpdate, 10000
 
 ; PATIKRINTI IŠKART IR TADA KAS MINUTĘ
 SetTimer CheckForUpdates, -1000
@@ -380,19 +380,26 @@ Nunulinti() {
     SaveState()
     SoundBeep 700, 150
 }
-CheckExternalReset() {
-    global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount
-    if (NewFilesCount == 0)
+CheckExternalUpdate() {
+    global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount, TS_PENDING
+    ; Jei turime neissiustu vietiniu atnaujinimu, laukiame
+    if (TS_PENDING.Has(TS_FIELD_COUNT))
         return
+
     url := "https://api.thingspeak.com/channels/" . TS_CHANNEL_ID . "/fields/" . SubStr(TS_FIELD_COUNT, 6) . "/last.json?api_key=" . TS_READ_KEY
     req := ComObject("WinHttp.WinHttpRequest.5.1")
     try {
         req.Open("GET", url, false)
         req.Send()
         if (req.Status = 200) {
-            if (RegExMatch(req.ResponseText, '"' . TS_FIELD_COUNT . '":"0"')) {
-                LogAppend(FormatTS() " aptiktas išorinis RESET per ThingSpeak")
-                Nunulinti()
+            if (RegExMatch(req.ResponseText, '"' . TS_FIELD_COUNT . '":"(\d+)"', &match)) {
+                val := Integer(match[1])
+                if (val != NewFilesCount) {
+                    LogAppend(FormatTS() " aptiktas išorinis kiekio pasikeitimas (" NewFilesCount " -> " val ")")
+                    NewFilesCount := val
+                    UpdateCountDisplay()
+                    SaveState()
+                }
             }
         }
     }
