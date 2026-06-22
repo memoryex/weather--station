@@ -14,7 +14,7 @@ Global LastCallUrl := "dar nebuvo užklausos"
 
 ; GitHub Gist "Raw" nuorodos:
 Global UPDATE_CHECK_URL := "https://gist.githubusercontent.com/memoryex/f364f28f1288c9229faac5d385738613/raw/version.txt"
-Global SCRIPT_DOWNLOAD_URL := "https://gist.githubusercontent.com/memoryex/f364f28f1288c9229faac5d385738613/raw/auto_skait.ahk"
+Global SCRIPT_DOWNLOAD_URL := "https://gist.githubusercontent.com/memoryex/f364f28f1288c9229faac5d385738613/raw/auto_skait" . (A_IsCompiled ? ".exe" : ".ahk")
 
 Global CountText := 0
 Global ResetBtn := 0
@@ -215,7 +215,7 @@ StartUpdate(*) {
         return
     try {
         UpdateBtn.Value := "SIUNČIAMA..."
-        TempScript := A_Temp "\update_script.ahk"
+        TempScript := A_Temp "\update_nobo_new" . (A_IsCompiled ? ".exe" : ".ahk")
         if FileExist(TempScript)
             FileDelete(TempScript)
 
@@ -477,7 +477,7 @@ UpdateCountdown() {
     if (RemainingMs <= 0) {
         SetTimer UpdateCountdown, 0
         CancelBtn.Visible := false
-        DecBtn.Visible := true
+        DecBtn.Visible := false
         ResetBtn.Visible := true
         CountdownPending := false
 
@@ -496,7 +496,7 @@ CancelCountdown(*) {
     CountdownPending := false
     SetTimer UpdateCountdown, 0
     CancelBtn.Visible := false
-    DecBtn.Visible := true
+    DecBtn.Visible := false
     ResetBtn.Visible := true
     SoundBeep 500, 120
 }
