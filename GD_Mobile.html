@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏭</text></svg>">
+<title>GD Mobilus - Statusas</title>
+<style>
+  :root {
+    --bg-body: #121212;
+    --text-main: #e5e5e5;
+    --text-muted: #bbb;
+    --bg-card: #1a1a1a;
+    --border-color: #333;
+    --accent-color: #0d6efd;
+    --good: #00d67a;
+    --warn: #ffa726;
+    --bad: #ff5252;
+  }
+
+  body {
+    background: var(--bg-body);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 10px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1 { font-size: 20px; text-align: center; margin: 10px 0; }
+
+  #summaryBox { text-align: center; font-size: 16px; color: #4fc3f7; margin-bottom: 5px; }
+  #timerBox { text-align: center; font-size: 14px; color: var(--text-muted); margin-bottom: 15px; }
+
+  .filter-bar {
+    display: flex; justify-content: center; margin-bottom: 15px;
+  }
+  .report-select {
+    padding: 10px; background: #1c1c1c; border: 1px solid #444; color: #fff; border-radius: 8px; width: 100%; max-width: 200px;
+  }
+
+  .line-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .line-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+  }
+  .line-name { font-size: 18px; font-weight: bold; }
+  .line-status { font-size: 12px; font-weight: bold; text-transform: uppercase; }
+  .status-online { color: var(--good); }
+  .status-offline { color: var(--bad); }
+
+  .line-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; }
+  .label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
+  .value { font-weight: 500; }
+
+  .product-name { color: #4fc3f7; font-weight: bold; grid-column: span 2; margin-top: 4px; }
+
+  .controls {
+    display: flex; gap: 10px; margin-top: 10px;
+  }
+  .btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: opacity 0.2s;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-reset { background: #444; border: 1px solid #666; }
+  .btn-dec { background: #444; border: 1px solid #666; font-size: 20px; }
+
+  .btn.waiting { background: var(--warn); }
+  .btn.updating { background: var(--bad); }
+
+  .adax-groups {
+    grid-column: span 2;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: rgba(0,0,0,0.2);
+    padding: 5px;
+    border-radius: 4px;
+    text-align: center;
+  }
+
+  .loading { text-align: center; padding: 40px; color: var(--text-muted); }
+
+  .separator {
+    text-align: center;
+    background: #333;
+    padding: 5px;
+    margin: 20px -10px 10px -10px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<h1>GD Mobilus Dashboard</h1>
+<div id="summaryBox">Pagaminta šiandien: ...</div>
+<div id="timerBox">Atnaujinimas po: ...</div>
+
+<div class="filter-bar">
+  <select id="sortBy" class="report-select">
+    <option value="default">Visi</option>
+    <option value="active">Tik aktyvios</option>
+    <option value="inactive">Tik neaktyvios</option>
+  </select>
+</div>
+
+<div id="data-container">
+  <div class="loading">Kraunama...</div>
+</div>
+
+<script>
+/* --- CONFIG --- */
+const READ_KEYS = {
+  463450: "VAL3TD2W5LADX7K1",
+  703669: "S44OBKWC5C7FODZ5",
+  802414: "I6NIZAVZYLPVV1ME",
+  807602: "WUO1DG7GXYNZP6SG"
+};
+const WRITE_KEYS = {
+  463450: "9RO3MUI3LNTMQ0WO",
+  703669: "XPIME2EC8RKX9JO3",
+  802414: "DNPJZCU9G6NJD0VF",
+  807602: "O7IB88R7L2ELXR3Q"
+};
+const LINES = [
+  { name:"QRAD 1", channel:807602, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"XLE 1",  channel:807602, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"PLXE 1", channel:463450, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"PLXE 2", channel:463450, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"PLXE 3", channel:463450, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"PLXE 4", channel:463450, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"NOBO 1", channel:703669, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"NOBO 2", channel:703669, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"NOBO 3", channel:703669, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"NOBO 4", channel:703669, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"NOBO 5", channel:802414, fieldCount:1, fieldBarcode:2, apiType: "TS" },
+  { name:"NOBO 6", channel:802414, fieldCount:3, fieldBarcode:4, apiType: "TS" },
+  { name:"NOBO 7", channel:802414, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"PLXE 5", channel:802414, fieldCount:7, fieldBarcode:8, apiType: "TS" },
+  { name:"ADAX 1", lid: 1, apiType: "ADAX" },
+  { name:"ADAX 2", lid: 2, apiType: "ADAX" },
+  { name:"ADAX 3", lid: 3, apiType: "ADAX" },
+  { name:"ADAX 4", lid: 4, apiType: "ADAX" },
+  { name:"ADAX 6", lid: 6, apiType: "ADAX" },
+  { name:"ADAX 7", lid: 7, apiType: "ADAX" },
+  { name:"UI perrašymas",   channel:807602, fieldCount:1, fieldBarcode:null, apiType: "TS" }
+];
+
+const PRODUCT_MAP = new Map([
+  ["5", "ECU-2Rw"],
+  ["80752", "NLSH070 0.70kW Newlec Storage Htr"],
+  ["80769", "NLSH125 1.25kW Newlec Storage Htr"],
+  ["80776", "NLSH150 1.50kW Newlec Storage Htr"],
+  ["80905", "XLE050 0.50kW Dimplex (Case Only)"],
+  ["80912", "XLE070 0.70kW Dimplex (Case Only)"],
+  ["80929", "XLE125 1.25kW Dimplex (Case Only)"],
+  ["80936", "XLE150 1.50kW Dimplex (Case Only)"],
+  ["80998", "XLE100 1.00kW Dimplex (Case Only)"],
+  ["81087", "NLSH100 1.00kW Newlec Storage Htr"],
+  ["81094", "NLSH050 0.50kW Newlec Storage Htr"],
+  ["81353", "QRAD050RF 500W Quantum Electric Rad"],
+  ["81360", "QRAD075RF 750W Quantum Electric Rad"],
+  ["81377", "QRAD100RF 1000W Quantum Electric Rad"],
+  ["81384", "QRAD150RF 1500W Quantum Electric Rad"],
+  ["81391", "QRAD200RF 2000W Quantum Electric Rad"],
+  ["90355", "HSDP1000 1.0kw Heatstore Inteli Pnl"],
+  ["90362", "HSDP1500 1.5kw Heatstore Inteli Pnl"],
+  ["90379", "HSDP2000 2.0kw Heatstore Inteli Pnl"],
+  ["90386", "HSDP3000 3.0kw Heatstore Inteli Pnl"],
+  ["90393", "HSDP750 0.75kw Heatstore Inteli Pnl"],
+  ["90713", "PLX100E 1.0kw Dimplex Panel Heater"],
+  ["90720", "PLX125E 1.25kw Dimplex Panel Heater"],
+  ["90737", "PLX150E 1.5kw Dimplex Panel Heater"],
+  ["90744", "PLX200E 2.0kw Dimplex Panel Heater"],
+  ["90751", "PLXC300E 3.0kw Dimplex Panel Heater"],
+  ["90768", "PLX050E 0.5kw Dimplex Panel Heater"],
+  ["90775", "PLX070E 0.75kw Dimplex Panel Heater"],
+  ["91178", "LST075E 750W Low Surface Temperature"],
+  ["91185", "LST100E 1000W Low Surface Temperature"],
+  ["91192", "LST150E 1500W Low Surface Temperature"],
+  ["91208", "LST050E 500W Low Surface Temperature"],
+  ["91291", "HSDP500 0.5kw Heatstore Inteli Panel"],
+  ["91741", "PLX50NC 0.5kw Dimplex Panel NO CONTROL"],
+  ["91758", "PLX750NC 7.5kw Dimplex Panel NO CONTROL"],
+  ["91765", "PLX100NC 1.00kw Dimplex Panel NO CONTROL"],
+  ["91772", "PLX125NC 1.25kw Dimplex Panel NO CONTROL"],
+  ["91789", "PLX150NC 1.5kw Dimplex Panel NO CONTROL"],
+  ["91796", "PLX200NC 2.00kw Dimplex Panel NO CONTROL"],
+  ["376180", "E8 PLX050E - EU"],
+  ["376190", "E8 PLX075E - EU"],
+  ["376200", "E8 PLX100E - EU"],
+  ["376210", "E8 PLX150E - EU"],
+  ["376220", "E8 PLX200E - EU"],
+  ["376230", "E8 PLX300E - EU"],
+  ["377610", "E8 PLX025E - EU"],
+  ["672016", "ADAX CLEA White 600W"],
+  ["678811", "ADAX NEO Blue 1000W"],
+  ["82320005", "NFK2N 05 500W 230-240V DX"],
+  ["82320007", "NFK2N 07 750W 230-240V DX"],
+  ["82320010", "NFK2N 10 1000W 230-240V DX"],
+  ["82320012", "NFK2N 12 1250W 230-240V DX"],
+  ["82320310", "NFK2S 10 1000w 230-240V RU EX"],
+  ["82320312", "NFK2S 12 1250W 230-240v RU EX"],
+  ["82320405", "NFK2N 05 500W 400V DX"],
+  ["82320407", "NFK2N 07 750W 400V DX"],
+  ["82320410", "NFK2N 10 1000W 400V DX"],
+  ["82320412", "NFK2N 12 1250W 400V DX"],
+  ["82320705", "NFK2X 05 500W 230-240V DX"],
+  ["82320707", "NFK2X 07 750W 230-240V DX"],
+  ["82320710", "NFK2X 10 1000W 230-240V"],
+  ["82320712", "NFK2X 12 1250W 230-240V"],
+  ["82340002", "NFK4N 02 250W 230-240V DX"],
+  ["82340005", "NFK4N 05 500W 230-240V DX"],
+  ["82340007", "NFK4N 07 750W 230-240V DX"],
+  ["82340010", "NFK4N 10 1000W 230-240V DX"],
+  ["82340012", "NFK4N 12 1250W 230-240V DX"],
+  ["82340015", "NFK4N 15 1500W 230-240V DX"],
+  ["82340020", "NFK4N 20 2000W 230-240V DX"],
+  ["82340305", "NFK4S 05 500W 230-240V EX INT"],
+  ["82340310", "NFK4S 10 1000W 230-240V EX INT"],
+  ["82340315", "NFK4S 15 1500W 230-240V EX INT"],
+  ["82340320", "NFK4S 20 2000W 230-240V EX INT"],
+  ["82340405", "NFK4N 05 500W 400V DX"],
+  ["82340407", "NFK4N 07 750W 400V DX"],
+  ["82340410", "NFK4N 10 1000W 400V DX"],
+  ["82340412", "NFK4N 12 1250W"],
+  ["82340415", "NFK4N 15 1500W 400V"],
+  ["82340705", "NFK4X 05 500W 230-240V DX"],
+  ["82340707", "NFK4X 07 750W 230-240V DX"],
+  ["82340710", "NFK4X 10 1000W 230-240V"],
+  ["82340712", "NFK4X 12 1250W 230-240V"],
+  ["82340715", "NFK4X 15 1500W 230-240V DX"],
+  ["82341307", "NFK4T 07 750W 230-240V EX EU"],
+  ["82341310", "NFK4T 10 1000W 230-240V EX EU"],
+  ["82341312", "NFK4T 12 1250W-230-240V EX EU"],
+  ["82341315", "NFK4T 15 1500W 230V EX EU"],
+  ["82341320", "NFK4T 20 2000W 230V EX EU"],
+  ["82420005", "NTL2N 05 500W 230-240V DX"],
+  ["82420007", "NTL2N 07 750W 230-240V DX"],
+  ["82420010", "NTL2N 10 1000W 230-240V DX"],
+  ["82420012", "NTL2N 12 1250W 230-240V DX"],
+  ["82420405", "NTL2N 05 500W 400V DX"],
+  ["82420407", "NTL2N 07 750W 400V DX"],
+  ["82420410", "NTL2N 10 1000W 400V DX"],
+  ["82440002", "NTL4N 02 250W 230-240V DX"],
+  ["82440005", "NTL4N 05 500W 230-240V DX"],
+  ["82440007", "NTL4N 07 750W 230-240V DX"],
+  ["82440010", "NTL4N 10 1000W 230-240V DX"],
+  ["82440012", "NTL4N 12 1250W 230-240V DX"],
+  ["82440015", "NTL4N 15 1500W 230-240V DX"],
+  ["82440020", "NTL4N 20 2000W 230-240V DX"],
+  ["82440402", "NTL4N 02 250W 400V DX"],
+  ["82440404", "NTL4N 04 400W 400V D"],
+  ["82440405", "NTL4N 05 500W 400V DX"],
+  ["82440407", "NTL4N 07 750W 400V DX"],
+  ["82440410", "NTL4N 10 1000W 400V DX"],
+  ["82440412", "NTL4N 12 1250W 400V DX"],
+  ["82440605", "NTL4T 05 500W 230-240V EU EX"],
+  ["82440607", "NTL4T 07 750W"],
+  ["82440610", "NTL4T 10 1000W 230-240V EX EU"],
+  ["82440612", "NTL4T 12 1200W"],
+  ["82440615", "NTL4T 15 1500W 230-240V EX EU"],
+  ["82440620", "NTL4T 20 2000W 230V EX EU"],
+  ["82440704", "NTL4L 04 400W 230V DX (10b)"],
+  ["82440706", "NTL4L 06 600W 230V DX (12b)"],
+  ["82440708", "NTL4L 08 800W 230V DX (20b)"],
+  ["82440710", "NTL4L 10 1000W 230V DX (24b)"],
+  ["82440804", "NTL4L 04 400W 400V DX (10b)"],
+  ["82440806", "NTL4L 06 600W 400V DX (12b)"],
+  ["82440808", "NTL4L 08 800W 400V DX (20b)"],
+  ["82440810", "NTL4L 10 1000W 400V"],
+  ["82440908", "NTL4Y 08 800W 230V DX"],
+  ["82440910", "NTL4Y 10 1000W 230V DX (24b)"],
+  ["82441107", "NTL4S 07 750W 230-240V AUS EX"],
+  ["82441110", "NTL4S 10 1000W 230-240V AUS EX"],
+  ["82441115", "NTL4S 15 1500W 230-240V AUS EX"],
+  ["82441120", "NTL4S 20 2000W 230-240V AUS EX"],
+  ["82441124", "NTL4S 24 2400w 230-240V AUS EX"],
+  ["82720005", "DFB2T 05 500W 230-240V Pria DX"],
+  ["82720007", "DFB2T 07 750W 230-240V Pria DX"],
+  ["82722105", "OFB2T 05 500W 230-240V Ahlsell DX"],
+  ["82722107", "OFB2T 07 750W 230-240V Ahlsell DX"],
+  ["82722110", "OFB2T 10 1000W 230-240V Ahlsell DX"],
+  ["82722505", "OFB2T 05 500W 400V Ahlsell DX"],
+  ["82722507", "OFB2T 07 750W 400V Ahlsell DX"],
+  ["82722510", "OFB2T 10 1000W 400V DX Ahlsell"],
+  ["82740005", "DFB4T 05 500W 230-240V DX Pria"],
+  ["82740007", "DFB4T 07 750W 230-240V DX Pria"],
+  ["82740010", "DFB4T 10 1000W 230-240V DX Pria"],
+  ["82740012", "DFB4T 12 1250W 230-240V DX Pria"],
+  ["82740015", "DFB4T 15 1500W 230-240V DX"],
+  ["82742105", "OFB4T 05 500W 230-240V DX Ahlsell"],
+  ["82742107", "OFB4T 07 750W 230-240V DX Ahlsell"],
+  ["82742110", "OFB4T 10 1000W 230-240V DX Ahlsell"],
+  ["82742112", "OFB4T 12 1250W 230-240V DX Ahlsell"],
+  ["82742115", "OFB4T 15 1500W 230-240V DX Ahlsell"],
+  ["82742505", "OFB4T 05 500W 400V DX Ahlsell"],
+  ["82742507", "OFB4T 07 750W 400V DX Ahlsell"],
+  ["82742510", "OFB4T 10 1000W 400V DX"],
+  ["82742512", "OFB4T 12 1250W 400V DX"],
+  ["82742515", "OFB4T 15 1500W 400V DX Ahlsell"],
+  ["82820005", "DTD2R 05 500W WiFi Alta"],
+  ["82820007", "DTD2R 07 750W WiFi Alta"],
+  ["82820010", "DTD2R 10 1000W WiFi Alta"],
+  ["82820610", "DTD2T 10 1000w 230-240V EU DX"],
+  ["82822007", "OTD2T 07 750W 230-240V DX"],
+  ["82822010", "OTD2T 10 1000W 230-240V DX Solar"],
+  ["82840002", "DTD4R 02 250W WiFi Alta"],
+  ["82840005", "DTD4R 05 500W WiFi Alta"],
+  ["82840007", "DTD4R 07 750W WiFi Alta"],
+  ["82840010", "DTD4R 10 1000W WiFi Alta"],
+  ["82840012", "DTD4R 12 1250W 230-240V DX WiFi Alta"],
+  ["82840605", "DTD4T 05 500w 230-240V EU"],
+  ["82840607", "DTD4T 07 750w 230-240V EU DX"],
+  ["82840610", "DTD4T 10 1000w 230-240V EU DX"],
+  ["82840612", "DTD4T 12 1250w 230-240V EU DX"],
+  ["82840615", "DTD4T 15 1500w 230-240V EU DX"],
+  ["82840620", "DTD4T 20 2000w 240V EU DX"],
+  ["82842005", "OTD4T 05 500W 230-240V DX Solar"],
+  ["82842007", "OTD4T 07 750W 230-240V DX Solar"],
+  ["82842010", "OTD4T 10 1000W 230-240V Solar DX"],
+  ["82920005", "OTJ2T 05 500W 230-240V DX Zebra"],
+  ["82920007", "OTJ2T 07 750W 230-240V DX Zebra"],
+  ["82920407", "OTJ2T 07 750W 400V DX Zebra"],
+  ["82920410", "OTJ2T 10 1000W 400V DX Zebra"],
+  ["82940005", "OTJ4T 05 500W 230-240V Zebra"],
+  ["82940007", "OTJ4T 07 750W 230-240V Zebra"],
+  ["82940010", "OTJ4T 10 1000W 230-240V Zebra"],
+  ["82940012", "OTJ4T 12 1250W 230-240V Zebra"],
+  ["82940405", "OTJ4T 05 500W 400V"],
+  ["82940407", "OTJ4T 07 750W 400V"],
+  ["82940410", "OTJ4T 10 1000W 400V"],
+  ["82940412", "OTJ4T 12 1250W 400V"],
+  ["400000452", "NCPT15 1.5kW Compact II Panel Heater"],
+  ["400000453", "NCPT20 2kW Compact II Panel Heater"],
+  ["400000465", "NCPT10 1kW Compact II Panel Heater"],
+  ["400000466", "NCPT24 2.4kW Compact II Panel Heater"],
+  ["400000613", "FLB 750W/1000W 230 Panel Convector"],
+  ["400000614", "FLB 1175W/1500W 230 Panel Convector"],
+  ["400000615", "FLB 1560W/2000W 230 Panel Convector"],
+  ["400000616", "FLB+ 390W/500W 230 Convector w Thermostat"],
+  ["400000617", "FLB+ 780W/1000W 230 Convector w Thermostat"],
+  ["400000618", "FLB+ 1175W/1500W 230 Convector w Thermostat"],
+  ["400000619", "FLB+ 1560W/2000W 230 Convector w Thermostat"],
+  ["400000625", "FLB 500W/375W Panel Convector"],
+  ["400000649", "DTD4R 15 1500W 230-240V DX WIFI ALTA"],
+  ["400000660", "DTD4R 20 2000W 230-240V DX WIFI ALTA"],
+  ["400001221", "DTD4R 05 500W WiFi Alta UK"],
+  ["400001222", "DTD4R 07 750W WiFi Alta UK"],
+  ["400001223", "DTD4R 10 1000W WiFi Alta UK"],
+  ["400001224", "DTD4R 15 1500W WiFi Alta UK"],
+  ["400001225", "DTD4R 20 2000W WiFi Alta UK"],
+  ["400001297", "CPH05T 500w 230 Creda Compact Panel w/7 Timer"],
+  ["400001298", "CPH10T 1000W 230 Creda Compact Panel w/7 Timer"],
+  ["400001299", "CPH15T 1500w 230 Creda Compact Panel w/7 Timer"],
+  ["400001300", "CPH20T 2000w 230 Creda Compact Panel w/7 Timer"],
+  ["400001301", "CPH24T 2.4kW 230 Creda Compact Panel w/7 Timer"],
+  ["400001354", "NUL4T2 0.5kW 230 NOBO Compact Panel EU"],
+  ["400001360", "NUL4T2 1.5kW 230 NOBO Compact Panel EU"],
+  ["400001363", "PLX1250E 1.25KW DIMPLEX Panel Heater SDM TL"],
+  ["400001367", "NTL4R 07 750W WiFi AUS"],
+  ["400001368", "NTL4R 10 1000W WiFi AUS"],
+  ["400001370", "PLX1250E 1.25KW DIMPLEX Panel Heater SDM"],
+  ["400001390", "NTL4R 12 1250W WiFi AUS"],
+  ["400001391", "NTL4R 15 1500W WiFi AUS"],
+  ["400001392", "NTL4R 20 2000W WiFi AUS"],
+  ["400001393", "NTL4R 24 2400W WiFi AUS"],
+  ["400001591", "NUL4T2 2.4kW 230 NOBO Compact Panel EU"],
+  ["400001592", "DESPH05T 0.5Kw 230 Denmans Panel Heater"],
+  ["400001602", "DESPH10T 1.0Kw 230 Denmans Panel Heater"],
+  ["400001603", "DESPH15T 1.5Kw 230 Denmans Panel Heater"],
+  ["400001604", "DESPH20T 2.0Kw 230 Denmans Panel Heater"],
+  ["400001605", "DESPH24T 2.4Kw 230 Denmans Panel Heater"],
+  ["400001618", "SPH050 500W 230 Sunhouse Panel Heater"],
+  ["400001619", "SPH100 1Kw 230 Sunhouse Panel Heater"],
+  ["400001620", "SPH150 1.5Kw 230 Sunhouse Panel Heater"],
+  ["400001621", "SPH200 2Kw 230 Sunhouse Panel Heater"],
+  ["400001692", "NTL2N 05 500W 230-240V DX Black"],
+  ["400001693", "NTL2N 07 750W 230-240V DX Black"],
+  ["400001694", "NTL2N 10 1000W 230-240V DX Black"],
+  ["400001695", "NTL4N 02 250W 230-240V DX Black"],
+  ["400001696", "NTL4N 05 500W 230-240V DX Black"],
+  ["400001697", "NTL4N 07 750W 230-240V DX Black"],
+  ["400001706", "NTL4N 10 1000W 230-240V DX Black"],
+  ["400001726", "HSDPD 07 7500W 230-240V WiFi"],
+  ["400001727", "HSDPD 10 1000W 230-240V WiFi"],
+  ["400001728", "HSDPD 15 1500W 230-240V WiFi"],
+  ["400001729", "HSDPD 20 2000W 230-240V WiFi"],
+  ["400001734", "HSDPD 05 500W 230-240V WiFi"],
+  ["400001741", "NFK2T 05 500W 230-240V EX EU"],
+  ["400001742", "NFK2T 07 750W 230-240V EX EU"],
+  ["400001748", "NLPH05T 0.5kW 230 Newlec Panel Heater"],
+  ["400001749", "NLPH10T 1.0kW 230 Newlec Panel Heater"],
+  ["400001760", "NLPH15T 1.5kW 230 Newlec Panel Heater"],
+  ["400001761", "NLPH20T 2.0kW 230 Newlec Panel Heater"],
+  ["400001762", "NLPH24T 2.4kW 230 Newlec Panel Heater"],
+  ["400001772", "NLTR 05 500W DX EU"],
+  ["400001773", "NLTR 10 1000W DX EU"],
+  ["400001774", "NLTR 15 1500W DX EU"],
+  ["400001775", "NLTR 20 2000W DX EU"],
+  ["80905", "XLE050 0.50kW Dimplex (Case Only)"],
+  ["80912", "XLE070 0.70kW Dimplex (Case Only)"],
+  ["80998", "XLE100 1.00kW Dimplex (Case Only)"],
+  ["80929", "XLE125 1.25kW Dimplex (Case Only)"],
+  ["80936", "XLE150 1.50kW Dimplex (Case Only)"]
+]);
+
+/* --- HELPERS --- */
+const pad2 = n => String(n).padStart(2,'0');
+function toLT(iso) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString("lt-LT", {
+    hour:"2-digit", minute:"2-digit"
+  });
+}
+function normalizeCode(v){
+  const digits = String(v ?? "").replace(/\D/g,'');
+  if(!digits) return "";
+  return digits.replace(/^0+/, '') || '0';
+}
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 10000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(resource, { ...options, signal: controller.signal });
+  } finally { clearTimeout(id); }
+}
+
+/* --- STATE --- */
+window.actionQueue = [];
+window.actionStates = {};
+window.isProcessingAction = false;
+
+/* --- LOGIC --- */
+async function refresh() {
+  const container = document.getElementById("data-container");
+  const filter = document.getElementById("sortBy").value;
+
+  const now = Date.now();
+  const d0 = new Date(now); d0.setHours(6, 0, 0, 0);
+  const tz = "Europe/Vilnius";
+
+  const adaxProxy = localStorage.getItem('adax_proxy') || 'http://localhost:8081/adax/all';
+  let adaxAggregated = null;
+  try {
+    const r = await fetchWithTimeout(adaxProxy, { timeout: 5000 });
+    if(r.ok) adaxAggregated = await r.json();
+  } catch(e) {}
+
+  const promises = LINES.map(async (L) => {
+    try {
+      if (L.apiType === "ADAX") {
+        if (!adaxAggregated || !adaxAggregated.lines[L.lid]) return null;
+        const cached = adaxAggregated.lines[L.lid];
+        if (cached.error) return null;
+
+        let allRecords = [];
+        if (Array.isArray(cached.data)) allRecords = cached.data;
+        else for (let p in cached.data) allRecords.push(...cached.data[p]);
+
+        allRecords = allRecords.filter(r => !['111111','222222','333333','444444','666666','777777'].includes(r.Produktas));
+        if (!allRecords.length) return null;
+
+        allRecords.sort((a,b) => new Date(a.TestavimoLaikas.replace(' ','T')) - new Date(b.TestavimoLaikas.replace(' ','T')));
+        const latest = allRecords[allRecords.length-1];
+        const lastTs = new Date(latest.TestavimoLaikas.replace(' ','T')).getTime();
+        const active = (now - lastTs) / 60000 <= 720;
+
+        let productName = "—";
+        const code = normalizeCode(latest.Produktas);
+        if (latest.ItemID && latest.Pavadinimas) productName = `${latest.ItemID} - ${latest.Pavadinimas}`;
+        else if (PRODUCT_MAP.has(code)) productName = PRODUCT_MAP.get(code);
+
+        return { L, units: latest.PusgaminioNr, product: productName, lastSeen: latest.TestavimoLaikas, active, type: "ADAX" };
+      } else {
+        const key = READ_KEYS[L.channel];
+        const rLast = await fetchWithTimeout(`https://api.thingspeak.com/channels/${L.channel}/fields/${L.fieldCount}/last.json?api_key=${key}`);
+        if (!rLast.ok) return null;
+        const lastData = await rLast.json();
+
+        let barcodeVal = "—";
+        if (L.fieldBarcode) {
+          const rBar = await fetchWithTimeout(`https://api.thingspeak.com/channels/${L.channel}/fields/${L.fieldBarcode}/last.json?api_key=${key}`);
+          if (rBar.ok) {
+            const barData = await rBar.json();
+            const code = normalizeCode(barData[`field${L.fieldBarcode}`]);
+            barcodeVal = PRODUCT_MAP.get(code) || barData[`field${L.fieldBarcode}`] || "—";
+          }
+        } else if (L.name === "UI perrašymas") {
+          barcodeVal = "ECU-2Rw";
+        }
+
+        const lastTs = new Date(lastData.created_at).getTime();
+        const active = (now - lastTs) / 60000 <= 720;
+
+        return {
+          L,
+          units: lastData[`field${L.fieldCount}`],
+          product: barcodeVal,
+          lastSeen: lastData.created_at,
+          active,
+          type: "TS"
+        };
+      }
+    } catch(e) { return null; }
+  });
+
+  const results = (await Promise.all(promises)).filter(r => r);
+
+  let html = "";
+  let groups = { "GD Linijos": [], "ADAX Linijos": [], "UI perrašymas": [] };
+
+  results.forEach(r => {
+    if (filter === 'active' && !r.active) return;
+    if (filter === 'inactive' && r.active) return;
+
+    if (r.L.name === "UI perrašymas") groups["UI perrašymas"].push(r);
+    else if (r.type === "ADAX") groups["ADAX Linijos"].push(r);
+    else groups["GD Linijos"].push(r);
+  });
+
+  for (let gName in groups) {
+    if (groups[gName].length > 0) {
+      html += `<div class="separator">${gName}</div>`;
+      groups[gName].forEach(r => {
+        const aState = window.actionStates[r.L.name] || { status: 'idle' };
+        const isWaiting = aState.status !== 'idle';
+
+        html += `
+          <div class="line-card">
+            <div class="line-header">
+              <span class="line-name">${r.L.name}</span>
+              <span class="line-status ${r.active ? 'status-online' : 'status-offline'}">${r.active ? 'Aktyvi' : 'Neaktyvi'}</span>
+            </div>
+            <div class="line-body">
+              <div>
+                <div class="label">Pagaminta</div>
+                <div class="value" style="font-size: 24px; color: var(--good);">${r.units} vnt.</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="label">Paskutinis</div>
+                <div class="value">${toLT(r.lastSeen)}</div>
+              </div>
+              <div class="product-name">${r.product}</div>
+            </div>
+            ${r.type === 'TS' ? `
+              <div class="controls">
+                <button class="btn btn-reset ${isWaiting ? aState.status : ''}"
+                        onclick="triggerReset('${r.L.name}')" ${isWaiting ? 'disabled' : ''}>
+                  ${isWaiting ? 'Laukite...' : 'RESET'}
+                </button>
+                <button class="btn btn-dec ${isWaiting ? aState.status : ''}"
+                        onclick="triggerDecrement('${r.L.name}', ${r.units})" ${isWaiting ? 'disabled' : ''}>
+                  ${isWaiting ? '...' : '-'}
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+    }
+  }
+
+  container.innerHTML = html || '<div class="loading">Nėra duomenų pagal filtrą</div>';
+}
+
+/* --- ACTIONS --- */
+function triggerReset(name) { queueAction(name, 0); }
+function triggerDecrement(name, cur) { queueAction(name, Math.max(0, cur - 1)); }
+
+function queueAction(lineName, target) {
+  if (window.actionStates[lineName]?.status !== 'idle' && window.actionStates[lineName]) return;
+  window.actionStates[lineName] = { status: 'waiting' };
+  window.actionQueue.push({ lineName, target });
+  refresh();
+  if (!window.isProcessingAction) processQueue();
+}
+
+async function processQueue() {
+  if (!window.actionQueue.length) { window.isProcessingAction = false; return; }
+  window.isProcessingAction = true;
+  const action = window.actionQueue.shift();
+  const line = LINES.find(l => l.name === action.lineName);
+
+  window.actionStates[action.lineName].status = 'updating';
+  refresh();
+
+  const key = WRITE_KEYS[line.channel];
+  try {
+    const r = await fetch(`https://api.thingspeak.com/update?api_key=${key}&field${line.fieldCount}=${action.target}`, { method: 'POST' });
+    if (r.ok) poll(line, action.target);
+    else { window.actionStates[line.name].status = 'idle'; refresh(); }
+  } catch(e) { window.actionStates[line.name].status = 'idle'; refresh(); }
+
+  setTimeout(processQueue, 15500);
+}
+
+async function poll(line, target) {
+  const key = READ_KEYS[line.channel];
+  const check = async () => {
+    try {
+      const r = await fetch(`https://api.thingspeak.com/channels/${line.channel}/fields/${line.fieldCount}/last.json?api_key=${key}`);
+      const data = await r.json();
+      if (parseFloat(data[`field${line.fieldCount}`]) === target) {
+        window.actionStates[line.name] = { status: 'idle' };
+        refresh();
+      } else setTimeout(check, 5000);
+    } catch(e) { setTimeout(check, 5000); }
+  };
+  check();
+}
+
+/* --- TIMER --- */
+let timeLeft = 120;
+setInterval(() => {
+  timeLeft--;
+  if (timeLeft <= 0) { timeLeft = 120; refresh(); }
+  document.getElementById("timerBox").innerText = `Atnaujinimas po: ${Math.floor(timeLeft/60)}:${String(timeLeft%60).padStart(2,'0')}`;
+}, 1000);
+
+document.getElementById("sortBy").addEventListener("change", refresh);
+refresh();
+</script>
+</body>
+</html>
