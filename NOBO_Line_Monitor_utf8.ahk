@@ -6,7 +6,7 @@ CoordMode "ToolTip", "Screen"
 ; GLOBALAI (Super-global)
 ; =======================================================
 Global OverlayGui, CtrlGui, SettingsGui
-Global CURRENT_VERSION := "2.5"
+Global CURRENT_VERSION := "2.6"
 Global RemoteVersion := "laukiama..."
 Global LastHttpStatus := "0"
 Global LastRawResponse := "nieko"
