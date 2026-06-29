@@ -423,8 +423,14 @@ Nunulinti() {
     SoundBeep 700, 150
 }
 CheckExternalUpdate() {
-    global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount, TS_PENDING
-    ; Jei turime neissiustu vietiniu atnaujinimu, laukiame
+    global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount, TS_PENDING, TS_LAST_SEND_TS
+
+    ; Svarbu: po to, kai patys išsiuntėme duomenis, palaukiame 30 sek. prieš priimdami išorinius pokyčius.
+    ; Tai apsaugo nuo "atšokimo", kai ThingSpeak dar nespėjo atnaujinti savo API atsakymo.
+    if (A_TickCount - TS_LAST_SEND_TS < 30000)
+        return
+
+    ; Jei turime neišsiųstų vietinių atnaujinimų, laukiame
     if (TS_PENDING.Has(TS_FIELD_COUNT))
         return
 
