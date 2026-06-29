@@ -363,7 +363,7 @@
   <button class="tab-btn" onclick="openTab('report')">Istorijos ataskaita</button>
   <button class="tab-btn" onclick="openTab('ai')">Įžvalgos(beta)</button>
   <button class="tab-btn" id="themeToggle" type="button" title="Keisti temą">🌙/☀️</button>
-  <div style="position: absolute; right: 20px; font-size: 12px; color: var(--text-muted); font-style: italic; opacity: 0.7;">v2.4</div>
+  <div style="position: absolute; right: 20px; font-size: 12px; color: var(--text-muted); font-style: italic; opacity: 0.7;">v2.5</div>
 </div>
 
 <!-- ========================= TAB: STATUSAS ========================= -->
@@ -414,6 +414,7 @@
       <div class="viz-group-title">GD Linijos</div>
       <div id="viz-QRAD 1" class="viz-item"></div>
       <div id="viz-XLE 1" class="viz-item"></div>
+      <div id="viz-XLE ReWork" class="viz-item"></div>
       <div id="viz-PLXE 5" class="viz-item"></div>
       <div id="viz-NOBO 7" class="viz-item"></div>
       <div id="viz-NOBO 6" class="viz-item"></div>
@@ -658,6 +659,7 @@ const WRITE_KEYS = {
 const LINES = [
   { name:"QRAD 1", channel:807602, fieldCount:3, fieldBarcode:4, apiType: "TS" },
   { name:"XLE 1",  channel:807602, fieldCount:5, fieldBarcode:6, apiType: "TS" },
+  { name:"XLE ReWork", channel:807602, fieldCount:7, fieldBarcode:8, apiType: "TS" },
   { name:"PLXE 1", channel:463450, fieldCount:1, fieldBarcode:2, apiType: "TS" },
   { name:"PLXE 2", channel:463450, fieldCount:3, fieldBarcode:4, apiType: "TS" },
   { name:"PLXE 3", channel:463450, fieldCount:5, fieldBarcode:6, apiType: "TS" },
@@ -1665,7 +1667,7 @@ function renderVizPlaceholder(id, name, type) {
 
 (function InitVizLayout(){
   // GD lines
-  ['QRAD 1','XLE 1','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2','NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','UI perrašymas'].forEach(n => {
+  ['QRAD 1','XLE 1','XLE ReWork','PLXE 5','NOBO 7','NOBO 6','NOBO 5','NOBO 4','NOBO 3','NOBO 2','NOBO 1','PLXE 4','PLXE 3','PLXE 2','PLXE 1','UI perrašymas'].forEach(n => {
     renderVizPlaceholder(`viz-${n}`, n, 'v');
   });
 

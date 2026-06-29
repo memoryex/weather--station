@@ -6,7 +6,7 @@ CoordMode "ToolTip", "Screen"
 ; GLOBALAI (Super-global)
 ; =======================================================
 Global OverlayGui, CtrlGui, SettingsGui
-Global CURRENT_VERSION := "2.4"
+Global CURRENT_VERSION := "2.5"
 Global RemoteVersion := "laukiama..."
 Global LastHttpStatus := "0"
 Global LastRawResponse := "nieko"
@@ -66,7 +66,8 @@ Global LineMap := Map(
     "PLXE 5", {ID: "802414", Read: "I6NIZAVZYLPVV1ME", Write: "DNPJZCU9G6NJD0VF", Count: "field7", Barcode: "field8"},
     "UI perrašymas", {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field1", Barcode: "field2"},
     "QRAD 1", {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field3", Barcode: "field4"},
-    "XLE 1",  {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field5", Barcode: "field6"}
+    "XLE 1",  {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field5", Barcode: "field6"},
+    "XLE ReWork", {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field7", Barcode: "field8"}
 )
 
 LoadSettings() {
@@ -101,7 +102,7 @@ OverlayGui.SetFont("s65 bold cWhite", "Arial")
 CountText := OverlayGui.Add("Text", "x0 y50 w" Lango_Dydis " h120 Center", NewFilesCount)
 
 OverlayGui.SetFont("s10 italic cD4AF37", "Arial")
-OverlayGui.Add("Text", "x5 y175 w50 h20 BackgroundTrans", "v" CURRENT_VERSION)
+OverlayGui.Add("Text", "x5 y175 w190 h20 BackgroundTrans", "v" CURRENT_VERSION " | " Selected_Line)
 
 OverlayGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" Lango_Dydis)
 WinSetTransparent(200, OverlayGui)
@@ -342,7 +343,7 @@ OpenSettings() {
     editX := SettingsGui.Add("Edit", "w60", Start_X)
     editY := SettingsGui.Add("Edit", "x+5 w60", Start_Y)
 
-    saveBtn := SettingsGui.Add("Button", "xm w120 Default", "Save & Restart")
+    saveBtn := SettingsGui.Add("Button", "xm w120 Default", "Save and Restart")
     saveBtn.OnEvent("Click", ProcessSave)
     ProcessSave(*) {
         RegExMatch(comChoice.Text, "COM\d+", &match)
