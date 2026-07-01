@@ -25,6 +25,7 @@ Global GearBtn := 0
 Global UpdateBtn := 0
 
 Global NewFilesCount := 0
+Global LastProcessedTimestamp := 0
 Global LastFileCount := -1
 Global g_ih := 0
 Global LogFile := ""
@@ -76,6 +77,7 @@ LoadSettings() {
     Stebimas_Katalogas := IniRead(IniFile, "Settings", "Folder", A_Desktop)
     Selected_Line := IniRead(IniFile, "Settings", "Line", "XLE 1")
     NewFilesCount := IniRead(IniFile, "State", Selected_Line "_Count", 0)
+    LastProcessedTimestamp := IniRead(IniFile, "State", Selected_Line "_LastTS", 0)
     global Start_X := IniRead(IniFile, "Settings", "PosX", 420)
     global Start_Y := IniRead(IniFile, "Settings", "PosY", 800)
 
@@ -137,6 +139,7 @@ OnMessage(0x0201, WM_LBUTTONDOWN)
 SetTimer EnsureTopMost, 500
 SetTimer TikrintiKataloga, 1000
 SetTimer CheckExternalUpdate, 10000
+SetTimer KontrolinisPatikrinimas, 120000 ; Kas 2 minutes
 
 ; PATIKRINTI IŠKART IR TADA KAS MINUTĘ
 SetTimer CheckForUpdates, -1000
@@ -252,6 +255,7 @@ StartUpdate(*) {
 SaveState() {
     global Selected_Line, NewFilesCount, IniFile
     IniWrite(NewFilesCount, IniFile, "State", Selected_Line "_Count")
+    IniWrite(LastProcessedTimestamp, IniFile, "State", Selected_Line "_LastTS")
 }
 
 DoDecrement() {
@@ -383,17 +387,29 @@ LogCount(count) {
     LogAppend(FormatTS() " " count " gaminys")
 }
 TikrintiKataloga() {
-    global NewFilesCount, LastFileCount, CountText, Stebimas_Katalogas
+    global NewFilesCount, LastFileCount, CountText, Stebimas_Katalogas, LastProcessedTimestamp
     CurrentCount := 0
-    Loop Files, Stebimas_Katalogas "\*.*"
+    MaxTS := LastProcessedTimestamp
+
+    Loop Files, Stebimas_Katalogas "\*.*" {
         CurrentCount++
+        try {
+            ctime := FileGetTime(A_LoopFileFullPath, "C")
+            if (ctime > MaxTS)
+                MaxTS := ctime
+        }
+    }
+
     if (LastFileCount == -1) {
         LastFileCount := CurrentCount
+        LastProcessedTimestamp := MaxTS
         return
     }
+
     if (CurrentCount > LastFileCount) {
         Diff := CurrentCount - LastFileCount
         NewFilesCount += Diff
+        LastProcessedTimestamp := MaxTS
         Loop Diff {
             RelayPulse()
         }
@@ -601,4 +617,43 @@ F9:: {
     global
     CheckForUpdates()
     MsgBox "Dabartinė: " CURRENT_VERSION "`nNuotolinė: " RemoteVersion "`nHTTP Status: " LastHttpStatus "`nRaw: " LastRawResponse "`nURL: " LastCallUrl
+}
+
+KontrolinisPatikrinimas() {
+    global NewFilesCount, Stebimas_Katalogas, LastProcessedTimestamp, CountText
+    MissedCount := 0
+    CurrentMaxTS := LastProcessedTimestamp
+
+    Loop Files, Stebimas_Katalogas "\*.*" {
+        try {
+            ctime := FileGetTime(A_LoopFileFullPath, "C")
+            ; Jei failas naujesnis nei mūsų paskutinis užfiksuotas laikas
+            if (ctime > LastProcessedTimestamp) {
+                MissedCount++
+                if (ctime > CurrentMaxTS)
+                    CurrentMaxTS := ctime
+            }
+        }
+    }
+
+    if (MissedCount > 0) {
+        ; Tikriname ar tai nėra tas pats "TikrintiKataloga" ką tik pagautas pokytis
+        ; Jei bendras failų kiekis sutampa su LastFileCount, vadinasi TikrintiKataloga dar nespėjo suveikti arba buvo klaida
+        ; Bet saugiausia tiesiog pridėti skirtumą jei radome naujesnių laiko atžvilgiu failų kurių nesame matę
+
+        ; Kadangi TikrintiKataloga bėga kas 1s, o šitas kas 2min,
+        ; šita logika suveiks tik jei TikrintiKataloga kažkodėl pražiopsojo (pvz. ištrynė/pridėjo vienu metu)
+
+        NewFilesCount += MissedCount
+        LastProcessedTimestamp := CurrentMaxTS
+
+        UpdateCountDisplay()
+        LogAppend(FormatTS() " Kontrolinis patikrinimas rado praleistų failų: " MissedCount)
+        TSQueueCount(NewFilesCount)
+        SaveState()
+
+        Loop MissedCount {
+            RelayPulse()
+        }
+    }
 }
