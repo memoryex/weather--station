@@ -410,13 +410,16 @@ TikrintiKataloga() {
         Diff := CurrentCount - LastFileCount
         NewFilesCount += Diff
         LastProcessedTimestamp := MaxTS
+
+        ; Svarbu: Iškart užregistruojame eilėje ir atnaujiname GUI, kad CheckExternalUpdate nespėtų perrašyti
+        TSQueueCount(NewFilesCount)
+        UpdateCountDisplay()
+        LogCount(NewFilesCount)
+        SaveState()
+
         Loop Diff {
             RelayPulse()
         }
-        UpdateCountDisplay()
-        LogCount(NewFilesCount)
-        TSQueueCount(NewFilesCount)
-        SaveState()
     }
     LastFileCount := CurrentCount
 }
@@ -459,6 +462,13 @@ CheckExternalUpdate() {
             if (RegExMatch(req.ResponseText, '"' . TS_FIELD_COUNT . '":"(\d+)"', &match)) {
                 val := Integer(match[1])
                 if (val != NewFilesCount) {
+                    ; Saugiklis: neleidžiame "atgalinio" užrašymo, jei skirtumas mažas (tikėtina vėlavimas)
+                    ; Išimtis: leidžiame jei tai nunulinimas (val=0) arba jei skirtumas didelis (rankinis taisymas > 10 vnt)
+                    if (val < NewFilesCount && val != 0 && (NewFilesCount - val) < 10) {
+                        LogAppend(FormatTS() " Ignoruotas įtartinas išorinis kiekio sumažėjimas (Lokalus: " NewFilesCount ", Nuotolinis: " val ")")
+                        return
+                    }
+
                     LogAppend(FormatTS() " aptiktas išorinis kiekio pasikeitimas (" NewFilesCount " -> " val ")")
                     NewFilesCount := val
                     UpdateCountDisplay()
