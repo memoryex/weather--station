@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "1.1"
+Global CURRENT_VERSION := "1.2"
 Global EXCEL_FILE := "GD_Gamybos_Ataskaita.xlsx"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
@@ -42,6 +42,15 @@ Global INTERVALS := [
     ["14:10", "15:00"], ["15:00", "16:00"]
 ]
 
+; Theme Definitions
+Global THEMES := Map(
+    "Šviesi", {bg: "White", txt: "cBlack", edit: "BackgroundWhite cBlack"},
+    "Tamsi",  {bg: "1A1A1A", txt: "cWhite", edit: "Background333333 cWhite"},
+    "Pilka",  {bg: "444444", txt: "cWhite", edit: "Background666666 cWhite"},
+    "Mėlyna", {bg: "001F3F", txt: "cWhite", edit: "Background003366 cWhite"},
+    "Žalia",  {bg: "1B3022", txt: "cWhite", edit: "Background2D4C38 cWhite"}
+)
+
 ; =======================================================
 ; GUI CONSTRUCTION
 ; =======================================================
@@ -55,49 +64,51 @@ Calendar.OnEvent("Change", (*) => LoadDateData())
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
 BtnRefresh.OnEvent("Click", (*) => FetchTodayData())
 
-BtnTheme := MainGui.Add("Button", "x380 y10 w120", "Tamsi/Šviesi tema")
-BtnTheme.OnEvent("Click", (*) => ToggleTheme())
+MainGui.Add("Text", "x380 y15", "Tema:")
+ThemeList := ["Šviesi", "Tamsi", "Pilka", "Mėlyna", "Žalia"]
+ThemeSelector := MainGui.Add("DropDownList", "x425 y10 w100 Choose1", ThemeList)
+ThemeSelector.OnEvent("Change", (ctrl, *) => ApplyTheme(ctrl.Text))
 
-BtnSaveAll := MainGui.Add("Button", "x510 y10 w120", "Saugoti viską")
+BtnSaveAll := MainGui.Add("Button", "x535 y10 w120", "Saugoti viską")
 BtnSaveAll.OnEvent("Click", (*) => SaveAll())
 
-StatusText := MainGui.Add("Text", "x640 y15 w400 vStatus", "Pasiruošęs")
+StatusText := MainGui.Add("Text", "x665 y15 w400 vStatus", "Pasiruošęs")
 
-; Headers outside of tabs
+; Headers outside of tabs for visibility
 MainGui.SetFont("s9 bold")
 Loop INTERVALS.Length {
     X := 220 + (A_Index-1) * 88
-    MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
+    MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center +BackgroundTrans", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
 }
 X := 220 + INTERVALS.Length * 88
-MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center", "Viso")
+MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center +BackgroundTrans", "Viso")
 MainGui.SetFont("s9 norm")
 
 Tabs := MainGui.Add("Tab3", "x10 y80 w1180 h900", ["PLXE", "NOBO", "Kiti"])
 
 ; Store control references for easy access
 Global Controls := Map()
-Global IsDarkTheme := false
 
-ToggleTheme() {
-    global IsDarkTheme, MainGui
-    IsDarkTheme := !IsDarkTheme
+ApplyTheme(themeName) {
+    global THEMES, MainGui
+    if !THEMES.Has(themeName)
+        return
 
-    bgColor := IsDarkTheme ? "1A1A1A" : "White"
-    txtColor := IsDarkTheme ? "cWhite" : "cBlack"
-
-    MainGui.BackColor := bgColor
+    theme := THEMES[themeName]
+    MainGui.BackColor := theme.bg
 
     for hwnd, ctrl in MainGui {
         try {
             if (ctrl is Gui.Text) {
-                ctrl.Opt(txtColor " Background" bgColor)
+                ctrl.Opt(theme.txt " +BackgroundTrans")
             } else if (ctrl is Gui.Edit) {
                 if InStr(ctrl.Name, "_F") || InStr(ctrl.Name, "_Total") {
                     ctrl.Opt("cBlack")
                 } else {
-                    ctrl.Opt(IsDarkTheme ? "Background333333 cWhite" : "BackgroundWhite cBlack")
+                    ctrl.Opt(theme.edit)
                 }
+            } else if (ctrl is Gui.Tab) {
+                ctrl.Opt(theme.txt)
             }
         }
         try ctrl.Redraw()
@@ -111,23 +122,23 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
     Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x20 y" YPos " w120 h20", name)
+    MainGui.Add("Text", "x20 y" YPos " w120 h20 +BackgroundTrans", name)
     MainGui.SetFont("s9 norm")
 
-    MainGui.Add("Text", "x150 y" YPos " w60 h20", "Planas")
-    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20", "Faktas")
-    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20", "Gaminys")
-    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20", "Komment.")
+    MainGui.Add("Text", "x150 y" YPos " w60 h20 +BackgroundTrans", "Planas")
+    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20 +BackgroundTrans", "Faktas")
+    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20 +BackgroundTrans", "Gaminys")
+    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20 +BackgroundTrans", "Komment.")
 
     lineCtrls := []
     Loop INTERVALS.Length {
         idx := A_Index
         X := 220 + (idx-1) * 88
 
-        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" RegExReplace(name, " ", "_") "_P" idx)
-        cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" RegExReplace(name, " ", "_") "_F" idx)
-        cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" RegExReplace(name, " ", "_") "_G" idx)
-        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center v" RegExReplace(name, " ", "_") "_K" idx)
+        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" RegExReplace(name, "[ \-]", "_") "_P" idx)
+        cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" RegExReplace(name, "[ \-]", "_") "_F" idx)
+        cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" RegExReplace(name, "[ \-]", "_") "_G" idx)
+        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center v" RegExReplace(name, "[ \-]", "_") "_K" idx)
 
         cFact.Opt("Background" SubStr(LineObj.color, -6))
 
@@ -140,7 +151,7 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
     ; Add Total column
     X := 220 + INTERVALS.Length * 88
     MainGui.SetFont("bold")
-    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" RegExReplace(name, " ", "_") "_Total")
+    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" RegExReplace(name, "[ \-]", "_") "_Total")
     MainGui.SetFont("norm")
 
     Controls[name] := {intervals: lineCtrls, total: cTotal}
@@ -148,7 +159,7 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
 
 ; Populate Tabs
 ; PLXE (1-5)
-Y := 20 ; Relative to tab
+Y := 20
 for line in LINES {
     if InStr(line.name, "PLXE") {
         CreateLineGrid(line, Y, 1)
@@ -175,6 +186,7 @@ for line in LINES {
 }
 
 MainGui.Show("w1200 h1000")
+ApplyTheme("Šviesi")
 LoadDateData()
 
 ; Auto-refresh every 5 minutes
@@ -212,7 +224,7 @@ FetchTSData(channel, start_dt, end_dt) {
         if (req.Status == 200) {
             return req.ResponseText
         }
-    } catch Error as e {
+    } catch Error as e) {
         StatusText.Value := "Klaida: " e.Message
     }
     return ""
@@ -222,7 +234,6 @@ FetchTSData(channel, start_dt, end_dt) {
 ParseFeeds(jsonStr) {
     feeds := []
     pos := 1
-    ; Match objects within the feeds array: {"created_at":"...", ...}
     while pos := RegExMatch(jsonStr, '\{"created_at":"[^"]+"[^}]*\}', &match, pos) {
         objStr := match[0]
         obj := Map()
@@ -311,7 +322,7 @@ LoadDateData() {
             Controls[name].intervals[idx].Prod.Value := prod
             Controls[name].intervals[idx].Comm.Value := comm
 
-            if (fact != "")
+            if (fact != "" && IsNumber(fact))
                 totalFact += fact
         }
         Controls[name].total.Value := totalFact
@@ -321,7 +332,7 @@ LoadDateData() {
     if (dateStr == today) {
         FetchTodayData()
     } else {
-        StatusText.Value := "Duomenys užkrauti iš log."
+        StatusText.Value := "Duomenys užkrauti iš log (" dateStr ")."
     }
 }
 
@@ -336,7 +347,6 @@ FetchTodayData() {
 
     StatusText.Value := "Jungiamasi prie ThingSpeak..."
 
-    ; Group lines by channel to minimize requests
     channels := Map()
     for line in LINES {
         if !channels.Has(line.channel)
@@ -345,9 +355,6 @@ FetchTodayData() {
     }
 
     for channel, linesInChannel in channels {
-        ; Fetch from before the work day starts to ensure we catch the last product scan if it happened earlier
-        ; We look back 3 days to be sure we get the last product scanned even if it was a long weekend
-        ; DateAdd requires YYYYMMDDHH24MISS format (no hyphens)
         rawSelDate := StrReplace(selDate, "-", "")
         lookbackDate := DateAdd(rawSelDate "000000", -3, "Days")
         startDT := FormatTime(lookbackDate, "yyyy-MM-dd HH:mm:ss")
@@ -362,18 +369,13 @@ FetchTodayData() {
         for line in linesInChannel {
             StatusText.Value := "Apdorojama: " line.name
 
-            lastKnownBarcode := ""
-
             for intIdx, interval in INTERVALS {
                 iStart := selDate " " interval[1] ":00"
                 iEnd := selDate " " interval[2] ":00"
 
-                ; For production delta, we only care about the specific interval
                 intFeeds := FilterFeedsByTime(allFeeds, iStart, iEnd)
                 produced := CalculateDelta(intFeeds, "field" line.fieldCount)
 
-                ; For product (barcode), we want the last scan up to the end of this interval
-                ; We use allFeeds which now includes up to 3 days of lookback
                 feedsUpToNow := FilterFeedsByTime(allFeeds, startDT, iEnd)
                 barcode := ""
                 if (line.fieldBarcode)
@@ -384,7 +386,6 @@ FetchTodayData() {
                 else if (barcode != "")
                     barcode := "X-" barcode
 
-                ; Update UI and Cache
                 Controls[line.name].intervals[intIdx].Fact.Value := produced
                 if (barcode != "")
                     Controls[line.name].intervals[intIdx].Prod.Value := barcode
@@ -394,11 +395,10 @@ FetchTodayData() {
                     SaveToCache(selDate, line.name, intIdx, "Prod", barcode)
             }
 
-            ; Update Total
             total := 0
             for intInfo in Controls[line.name].intervals {
                 val := intInfo.Fact.Value
-                if (val != "")
+                if (val != "" && IsNumber(val))
                     total += val
             }
             Controls[line.name].total.Value := total
@@ -413,10 +413,8 @@ FilterFeedsByTime(feeds, startT, endT) {
     e := StrReplace(StrReplace(StrReplace(endT, "-", ""), " ", ""), ":", "")
 
     for f in feeds {
-        ; ThingSpeak timestamp: 2024-06-20T06:05:12Z
         ft := f["created_at"]
         ft := StrReplace(StrReplace(StrReplace(SubStr(ft, 1, 19), "-", ""), "T", ""), ":", "")
-
         if (ft >= s && ft <= e)
             filtered.Push(f)
     }
