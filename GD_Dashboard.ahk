@@ -11,16 +11,14 @@ if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
 }
 
-; GitHub Gist Configuration
+; Configuration (Loaded from config.ini)
+Global CONFIG_FILE := A_ScriptDir "\config.ini"
 Global GIST_ID := "bca7d49ac0724f650842b0e7c691a1c1"
-Global GIST_TOKEN := "PLACEHOLDER_TOKEN" ; USER MUST PROVIDE TOKEN
+Global GIST_TOKEN := IniRead(CONFIG_FILE, "Gist", "Token", "")
 
-Global READ_KEYS := Map(
-    "463450", "VAL3TD2W5LADX7K1",
-    "703669", "S44OBKWC5C7FODZ5",
-    "802414", "I6NIZAVZYLPVV1ME",
-    "807602", "WUO1DG7GXYNZP6SG"
-)
+Global READ_KEYS := Map()
+for ch in ["463450", "703669", "802414", "807602"]
+    READ_KEYS[ch] := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" ch, "")
 
 Global LINES := [
     {name: "PLXE 1",    channel: "463450", fieldCount: 1, fieldBarcode: 2, color: "C6EFCE", tab: "PLXE"},
@@ -50,7 +48,7 @@ Global INTERVALS := [
 ; =======================================================
 ; GUI CONSTRUCTION
 ; =======================================================
-Global MainGui := Gui("+Resize +DoubleBuffer", "GD Gamybos Dashboard v" CURRENT_VERSION)
+Global MainGui := Gui("+Resize +E0x02000000", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 MainGui.BackColor := "White"
 
@@ -59,14 +57,14 @@ Global Calendar := MainGui.Add("DateTime", "x110 y10 w150 vSelectedDate", "yyyy-
 Calendar.OnEvent("Change", (ctrl, *) => LoadDateData())
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
-BtnRefresh.OnEvent("Click", (ctrl, *) => FetchTodayData())
+BtnRefresh.OnEvent("Click", (ctrl, *) => (SyncGist("down"), LoadDateData()))
 
 BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
 BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAndSync())
 
 Global StatusText := MainGui.Add("Text", "x515 y15 w600 vStatus", "Pasiruošęs")
 
-Global Tabs := MainGui.Add("Tab3", "x10 y50 w1330 h920 vTabsMain", ["PLXE", "NOBO", "Kiti"])
+Global Tabs := MainGui.Add("Tab3", "x10 y50 w1460 h980 vTabsMain", ["PLXE", "NOBO", "Kiti"])
 
 ; Store control references
 Global Controls := Map()
@@ -78,11 +76,11 @@ AddIntervalHeaders(YPos)
     MainGui.SetFont("s9 bold")
     Loop (INTERVALS.Length)
     {
-        X := 250 + (A_Index-1) * 92
+        X := 230 + (A_Index-1) * 95
         MainGui.Add("Text", "x" X " y" YPos " w90 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
     }
-    MainGui.Add("Text", "x" (250 + INTERVALS.Length * 92) " y" YPos " w90 h20 Center", "Viso")
-    MainGui.Add("Text", "x" (250 + (INTERVALS.Length + 1) * 92) " y" YPos " w90 h20 Center", "Vidurkis")
+    MainGui.Add("Text", "x" (230 + INTERVALS.Length * 95) " y" YPos " w90 h20 Center", "Viso")
+    MainGui.Add("Text", "x" (230 + (INTERVALS.Length + 1) * 95) " y" YPos " w90 h20 Center", "Vidurkis")
     MainGui.SetFont("s9 norm")
 }
 
@@ -95,25 +93,25 @@ CreateLineGrid(LineObj, YPos, TabIdx)
     Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x30 y" YPos " w120 h20", name)
+    MainGui.Add("Text", "x15 y" YPos " w100 h20", name)
 
     MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x155 y" YPos " w90 h20", "Planas")
-    MainGui.Add("Text", "x155 y" YPos+25 " w90 h20", "Faktas")
-    MainGui.Add("Text", "x155 y" YPos+50 " w90 h20", "Gaminys")
-    MainGui.Add("Text", "x155 y" YPos+75 " w90 h20", "Komentaras")
+    MainGui.Add("Text", "x125 y" YPos " w95 h20", "Planas")
+    MainGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Faktas")
+    MainGui.Add("Text", "x125 y" YPos+46 " w95 h20", "Gaminys")
+    MainGui.Add("Text", "x125 y" YPos+69 " w95 h20", "Komentaras")
     MainGui.SetFont("s9 norm")
 
     lineCtrls := []
     Loop (INTERVALS.Length)
     {
         idx := A_Index
-        X := 250 + (idx-1) * 92
+        X := 230 + (idx-1) * 95
 
-        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" safeName "_P" idx)
-        cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_F" idx)
-        cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" safeName "_G" idx)
-        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center cRed v" safeName "_K" idx)
+        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w90 h20 Center v" safeName "_P" idx)
+        cFact := MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly v" safeName "_F" idx)
+        cProd := MainGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly v" safeName "_G" idx)
+        cComm := MainGui.Add("Edit", "x" X " y" YPos+69 " w90 h20 Center cRed v" safeName "_K" idx)
 
         lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
 
@@ -121,12 +119,12 @@ CreateLineGrid(LineObj, YPos, TabIdx)
         cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
 
-    X := 250 + INTERVALS.Length * 92
+    X := 230 + INTERVALS.Length * 95
     MainGui.SetFont("s9 bold")
-    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w90 h22 Center ReadOnly v" safeName "_Total")
+    cTotal := MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly v" safeName "_Total")
 
-    X_Avg := X + 92
-    cAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos+25 " w90 h22 Center ReadOnly v" safeName "_Avg")
+    X_Avg := X + 95
+    cAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos+23 " w90 h20 Center ReadOnly v" safeName "_Avg")
     MainGui.SetFont("s9 norm")
 
     Controls[name] := {intervals: lineCtrls, total: cTotal, avg: cAvg, tab: LineObj.tab}
@@ -140,24 +138,24 @@ CreateTabFooter(TabName, YPos, TabIdx)
     fH := [], pH := [], pcH := []
 
     MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x155 y" YPos " w90 h20", "Faktas")
-    MainGui.Add("Text", "x30 y" YPos+25 " w120 h20", "Tikslas:")
-    MainGui.Add("Text", "x155 y" YPos+25 " w90 h20", "Planas")
+    MainGui.Add("Text", "x125 y" YPos " w95 h20", "Faktas")
+    MainGui.Add("Text", "x15 y" YPos+23 " w100 h20", "Tikslas:")
+    MainGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Planas")
 
     Loop (INTERVALS.Length)
     {
         idx := A_Index
-        X := 250 + (idx-1) * 92
+        X := 230 + (idx-1) * 95
 
-        fH.Push(MainGui.Add("Edit", "x" X " y" YPos " w90 h22 Center ReadOnly cRed BackgroundWhite"))
-        pH.Push(MainGui.Add("Edit", "x" X " y" YPos+25 " w90 h22 Center ReadOnly BackgroundWhite"))
-        pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+50 " w90 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
+        fH.Push(MainGui.Add("Edit", "x" X " y" YPos " w90 h20 Center ReadOnly cRed BackgroundWhite"))
+        pH.Push(MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly BackgroundWhite"))
+        pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
     }
 
-    X_Total := 1420
-    MainGui.Add("Text", "x" (X_Total - 15) " y" YPos+5 " w130 h20 Center", "Visos dienos:")
-    MainGui.SetFont("s22 bold")
-    cGrand := MainGui.Add("Edit", "x" X_Total " y" YPos+30 " w120 h60 Center ReadOnly Border")
+    X_Total := 1285
+    MainGui.Add("Text", "x" X_Total " y" YPos-25 " w140 h20 Center", "Visos dienos:")
+    MainGui.SetFont("s32 bold")
+    cGrand := MainGui.Add("Edit", "x" X_Total " y" YPos-5 " w140 h80 Center ReadOnly Border")
     MainGui.SetFont("s9 norm")
 
     TabFooters[TabName] := {Fact: fH, Plan: pH, Pct: pcH, Grand: cGrand}
@@ -165,9 +163,11 @@ CreateTabFooter(TabName, YPos, TabIdx)
 }
 
 ; Populate Tabs
-; Increased Y offsets to fix obscured top lines
-headerY := 100
-contentStartY := 130
+; In Tab3, coordinates are relative to the Tab control's client area.
+headerY := 5
+contentStartY := 15
+lineStep := 120
+footerGap := 40
 
 ; PLXE
 Tabs.UseTab(1)
@@ -176,10 +176,10 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "PLXE") {
         CreateLineGrid(line, Y, 1)
-        Y += 135
+        Y += lineStep
     }
 }
-CreateTabFooter("PLXE", Y, 1)
+CreateTabFooter("PLXE", Y + footerGap, 1)
 
 ; NOBO
 Tabs.UseTab(2)
@@ -188,10 +188,10 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "NOBO") {
         CreateLineGrid(line, Y, 2)
-        Y += 135
+        Y += lineStep
     }
 }
-CreateTabFooter("NOBO", Y, 2)
+CreateTabFooter("NOBO", Y + footerGap, 2)
 
 ; Kiti
 Tabs.UseTab(3)
@@ -200,12 +200,12 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "Kiti") {
         CreateLineGrid(line, Y, 3)
-        Y += 135
+        Y += lineStep
     }
 }
-CreateTabFooter("Kiti", Y, 3)
+CreateTabFooter("Kiti", Y + footerGap, 3)
 
-MainGui.Show("w1650 h1250")
+MainGui.Show("w1480 h1050")
 
 OnMessage(0x0200, WM_MOUSEMOVE)
 WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
@@ -225,7 +225,7 @@ WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
             {
                 ToolTip(val)
                 ; Set a timer to clear tooltip if mouse leaves the control area
-                SetTimer(() => CheckMousePos(hwnd), 500)
+                SetTimer(CheckMousePos.Bind(hwnd), 500)
             }
             else
                 ToolTip()
@@ -239,11 +239,14 @@ WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
 
 CheckMousePos(OriginalHwnd)
 {
-    MouseGetPos(,, &TargetHwnd, &ControlHwnd, 2)
-    if (TargetHwnd != OriginalHwnd && ControlHwnd != OriginalHwnd)
+    try
     {
-        ToolTip()
-        SetTimer(, 0)
+        MouseGetPos(,, &TargetHwnd, &ControlHwnd, 2)
+        if (TargetHwnd != OriginalHwnd && ControlHwnd != OriginalHwnd)
+        {
+            ToolTip()
+            SetTimer(CheckMousePos.Bind(OriginalHwnd), 0)
+        }
     }
 }
 
@@ -341,7 +344,7 @@ UpdateCalculations()
 SyncGist(mode)
 {
     global GIST_ID, GIST_TOKEN, LOG_DIR, StatusText
-    if (GIST_TOKEN == "PLACEHOLDER_TOKEN")
+    if (GIST_TOKEN == "" || GIST_TOKEN == "PLACEHOLDER_TOKEN")
         return
 
     StatusText.Value := (mode == "up" ? "Siunčiama į Gist..." : "Sinchronizuojama iš Gist...")
@@ -352,10 +355,9 @@ SyncGist(mode)
     {
         if (mode == "down")
         {
-            req.Open("GET", url, true)
+            req.Open("GET", url, false) ; Use synchronous for easier state management
             req.SetRequestHeader("Authorization", "token " GIST_TOKEN)
             req.Send()
-            req.WaitForResponse()
 
             if (req.Status == 200)
             {
@@ -384,8 +386,13 @@ SyncGist(mode)
                         else if (currentFile != "")
                             FileAppend(line "`n", currentFile)
                     }
+                    StatusText.Value := "Duomenys atsisiųsti iš Gist."
                 }
+                else
+                    StatusText.Value := "Gist failas nerastas."
             }
+            else
+                StatusText.Value := "Gist atsisiuntimo klaida: " req.Status
         }
         else if (mode == "up")
         {
@@ -395,15 +402,21 @@ SyncGist(mode)
                 payload .= "[FILE:" A_LoopFileName "]`n"
                 payload .= FileRead(A_LoopFileFullPath) "`n"
             }
-            jsonPayload := StrReplace(payload, '"', '\"')
+            jsonPayload := StrReplace(payload, '\', '\\')
+            jsonPayload := StrReplace(jsonPayload, '"', '\"')
             jsonPayload := StrReplace(jsonPayload, "`r`n", "\n")
             jsonPayload := StrReplace(jsonPayload, "`n", "\n")
             body := '{"files":{"logas.txt":{"content":"' jsonPayload '"}}}'
-            req.Open("PATCH", url, true)
+
+            req.Open("PATCH", url, false)
             req.SetRequestHeader("Authorization", "token " GIST_TOKEN)
             req.SetRequestHeader("Content-Type", "application/json")
             req.Send(body)
-            req.WaitForResponse()
+
+            if (req.Status == 200)
+                StatusText.Value := "Duomenys išsiųsti į Gist."
+            else
+                StatusText.Value := "Gist išsiuntimo klaida: " req.Status
         }
     }
     catch Error as e

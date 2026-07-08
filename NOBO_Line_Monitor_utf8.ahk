@@ -51,24 +51,27 @@ Global TS_FLUSH_INTERVAL := 1000
 
 Global IniFile := A_ScriptDir "\settings.ini"
 
+; Configuration (Shared with Dashboard)
+Global CONFIG_FILE := A_ScriptDir "\config.ini"
+
 ; Line Data Map
 Global LineMap := Map(
-    "PLXE 1", {ID: "463450", Read: "VAL3TD2W5LADX7K1", Write: "9RO3MUI3LNTMQ0WO", Count: "field1", Barcode: "field2"},
-    "PLXE 2", {ID: "463450", Read: "VAL3TD2W5LADX7K1", Write: "9RO3MUI3LNTMQ0WO", Count: "field3", Barcode: "field4"},
-    "PLXE 3", {ID: "463450", Read: "VAL3TD2W5LADX7K1", Write: "9RO3MUI3LNTMQ0WO", Count: "field5", Barcode: "field6"},
-    "PLXE 4", {ID: "463450", Read: "VAL3TD2W5LADX7K1", Write: "9RO3MUI3LNTMQ0WO", Count: "field7", Barcode: "field8"},
-    "NOBO 1", {ID: "703669", Read: "S44OBKWC5C7FODZ5", Write: "XPIME2EC8RKX9JO3", Count: "field1", Barcode: "field2"},
-    "NOBO 2", {ID: "703669", Read: "S44OBKWC5C7FODZ5", Write: "XPIME2EC8RKX9JO3", Count: "field3", Barcode: "field4"},
-    "NOBO 3", {ID: "703669", Read: "S44OBKWC5C7FODZ5", Write: "XPIME2EC8RKX9JO3", Count: "field5", Barcode: "field6"},
-    "NOBO 4", {ID: "703669", Read: "S44OBKWC5C7FODZ5", Write: "XPIME2EC8RKX9JO3", Count: "field7", Barcode: "field8"},
-    "NOBO 5", {ID: "802414", Read: "I6NIZAVZYLPVV1ME", Write: "DNPJZCU9G6NJD0VF", Count: "field1", Barcode: "field2"},
-    "NOBO 6", {ID: "802414", Read: "I6NIZAVZYLPVV1ME", Write: "DNPJZCU9G6NJD0VF", Count: "field3", Barcode: "field4"},
-    "NOBO 7", {ID: "802414", Read: "I6NIZAVZYLPVV1ME", Write: "DNPJZCU9G6NJD0VF", Count: "field5", Barcode: "field6"},
-    "PLXE 5", {ID: "802414", Read: "I6NIZAVZYLPVV1ME", Write: "DNPJZCU9G6NJD0VF", Count: "field7", Barcode: "field8"},
-    "UI perrašymas", {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field1", Barcode: "field2"},
-    "QRAD 1", {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field3", Barcode: "field4"},
-    "XLE 1",  {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field5", Barcode: "field6"},
-    "XLE ReWork", {ID: "807602", Read: "WUO1DG7GXYNZP6SG", Write: "O7IB88R7L2ELXR3Q", Count: "field7", Barcode: "field8"}
+    "PLXE 1", {ID: "463450", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_463450", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "PLXE_1_Write", ""), Count: "field1", Barcode: "field2"},
+    "PLXE 2", {ID: "463450", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_463450", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "PLXE_2_Write", ""), Count: "field3", Barcode: "field4"},
+    "PLXE 3", {ID: "463450", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_463450", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "PLXE_3_Write", ""), Count: "field5", Barcode: "field6"},
+    "PLXE 4", {ID: "463450", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_463450", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "PLXE_4_Write", ""), Count: "field7", Barcode: "field8"},
+    "NOBO 1", {ID: "703669", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_703669", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "NOBO_1_Write", ""), Count: "field1", Barcode: "field2"},
+    "NOBO 2", {ID: "703669", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_703669", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "NOBO_2_Write", ""), Count: "field3", Barcode: "field4"},
+    "NOBO 3", {ID: "703669", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_703669", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "NOBO_3_Write", ""), Count: "field5", Barcode: "field6"},
+    "NOBO 4", {ID: "703669", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_703669", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "NOBO_4_Write", ""), Count: "field7", Barcode: "field8"},
+    "NOBO 5", {ID: "802414", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_802414", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "NOBO_5_Write", ""), Count: "field1", Barcode: "field2"},
+    "NOBO 6", {ID: "802414", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_802414", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "NOBO_6_Write", ""), Count: "field3", Barcode: "field4"},
+    "NOBO 7", {ID: "802414", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_802414", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "NOBO_7_Write", ""), Count: "field5", Barcode: "field6"},
+    "PLXE 5", {ID: "802414", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_802414", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "PLXE_5_Write", ""), Count: "field7", Barcode: "field8"},
+    "UI perrašymas", {ID: "807602", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_807602", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "UI_Write", ""), Count: "field1", Barcode: "field2"},
+    "QRAD 1", {ID: "807602", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_807602", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "QRAD_Write", ""), Count: "field3", Barcode: "field4"},
+    "XLE 1",  {ID: "807602", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_807602", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "XLE_1_Write", ""), Count: "field5", Barcode: "field6"},
+    "XLE ReWork", {ID: "807602", Read: IniRead(CONFIG_FILE, "ThingSpeak", "Key_807602", ""), Write: IniRead(CONFIG_FILE, "NOBO_Keys", "XLE_ReWork_Write", ""), Count: "field7", Barcode: "field8"}
 )
 
 LoadSettings() {
