@@ -65,7 +65,7 @@ StatusText := MainGui.Add("Text", "x515 y15 w400 vStatus", "Pasiruošęs")
 Tabs := MainGui.Add("Tab3", "x10 y50 w1180 h940 vTabsMain", ["PLXE", "NOBO", "Kiti"])
 
 ; Expanded Comment Box (Initially Hidden)
-ExpandedBox := MainGui.Add("Edit", "x0 y0 w300 h150 vExpandedComment Multi Hidden Border BackgroundLightYellow cBlack")
+ExpandedBox := MainGui.Add("Edit", "x0 y0 w300 h150 vExpandedComment Multi Hidden Border BackgroundFFFFE0 cBlack")
 
 ; Store control references
 Global Controls := Map()
