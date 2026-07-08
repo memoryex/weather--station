@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "2.8"
+Global CURRENT_VERSION := "2.8 (Excel)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -89,9 +89,11 @@ BtnRefresh.OnEvent("Click", (ctrl, *) => (SyncGist("down"), LoadDateData()))
 BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
 BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAndSync())
 
-Global StatusText := MainGui.Add("Text", "x515 y15 w600", "Pasiruošęs")
+BtnExport := MainGui.Add("Button", "x510 y10 w120", "Eksportuoti Excel")
+BtnExport.OnEvent("Click", (ctrl, *) => ExportToExcel())
 
-; Tab3 handles control containment correctly
+Global StatusText := MainGui.Add("Text", "x645 y15 w600", "Pasiruošęs")
+
 Global Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h960", ["PLXE", "NOBO", "Kiti"])
 
 ; Store control references
@@ -667,6 +669,79 @@ SaveAll()
     }
     StatusText.Value := "Išsaugota (" dateStr ")."
     SoundBeep(750, 100)
+}
+
+ExportToExcel()
+{
+    global Calendar, Controls, INTERVALS, LINES
+    dateStr := FormatTime(Calendar.Value, "yyyy-MM-dd")
+
+    StatusText.Value := "Eksportuojama į Excel..."
+
+    try {
+        xl := ComObject("Excel.Application")
+        xl.Visible := true
+        wb := xl.Workbooks.Add()
+        ws := wb.ActiveSheet
+        ws.Name := dateStr
+
+        ; Headers
+        ws.Cells(1, 1).Value := "Linija"
+        ws.Cells(1, 2).Value := "Laukas"
+        Loop (INTERVALS.Length) {
+            ws.Cells(1, A_Index + 2).Value := INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2]
+        }
+        ws.Cells(1, INTERVALS.Length + 3).Value := "Viso"
+        ws.Cells(1, INTERVALS.Length + 4).Value := "Vidurkis"
+
+        currentRow := 2
+        for lineObj in LINES {
+            name := lineObj.name
+            data := Controls[name]
+
+            ; Linija merge
+            ws.Range(ws.Cells(currentRow, 1), ws.Cells(currentRow + 3, 1)).Merge()
+            ws.Cells(currentRow, 1).Value := name
+            ws.Cells(currentRow, 1).VerticalAlignment := -4108 ; xlCenter
+            ws.Cells(currentRow, 1).HorizontalAlignment := -4108
+
+            ; Row 1: Planas
+            ws.Cells(currentRow, 2).Value := "Planas"
+            Loop (INTERVALS.Length) {
+                ws.Cells(currentRow, A_Index + 2).Value := data.intervals[A_Index].Plan.Value
+            }
+            ws.Cells(currentRow, INTERVALS.Length + 3).Value := data.planTotal.Value
+            ws.Cells(currentRow, INTERVALS.Length + 4).Value := data.planAvg.Value
+
+            ; Row 2: Faktas
+            ws.Cells(currentRow + 1, 2).Value := "Faktas"
+            Loop (INTERVALS.Length) {
+                ws.Cells(currentRow + 1, A_Index + 2).Value := data.intervals[A_Index].Fact.Value
+            }
+            ws.Cells(currentRow + 1, INTERVALS.Length + 3).Value := data.factTotal.Value
+            ws.Cells(currentRow + 1, INTERVALS.Length + 4).Value := data.factAvg.Value
+
+            ; Row 3: Gaminys
+            ws.Cells(currentRow + 2, 2).Value := "Gaminys"
+            Loop (INTERVALS.Length) {
+                ws.Cells(currentRow + 2, A_Index + 2).Value := data.intervals[A_Index].Prod.Value
+            }
+
+            ; Row 4: Komentaras
+            ws.Cells(currentRow + 3, 2).Value := "Komentaras"
+            Loop (INTERVALS.Length) {
+                ws.Cells(currentRow + 3, A_Index + 2).Value := data.intervals[A_Index].Comm.Value
+            }
+
+            currentRow += 4
+        }
+
+        ws.Columns.AutoFit()
+        StatusText.Value := "Eksportas baigtas."
+    } catch Error as e {
+        MsgBox("Excel eksporto klaida: " e.Message, "Klaida", "Iconx")
+        StatusText.Value := "Eksporto klaida."
+    }
 }
 
 ; Startup
