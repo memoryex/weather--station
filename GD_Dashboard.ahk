@@ -50,7 +50,7 @@ Global INTERVALS := [
 ; =======================================================
 ; GUI CONSTRUCTION
 ; =======================================================
-Global MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
+Global MainGui := Gui("+Resize +DoubleBuffer", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 MainGui.BackColor := "White"
 
@@ -78,11 +78,11 @@ AddIntervalHeaders(YPos)
     MainGui.SetFont("s9 bold")
     Loop (INTERVALS.Length)
     {
-        X := 150 + (A_Index-1) * 88
-        MainGui.Add("Text", "x" X " y" YPos " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
+        X := 250 + (A_Index-1) * 92
+        MainGui.Add("Text", "x" X " y" YPos " w90 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
     }
-    MainGui.Add("Text", "x" (150 + INTERVALS.Length * 88) " y" YPos " w85 h20 Center", "Viso")
-    MainGui.Add("Text", "x" (150 + (INTERVALS.Length + 1) * 88) " y" YPos " w85 h20 Center", "Vidurkis")
+    MainGui.Add("Text", "x" (250 + INTERVALS.Length * 92) " y" YPos " w90 h20 Center", "Viso")
+    MainGui.Add("Text", "x" (250 + (INTERVALS.Length + 1) * 92) " y" YPos " w90 h20 Center", "Vidurkis")
     MainGui.SetFont("s9 norm")
 }
 
@@ -95,20 +95,20 @@ CreateLineGrid(LineObj, YPos, TabIdx)
     Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x10 y" YPos " w80 h20", name)
+    MainGui.Add("Text", "x30 y" YPos " w120 h20", name)
 
     MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x90 y" YPos " w60 h20", "Planas")
-    MainGui.Add("Text", "x90 y" YPos+25 " w60 h20", "Faktas")
-    MainGui.Add("Text", "x90 y" YPos+50 " w60 h20", "Gaminys")
-    MainGui.Add("Text", "x90 y" YPos+75 " w70 h20", "Komentaras")
+    MainGui.Add("Text", "x155 y" YPos " w90 h20", "Planas")
+    MainGui.Add("Text", "x155 y" YPos+25 " w90 h20", "Faktas")
+    MainGui.Add("Text", "x155 y" YPos+50 " w90 h20", "Gaminys")
+    MainGui.Add("Text", "x155 y" YPos+75 " w90 h20", "Komentaras")
     MainGui.SetFont("s9 norm")
 
     lineCtrls := []
     Loop (INTERVALS.Length)
     {
         idx := A_Index
-        X := 150 + (idx-1) * 88
+        X := 250 + (idx-1) * 92
 
         cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" safeName "_P" idx)
         cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_F" idx)
@@ -121,12 +121,12 @@ CreateLineGrid(LineObj, YPos, TabIdx)
         cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
 
-    X := 150 + INTERVALS.Length * 88
+    X := 250 + INTERVALS.Length * 92
     MainGui.SetFont("s9 bold")
-    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Total")
+    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w90 h22 Center ReadOnly v" safeName "_Total")
 
-    X_Avg := X + 88
-    cAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Avg")
+    X_Avg := X + 92
+    cAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos+25 " w90 h22 Center ReadOnly v" safeName "_Avg")
     MainGui.SetFont("s9 norm")
 
     Controls[name] := {intervals: lineCtrls, total: cTotal, avg: cAvg, tab: LineObj.tab}
@@ -140,23 +140,25 @@ CreateTabFooter(TabName, YPos, TabIdx)
     fH := [], pH := [], pcH := []
 
     MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x90 y" YPos " w60 h20", "Faktas")
-    MainGui.Add("Text", "x10 y" YPos+25 " w100 h20", "Tikslas:")
-    MainGui.Add("Text", "x90 y" YPos+25 " w60 h20", "Planas")
+    MainGui.Add("Text", "x155 y" YPos " w90 h20", "Faktas")
+    MainGui.Add("Text", "x30 y" YPos+25 " w120 h20", "Tikslas:")
+    MainGui.Add("Text", "x155 y" YPos+25 " w90 h20", "Planas")
 
     Loop (INTERVALS.Length)
     {
         idx := A_Index
-        X := 150 + (idx-1) * 88
+        X := 250 + (idx-1) * 92
 
-        fH.Push(MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center ReadOnly cRed BackgroundWhite"))
-        pH.Push(MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly BackgroundWhite"))
-        pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
+        fH.Push(MainGui.Add("Edit", "x" X " y" YPos " w90 h22 Center ReadOnly cRed BackgroundWhite"))
+        pH.Push(MainGui.Add("Edit", "x" X " y" YPos+25 " w90 h22 Center ReadOnly BackgroundWhite"))
+        pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+50 " w90 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
     }
 
-    X_Total := 150 + INTERVALS.Length * 88
-    MainGui.Add("Text", "x" (X_Total - 15) " y" YPos+5 " w120 h20 Center", "Visos dienos:")
-    cGrand := MainGui.Add("Edit", "x" X_Total " y" YPos+25 " w85 h22 Center ReadOnly Border")
+    X_Total := 1420
+    MainGui.Add("Text", "x" (X_Total - 15) " y" YPos+5 " w130 h20 Center", "Visos dienos:")
+    MainGui.SetFont("s22 bold")
+    cGrand := MainGui.Add("Edit", "x" X_Total " y" YPos+30 " w120 h60 Center ReadOnly Border")
+    MainGui.SetFont("s9 norm")
 
     TabFooters[TabName] := {Fact: fH, Plan: pH, Pct: pcH, Grand: cGrand}
     MainGui.SetFont("norm")
@@ -174,7 +176,7 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "PLXE") {
         CreateLineGrid(line, Y, 1)
-        Y += 115
+        Y += 135
     }
 }
 CreateTabFooter("PLXE", Y, 1)
@@ -186,7 +188,7 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "NOBO") {
         CreateLineGrid(line, Y, 2)
-        Y += 90
+        Y += 135
     }
 }
 CreateTabFooter("NOBO", Y, 2)
@@ -198,12 +200,12 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "Kiti") {
         CreateLineGrid(line, Y, 3)
-        Y += 115
+        Y += 135
     }
 }
 CreateTabFooter("Kiti", Y, 3)
 
-MainGui.Show("w1350 h1000")
+MainGui.Show("w1650 h1250")
 
 OnMessage(0x0200, WM_MOUSEMOVE)
 WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
@@ -213,15 +215,35 @@ WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
         return
     LastHwnd := hwnd
 
-    ctrl := GuiCtrlFromHwnd(hwnd)
-    if (ctrl && InStr(ctrl.Name, "_K"))
+    try
     {
-        if (ctrl.Value != "")
-            ToolTip(ctrl.Value)
+        ctrl := GuiCtrlFromHwnd(hwnd)
+        if (ctrl && InStr(ctrl.Name, "_K"))
+        {
+            val := ctrl.Value
+            if (val != "")
+            {
+                ToolTip(val)
+                ; Set a timer to clear tooltip if mouse leaves the control area
+                SetTimer(() => CheckMousePos(hwnd), 500)
+            }
+            else
+                ToolTip()
+        }
+        else
+        {
+            ToolTip()
+        }
     }
-    else
+}
+
+CheckMousePos(OriginalHwnd)
+{
+    MouseGetPos(,, &TargetHwnd, &ControlHwnd, 2)
+    if (TargetHwnd != OriginalHwnd && ControlHwnd != OriginalHwnd)
     {
         ToolTip()
+        SetTimer(, 0)
     }
 }
 
