@@ -4,16 +4,16 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "1.5"
+Global CURRENT_VERSION := "1.8"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
 
 Global READ_KEYS := Map(
-    "463450", "VAL3TD2W5LADX7K1", ; PLXE 1-4
-    "703669", "S44OBKWC5C7FODZ5", ; NOBO 1-4
-    "802414", "I6NIZAVZYLPVV1ME", ; NOBO 5-7, PLXE 5
-    "807602", "WUO1DG7GXYNZP6SG"  ; QRAD, XLE, UI perrašymas
+    "463450", "VAL3TD2W5LADX7K1",
+    "703669", "S44OBKWC5C7FODZ5",
+    "802414", "I6NIZAVZYLPVV1ME",
+    "807602", "WUO1DG7GXYNZP6SG"
 )
 
 Global LINES := [
@@ -41,7 +41,6 @@ Global INTERVALS := [
     ["14:10", "15:00"], ["15:00", "16:00"]
 ]
 
-; Theme Definitions
 Global THEMES := Map(
     "Šviesi", {bg: "White", txt: "cBlack", edit: "BackgroundWhite cBlack"},
     "Tamsi",  {bg: "1A1A1A", txt: "cWhite", edit: "Background333333 cWhite"},
@@ -56,14 +55,14 @@ Global THEMES := Map(
 MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 
-MainGui.Add("Text", "x10 y15 vLblDate", "Pasirinkite datą:")
+MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
 Calendar := MainGui.Add("DateTime", "x110 y10 w150 vSelectedDate", "yyyy-MM-dd")
 Calendar.OnEvent("Change", (*) => LoadDateData())
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
 BtnRefresh.OnEvent("Click", (*) => FetchTodayData())
 
-MainGui.Add("Text", "x380 y15 vLblTheme", "Tema:")
+MainGui.Add("Text", "x380 y15", "Tema:")
 ThemeSelector := MainGui.Add("DropDownList", "x425 y10 w100 Choose1 vThemeSelect", ["Šviesi", "Tamsi", "Pilka", "Mėlyna", "Žalia"])
 ThemeSelector.OnEvent("Change", (ctrl, *) => ApplyTheme(ctrl.Text))
 
@@ -72,19 +71,9 @@ BtnSaveAll.OnEvent("Click", (*) => SaveAll())
 
 StatusText := MainGui.Add("Text", "x665 y15 w400 vStatus", "Pasiruošęs")
 
-; Headers outside of tabs for visibility
-MainGui.SetFont("s9 bold")
-Loop INTERVALS.Length {
-    X := 220 + (A_Index-1) * 88
-    MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center vHdr_" A_Index, INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
-}
-MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" 55 " w85 h20 Center vHdr_Total", "Viso")
-MainGui.SetFont("s9 norm")
+Tabs := MainGui.Add("Tab3", "x10 y50 w1180 h940 vTabsMain", ["PLXE", "NOBO", "Kiti"])
 
-; Shift Tab control down to avoid overlapping headers
-Tabs := MainGui.Add("Tab3", "x10 y80 w1180 h910 vTabsMain", ["PLXE", "NOBO", "Kiti"])
-
-; Store control references for easy access
+; Store control references
 Global Controls := Map()
 
 ApplyTheme(themeName) {
@@ -98,21 +87,31 @@ ApplyTheme(themeName) {
     for hwnd, ctrl in MainGui {
         try {
             if (ctrl is Gui.Text) {
-                ; Set text color and background matching the GUI background
                 ctrl.Opt(theme.txt " Background" theme.bg)
             } else if (ctrl is Gui.Edit) {
-                ; Fact and Total fields always stay high-contrast (Black text)
                 if InStr(ctrl.Name, "_F") || InStr(ctrl.Name, "_Total") {
-                    ctrl.Opt("cBlack")
+                    ctrl.Opt("cBlack") ; Always black text on fact/total colored backgrounds
                 } else {
                     ctrl.Opt(theme.edit)
                 }
             } else if (ctrl is Gui.Tab) {
                 ctrl.Opt(theme.txt)
             }
+            ctrl.Redraw()
+        } catch {
+            continue
         }
-        try ctrl.Redraw()
     }
+}
+
+AddIntervalHeaders(YPos) {
+    MainGui.SetFont("s9 bold")
+    Loop INTERVALS.Length {
+        X := 220 + (A_Index-1) * 88
+        MainGui.Add("Text", "x" X " y" YPos " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
+    }
+    MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" YPos " w85 h20 Center", "Viso")
+    MainGui.SetFont("s9 norm")
 }
 
 CreateLineGrid(LineObj, YPos, TabIdx) {
@@ -123,13 +122,13 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
     Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x20 y" YPos " w120 h20 vLineName_" safeName, name)
+    MainGui.Add("Text", "x20 y" YPos " w120 h20", name)
     MainGui.SetFont("s9 norm")
 
-    MainGui.Add("Text", "x150 y" YPos " w60 h20 vLblP_" safeName, "Planas")
-    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20 vLblF_" safeName, "Faktas")
-    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20 vLblG_" safeName, "Gaminys")
-    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20 vLblK_" safeName, "Komment.")
+    MainGui.Add("Text", "x150 y" YPos " w60 h20", "Planas")
+    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20", "Faktas")
+    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20", "Gaminys")
+    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20", "Komment.")
 
     lineCtrls := []
     Loop INTERVALS.Length {
@@ -149,7 +148,6 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
         cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
 
-    ; Total column
     X := 220 + INTERVALS.Length * 88
     MainGui.SetFont("bold")
     cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Total")
@@ -158,13 +156,14 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
     Controls[name] := {intervals: lineCtrls, total: cTotal}
 }
 
-; Starting Y relative to GUI (client area inside Tab control).
-; Since Tab3 uses GUI coordinates, we need to leave room for the tab headers.
-; y80 is Tab start. y120 is about 40px below, should be safe.
-startY := 125
+; Populate Tabs
+headerY := 80
+contentStartY := 110
 
 ; PLXE (1-5)
-Y := startY
+Tabs.UseTab(1)
+AddIntervalHeaders(headerY)
+Y := contentStartY
 for line in LINES {
     if InStr(line.name, "PLXE") {
         CreateLineGrid(line, Y, 1)
@@ -173,7 +172,9 @@ for line in LINES {
 }
 
 ; NOBO (1-7)
-Y := startY
+Tabs.UseTab(2)
+AddIntervalHeaders(headerY)
+Y := contentStartY
 for line in LINES {
     if InStr(line.name, "NOBO") {
         CreateLineGrid(line, Y, 2)
@@ -181,8 +182,10 @@ for line in LINES {
     }
 }
 
-; Kiti (QRAD, XLE, UI)
-Y := startY
+; Kiti
+Tabs.UseTab(3)
+AddIntervalHeaders(headerY)
+Y := contentStartY
 for line in LINES {
     if !InStr(line.name, "PLXE") && !InStr(line.name, "NOBO") {
         CreateLineGrid(line, Y, 3)
@@ -244,8 +247,13 @@ CalculateDelta(feeds, fieldName) {
     vals := []
     for f in feeds {
         val := f.Has(fieldName) ? f[fieldName] : ""
-        if (val != "" && val != "null")
-            try vals.Push(Float(val))
+        if (val != "" && val != "null") {
+            try {
+                vals.Push(Float(val))
+            } catch {
+                continue
+            }
+        }
     }
     if (vals.Length < 2) return 0
     total := 0
