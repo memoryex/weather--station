@@ -44,11 +44,11 @@ Global INTERVALS := [
 ]
 
 Global THEMES := Map(
-    "Šviesi", {bg: "White", txt: "cBlack", edit: "BackgroundWhite cBlack"},
-    "Tamsi",  {bg: "1A1A1A", txt: "cWhite", edit: "Background333333 cWhite"},
-    "Pilka",  {bg: "444444", txt: "cWhite", edit: "Background666666 cWhite"},
-    "Mėlyna", {bg: "001F3F", txt: "cWhite", edit: "Background003366 cWhite"},
-    "Žalia",  {bg: "1B3022", txt: "cWhite", edit: "Background2D4C38 cWhite"}
+    "Šviesi", {bg: "White", txt: "Black", edit: "BackgroundWhite cBlack", tab: "White"},
+    "Tamsi",  {bg: "1A1A1A", txt: "White", edit: "Background333333 cWhite", tab: "1A1A1A"},
+    "Pilka",  {bg: "444444", txt: "White", edit: "Background666666 cWhite", tab: "444444"},
+    "Mėlyna", {bg: "001F3F", txt: "White", edit: "Background003366 cWhite", tab: "001F3F"},
+    "Žalia",  {bg: "1B3022", txt: "White", edit: "Background2D4C38 cWhite", tab: "1B3022"}
 )
 
 ; =======================================================
@@ -57,21 +57,21 @@ Global THEMES := Map(
 MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 
-MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
+MainGui.Add("Text", "x10 y15 BackgroundTrans", "Pasirinkite datą:")
 Calendar := MainGui.Add("DateTime", "x110 y10 w150 vSelectedDate", "yyyy-MM-dd")
 Calendar.OnEvent("Change", (ctrl, *) => LoadDateData())
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
 BtnRefresh.OnEvent("Click", (ctrl, *) => FetchTodayData())
 
-MainGui.Add("Text", "x380 y15", "Tema:")
+MainGui.Add("Text", "x380 y15 BackgroundTrans", "Tema:")
 ThemeSelector := MainGui.Add("DropDownList", "x425 y10 w100 Choose1 vThemeSelect", ["Šviesi", "Tamsi", "Pilka", "Mėlyna", "Žalia"])
 ThemeSelector.OnEvent("Change", (ctrl, *) => ApplyTheme(ctrl.Text))
 
 BtnSaveAll := MainGui.Add("Button", "x535 y10 w120", "Saugoti viską")
 BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAll())
 
-StatusText := MainGui.Add("Text", "x665 y15 w400 vStatus", "Pasiruošęs")
+StatusText := MainGui.Add("Text", "x665 y15 w400 vStatus BackgroundTrans", "Pasiruošęs")
 
 Tabs := MainGui.Add("Tab3", "x10 y50 w1180 h940 vTabsMain", ["PLXE", "NOBO", "Kiti"])
 
@@ -80,7 +80,7 @@ Global Controls := Map()
 
 ApplyTheme(themeName)
 {
-    global THEMES, MainGui
+    global THEMES, MainGui, LINES
     if !THEMES.Has(themeName)
     {
         return
@@ -89,28 +89,41 @@ ApplyTheme(themeName)
     theme := THEMES[themeName]
     MainGui.BackColor := theme.bg
 
+    ; Map safe names to colors for Fact/Total fields
+    colorMap := Map()
+    for index, line in LINES
+    {
+        colorMap[RegExReplace(line.name, "[ \-]", "_")] := SubStr(line.color, -6)
+    }
+
     for hwnd, ctrl in MainGui
     {
         try
         {
             if (ctrl is Gui.Text)
             {
-                ctrl.Opt(theme.txt " Background" theme.bg)
+                ctrl.Opt("c" theme.txt " Background" theme.bg)
             }
             else if (ctrl is Gui.Edit)
             {
-                if InStr(ctrl.Name, "_F") || InStr(ctrl.Name, "_Total")
+                isSpecial := false
+                for safeName, color in colorMap
                 {
-                    ctrl.Opt("cBlack") ; Always black text on fact/total colored backgrounds
+                    if (InStr(ctrl.Name, safeName "_F") || InStr(ctrl.Name, safeName "_Total"))
+                    {
+                        ctrl.Opt("cBlack Background" color)
+                        isSpecial := true
+                        break
+                    }
                 }
-                else
+                if (!isSpecial)
                 {
                     ctrl.Opt(theme.edit)
                 }
             }
             else if (ctrl is Gui.Tab)
             {
-                ctrl.Opt(theme.txt)
+                ctrl.Opt("c" theme.txt " Background" theme.bg)
             }
             ctrl.Redraw()
         }
@@ -127,9 +140,9 @@ AddIntervalHeaders(YPos)
     Loop (INTERVALS.Length)
     {
         X := 220 + (A_Index-1) * 88
-        MainGui.Add("Text", "x" X " y" YPos " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
+        MainGui.Add("Text", "x" X " y" YPos " w85 h20 Center BackgroundTrans", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
     }
-    MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" YPos " w85 h20 Center", "Viso")
+    MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" YPos " w85 h20 Center BackgroundTrans", "Viso")
     MainGui.SetFont("s9 norm")
 }
 
@@ -142,13 +155,13 @@ CreateLineGrid(LineObj, YPos, TabIdx)
     Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x20 y" YPos " w120 h20", name)
+    MainGui.Add("Text", "x20 y" YPos " w120 h20 BackgroundTrans", name)
     MainGui.SetFont("s9 norm")
 
-    MainGui.Add("Text", "x150 y" YPos " w60 h20", "Planas")
-    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20", "Faktas")
-    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20", "Gaminys")
-    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20", "Komment.")
+    MainGui.Add("Text", "x150 y" YPos " w60 h20 BackgroundTrans", "Planas")
+    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20 BackgroundTrans", "Faktas")
+    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20 BackgroundTrans", "Gaminys")
+    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20 BackgroundTrans", "Komment.")
 
     lineCtrls := []
     Loop (INTERVALS.Length)
@@ -178,8 +191,8 @@ CreateLineGrid(LineObj, YPos, TabIdx)
 }
 
 ; Populate Tabs
-headerY := 80
-contentStartY := 110
+headerY := 90
+contentStartY := 120
 
 ; PLXE (1-5)
 Tabs.UseTab(1)
