@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "1.8"
+Global CURRENT_VERSION := "1.9"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
 {
@@ -62,10 +62,34 @@ BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAll())
 
 StatusText := MainGui.Add("Text", "x515 y15 w400 vStatus", "Pasiruošęs")
 
-Tabs := MainGui.Add("Tab3", "x10 y50 w1180 h940 vTabsMain", ["PLXE", "NOBO", "Kiti"])
+Tabs := MainGui.Add("Tab3", "x10 y50 w1320 h850 vTabsMain", ["PLXE", "NOBO", "Kiti"])
 
 ; Expanded Comment Box (Initially Hidden)
-ExpandedBox := MainGui.Add("Edit", "x0 y0 w300 h150 vExpandedComment Multi Hidden Border BackgroundFFFFE0 cBlack")
+ExpandedBox := MainGui.Add("Edit", "x0 y0 w300 h150 vExpandedComment Multi Hidden Border BackgroundFFFFE0 cRed")
+
+; Footer Summary Row (outside tabs)
+MainGui.SetFont("s10 bold")
+MainGui.Add("Text", "x20 y915 w120 h20", "Bendra suvestinė")
+MainGui.SetFont("s9 bold")
+MainGui.Add("Text", "x150 y915 w60 h20", "Tikslas")
+MainGui.Add("Text", "x150 y940 w60 h20", "Faktas")
+
+Global HourlyTikslas := []
+Global HourlyFaktas := []
+Global GrandTikslas, GrandFaktas
+
+Loop (INTERVALS.Length)
+{
+    idx := A_Index
+    X := 220 + (idx-1) * 88
+    HourlyTikslas.Push(MainGui.Add("Edit", "x" X " y915 w85 h22 Center ReadOnly BackgroundWhite"))
+    HourlyFaktas.Push(MainGui.Add("Edit", "x" X " y940 w85 h22 Center ReadOnly BackgroundWhite"))
+}
+
+X := 220 + INTERVALS.Length * 88
+GrandTikslas := MainGui.Add("Edit", "x" X " y915 w85 h22 Center ReadOnly BackgroundWhite")
+GrandFaktas := MainGui.Add("Edit", "x" X " y940 w85 h22 Center ReadOnly BackgroundWhite")
+MainGui.SetFont("s9 norm")
 
 ; Store control references
 Global Controls := Map()
@@ -80,6 +104,7 @@ AddIntervalHeaders(YPos)
         MainGui.Add("Text", "x" X " y" YPos " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
     }
     MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" YPos " w85 h20 Center", "Viso")
+    MainGui.Add("Text", "x" (220 + (INTERVALS.Length + 1) * 88) " y" YPos " w85 h20 Center", "Vidurkis")
     MainGui.SetFont("s9 norm")
 }
 
@@ -110,27 +135,23 @@ CreateLineGrid(LineObj, YPos, TabIdx)
         cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" safeName "_P" idx)
         cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_F" idx)
         cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" safeName "_G" idx)
-        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center v" safeName "_K" idx)
-
-        ; Apply line specific background
-        bgCol := SubStr(LineObj.color, -6)
-        cFact.Opt("Background" bgCol " cBlack")
-        cProd.Opt("Background" bgCol " cBlack")
+        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center cRed v" safeName "_K" idx)
 
         lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
 
-        cPlan.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Plan", ctrl.Value))
-
-        ; Comment events for expansion
+        cPlan.OnEvent("LoseFocus", (ctrl, *) => (SaveManualInput(name, idx, "Plan", ctrl.Value), UpdateCalculations()))
         cComm.OnEvent("Focus", ShowExpandedComment)
     }
 
     X := 220 + INTERVALS.Length * 88
     MainGui.SetFont("bold")
     cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Total")
+
+    X_Avg := X + 88
+    cAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Avg")
     MainGui.SetFont("norm")
 
-    Controls[name] := {intervals: lineCtrls, total: cTotal}
+    Controls[name] := {intervals: lineCtrls, total: cTotal, avg: cAvg}
 }
 
 ShowExpandedComment(ctrl, *)
@@ -140,8 +161,7 @@ ShowExpandedComment(ctrl, *)
 
     ctrl.GetPos(&x, &y, &w, &h)
 
-    ; Adjust position to be above or below based on space
-    exW := 250, exH := 100
+    exW := 350, exH := 120
     newX := x - (exW - w)/2
     newY := y + h + 2
 
@@ -159,12 +179,10 @@ HideExpandedComment(ctrl, *)
     if (ActiveCommentCtrl)
     {
         ActiveCommentCtrl.Value := ExpandedBox.Value
-        ; Trigger the save logic
         RegExMatch(ActiveCommentCtrl.Name, "(.+)_K(\d+)", &m)
         if (m)
         {
-            lineName := StrReplace(m[1], "_", " ") ; Rough restoration for lookup
-            ; Find the actual line name from LINES to be safe
+            lineName := m[1]
             for l in LINES
             {
                 if (RegExReplace(l.name, "[ \-]", "_") == m[1])
@@ -180,7 +198,6 @@ HideExpandedComment(ctrl, *)
     ActiveCommentCtrl := 0
 }
 
-; Hover Tooltip Logic
 OnMessage(0x0200, WM_MOUSEMOVE)
 WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
 {
@@ -202,8 +219,8 @@ WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
 }
 
 ; Populate Tabs
-headerY := 90
-contentStartY := 120
+headerY := 25
+contentStartY := 55
 
 ; PLXE (1-5)
 Tabs.UseTab(1)
@@ -214,7 +231,7 @@ for index, line in LINES
     if InStr(line.name, "PLXE")
     {
         CreateLineGrid(line, Y, 1)
-        Y += 120
+        Y += 135
     }
 }
 
@@ -227,7 +244,7 @@ for index, line in LINES
     if InStr(line.name, "NOBO")
     {
         CreateLineGrid(line, Y, 2)
-        Y += 120
+        Y += 110
     }
 }
 
@@ -240,11 +257,11 @@ for index, line in LINES
     if !InStr(line.name, "PLXE") && !InStr(line.name, "NOBO")
     {
         CreateLineGrid(line, Y, 3)
-        Y += 120
+        Y += 135
     }
 }
 
-MainGui.Show("w1200 h1000")
+MainGui.Show("w1350 h980")
 LoadDateData()
 
 SetTimer(AutoRefresh, 300000)
@@ -254,6 +271,70 @@ AutoRefresh()
     {
         FetchTodayData()
     }
+}
+
+UpdateCalculations()
+{
+    global Controls, INTERVALS, HourlyTikslas, HourlyFaktas, GrandTikslas, GrandFaktas
+
+    totalHourlyTikslas := [0,0,0,0,0,0,0,0,0,0]
+    totalHourlyFaktas := [0,0,0,0,0,0,0,0,0,0]
+    grandT := 0, grandF := 0
+
+    for lineName, data in Controls
+    {
+        lineTotalFact := 0
+        lineTotalPlan := 0
+        activeIntervals := 0
+
+        for idx, interval in data.intervals
+        {
+            pVal := IsNumber(interval.Plan.Value) ? Integer(interval.Plan.Value) : 0
+            fVal := IsNumber(interval.Fact.Value) ? Integer(interval.Fact.Value) : 0
+
+            totalHourlyTikslas[idx] += pVal
+            totalHourlyFaktas[idx] += fVal
+            lineTotalFact += fVal
+            lineTotalPlan += pVal
+
+            if (fVal > 0 || pVal > 0)
+                activeIntervals++
+
+            ; Conditional Formatting
+            if (fVal >= pVal && (fVal > 0 || pVal > 0))
+            {
+                interval.Plan.Opt("Background90EE90")
+                interval.Fact.Opt("Background90EE90")
+            }
+            else if (fVal < pVal && (fVal > 0 || pVal > 0))
+            {
+                interval.Plan.Opt("BackgroundFF7F7F")
+                interval.Fact.Opt("BackgroundFF7F7F")
+            }
+            else
+            {
+                interval.Plan.Opt("BackgroundWhite")
+                interval.Fact.Opt("BackgroundWhite")
+            }
+            interval.Plan.Redraw()
+            interval.Fact.Redraw()
+        }
+
+        data.total.Value := lineTotalFact
+        avg := activeIntervals > 0 ? Round(lineTotalFact / activeIntervals, 1) : 0
+        data.avg.Value := avg
+
+        grandT += lineTotalPlan
+        grandF += lineTotalFact
+    }
+
+    Loop (INTERVALS.Length)
+    {
+        HourlyTikslas[A_Index].Value := totalHourlyTikslas[A_Index]
+        HourlyFaktas[A_Index].Value := totalHourlyFaktas[A_Index]
+    }
+    GrandTikslas.Value := grandT
+    GrandFaktas.Value := grandF
 }
 
 ; =======================================================
@@ -374,7 +455,6 @@ LoadDateData()
     iniPath := LOG_DIR "\" dateStr ".ini"
     for lineName, data in Controls
     {
-        totalFact := 0
         Loop (INTERVALS.Length)
         {
             idx := A_Index
@@ -386,13 +466,9 @@ LoadDateData()
             data.intervals[idx].Fact.Value := fact
             data.intervals[idx].Prod.Value := prod
             data.intervals[idx].Comm.Value := comm
-            if (fact != "" && IsNumber(fact))
-            {
-                totalFact += fact
-            }
         }
-        data.total.Value := totalFact
     }
+    UpdateCalculations()
     if (dateStr == FormatTime(A_Now, "yyyy-MM-dd"))
     {
         FetchTodayData()
@@ -458,18 +534,9 @@ FetchTodayData()
                     SaveToCache(selDate, line.name, intIdx, "Prod", barcode)
                 }
             }
-            total := 0
-            for i, intInfo in Controls[line.name].intervals
-            {
-                val := intInfo.Fact.Value
-                if (val != "" && IsNumber(val))
-                {
-                    total += val
-                }
-            }
-            Controls[line.name].total.Value := total
         }
     }
+    UpdateCalculations()
     StatusText.Value := "Atnaujinimas baigtas: " FormatTime(, "HH:mm:ss")
 }
 
