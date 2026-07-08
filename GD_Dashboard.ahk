@@ -43,19 +43,12 @@ Global INTERVALS := [
     ["14:10", "15:00"], ["15:00", "16:00"]
 ]
 
-Global THEMES := Map(
-    "Šviesi", {bg: "White", txt: "Black", editBg: "White", editTxt: "Black"},
-    "Tamsi",  {bg: "1A1A1A", txt: "White", editBg: "333333", editTxt: "White"},
-    "Pilka",  {bg: "444444", txt: "White", editBg: "666666", editTxt: "White"},
-    "Mėlyna", {bg: "001F3F", txt: "White", editBg: "003366", editTxt: "White"},
-    "Žalia",  {bg: "1B3022", txt: "White", editBg: "2D4C38", editTxt: "White"}
-)
-
 ; =======================================================
 ; GUI CONSTRUCTION
 ; =======================================================
 MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
+MainGui.BackColor := "White"
 
 MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
 Calendar := MainGui.Add("DateTime", "x110 y10 w150 vSelectedDate", "yyyy-MM-dd")
@@ -64,78 +57,19 @@ Calendar.OnEvent("Change", (ctrl, *) => LoadDateData())
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
 BtnRefresh.OnEvent("Click", (ctrl, *) => FetchTodayData())
 
-MainGui.Add("Text", "x380 y15", "Tema:")
-ThemeSelector := MainGui.Add("DropDownList", "x425 y10 w100 Choose1 vThemeSelect", ["Šviesi", "Tamsi", "Pilka", "Mėlyna", "Žalia"])
-ThemeSelector.OnEvent("Change", (ctrl, *) => ApplyTheme(ctrl.Text))
-
-BtnSaveAll := MainGui.Add("Button", "x535 y10 w120", "Saugoti viską")
+BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
 BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAll())
 
-StatusText := MainGui.Add("Text", "x665 y15 w400 vStatus", "Pasiruošęs")
+StatusText := MainGui.Add("Text", "x515 y15 w400 vStatus", "Pasiruošęs")
 
 Tabs := MainGui.Add("Tab3", "x10 y50 w1180 h940 vTabsMain", ["PLXE", "NOBO", "Kiti"])
 
+; Expanded Comment Box (Initially Hidden)
+ExpandedBox := MainGui.Add("Edit", "x0 y0 w300 h150 vExpandedComment Multi Hidden Border BackgroundLightYellow cBlack")
+
 ; Store control references
 Global Controls := Map()
-
-ApplyTheme(themeName)
-{
-    global THEMES, MainGui, LINES
-    if !THEMES.Has(themeName)
-    {
-        return
-    }
-
-    theme := THEMES[themeName]
-    MainGui.BackColor := theme.bg
-
-    ; Map safe names to colors for Fact/Total/Prod fields
-    colorMap := Map()
-    for index, line in LINES
-    {
-        colorMap[RegExReplace(line.name, "[ \-]", "_")] := SubStr(line.color, -6)
-    }
-
-    for hwnd, ctrl in MainGui
-    {
-        try
-        {
-            if (ctrl is Gui.Text)
-            {
-                ctrl.SetFont("c" theme.txt)
-                ctrl.Opt("Background" theme.bg)
-            }
-            else if (ctrl is Gui.Edit)
-            {
-                isColored := false
-                for safeName, color in colorMap
-                {
-                    ; Apply line specific background to Fact, Total AND Product (Gaminys)
-                    if (InStr(ctrl.Name, safeName "_F") || InStr(ctrl.Name, safeName "_Total") || InStr(ctrl.Name, safeName "_G"))
-                    {
-                        ctrl.Opt("cBlack Background" color)
-                        isColored := true
-                        break
-                    }
-                }
-
-                if (!isColored)
-                {
-                    ctrl.Opt("c" theme.editTxt " Background" theme.editBg)
-                }
-            }
-            else if (ctrl is Gui.Tab)
-            {
-                ctrl.Opt("c" theme.txt " Background" theme.bg)
-            }
-            ctrl.Redraw()
-        }
-        catch
-        {
-            continue
-        }
-    }
-}
+Global ActiveCommentCtrl := 0
 
 AddIntervalHeaders(YPos)
 {
@@ -175,20 +109,20 @@ CreateLineGrid(LineObj, YPos, TabIdx)
 
         cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" safeName "_P" idx)
         cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_F" idx)
-
-        ; Product (Gaminys) should not be bold as per user request
         cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" safeName "_G" idx)
-
         cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center v" safeName "_K" idx)
 
-        ; Apply colors immediately on creation
-        cFact.Opt("Background" SubStr(LineObj.color, -6))
-        cProd.Opt("Background" SubStr(LineObj.color, -6))
+        ; Apply line specific background
+        bgCol := SubStr(LineObj.color, -6)
+        cFact.Opt("Background" bgCol " cBlack")
+        cProd.Opt("Background" bgCol " cBlack")
 
         lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
 
         cPlan.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Plan", ctrl.Value))
-        cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
+
+        ; Comment events for expansion
+        cComm.OnEvent("Focus", ShowExpandedComment)
     }
 
     X := 220 + INTERVALS.Length * 88
@@ -197,6 +131,74 @@ CreateLineGrid(LineObj, YPos, TabIdx)
     MainGui.SetFont("norm")
 
     Controls[name] := {intervals: lineCtrls, total: cTotal}
+}
+
+ShowExpandedComment(ctrl, *)
+{
+    global ExpandedBox, ActiveCommentCtrl
+    ActiveCommentCtrl := ctrl
+
+    ctrl.GetPos(&x, &y, &w, &h)
+
+    ; Adjust position to be above or below based on space
+    exW := 250, exH := 100
+    newX := x - (exW - w)/2
+    newY := y + h + 2
+
+    ExpandedBox.Value := ctrl.Value
+    ExpandedBox.Move(newX, newY, exW, exH)
+    ExpandedBox.Visible := true
+    ExpandedBox.Focus()
+
+    ExpandedBox.OnEvent("LoseFocus", HideExpandedComment)
+}
+
+HideExpandedComment(ctrl, *)
+{
+    global ExpandedBox, ActiveCommentCtrl
+    if (ActiveCommentCtrl)
+    {
+        ActiveCommentCtrl.Value := ExpandedBox.Value
+        ; Trigger the save logic
+        RegExMatch(ActiveCommentCtrl.Name, "(.+)_K(\d+)", &m)
+        if (m)
+        {
+            lineName := StrReplace(m[1], "_", " ") ; Rough restoration for lookup
+            ; Find the actual line name from LINES to be safe
+            for l in LINES
+            {
+                if (RegExReplace(l.name, "[ \-]", "_") == m[1])
+                {
+                    lineName := l.name
+                    break
+                }
+            }
+            SaveManualInput(lineName, Integer(m[2]), "Comm", ActiveCommentCtrl.Value)
+        }
+    }
+    ExpandedBox.Visible := false
+    ActiveCommentCtrl := 0
+}
+
+; Hover Tooltip Logic
+OnMessage(0x0200, WM_MOUSEMOVE)
+WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
+{
+    static LastHwnd := 0
+    if (hwnd == LastHwnd)
+        return
+    LastHwnd := hwnd
+
+    ctrl := GuiCtrlFromHwnd(hwnd)
+    if (ctrl && InStr(ctrl.Name, "_K"))
+    {
+        if (ctrl.Value != "")
+            ToolTip(ctrl.Value)
+    }
+    else
+    {
+        ToolTip()
+    }
 }
 
 ; Populate Tabs
@@ -243,7 +245,6 @@ for index, line in LINES
 }
 
 MainGui.Show("w1200 h1000")
-ApplyTheme("Šviesi")
 LoadDateData()
 
 SetTimer(AutoRefresh, 300000)
