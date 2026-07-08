@@ -4,8 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "1.2"
-Global EXCEL_FILE := "GD_Gamybos_Ataskaita.xlsx"
+Global CURRENT_VERSION := "1.3"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -78,10 +77,10 @@ StatusText := MainGui.Add("Text", "x665 y15 w400 vStatus", "Pasiruošęs")
 MainGui.SetFont("s9 bold")
 Loop INTERVALS.Length {
     X := 220 + (A_Index-1) * 88
-    MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center +BackgroundTrans", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
+    MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
 }
 X := 220 + INTERVALS.Length * 88
-MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center +BackgroundTrans", "Viso")
+MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center", "Viso")
 MainGui.SetFont("s9 norm")
 
 Tabs := MainGui.Add("Tab3", "x10 y80 w1180 h900", ["PLXE", "NOBO", "Kiti"])
@@ -100,7 +99,7 @@ ApplyTheme(themeName) {
     for hwnd, ctrl in MainGui {
         try {
             if (ctrl is Gui.Text) {
-                ctrl.Opt(theme.txt " +BackgroundTrans")
+                ctrl.Opt(theme.txt " Background" theme.bg)
             } else if (ctrl is Gui.Edit) {
                 if InStr(ctrl.Name, "_F") || InStr(ctrl.Name, "_Total") {
                     ctrl.Opt("cBlack")
@@ -118,27 +117,28 @@ ApplyTheme(themeName) {
 CreateLineGrid(LineObj, YPos, TabIdx) {
     global Controls, Tabs
     name := LineObj.name
+    safeName := RegExReplace(name, "[ \-]", "_")
 
     Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x20 y" YPos " w120 h20 +BackgroundTrans", name)
+    MainGui.Add("Text", "x20 y" YPos " w120 h20", name)
     MainGui.SetFont("s9 norm")
 
-    MainGui.Add("Text", "x150 y" YPos " w60 h20 +BackgroundTrans", "Planas")
-    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20 +BackgroundTrans", "Faktas")
-    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20 +BackgroundTrans", "Gaminys")
-    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20 +BackgroundTrans", "Komment.")
+    MainGui.Add("Text", "x150 y" YPos " w60 h20", "Planas")
+    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20", "Faktas")
+    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20", "Gaminys")
+    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20", "Komment.")
 
     lineCtrls := []
     Loop INTERVALS.Length {
         idx := A_Index
         X := 220 + (idx-1) * 88
 
-        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" RegExReplace(name, "[ \-]", "_") "_P" idx)
-        cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" RegExReplace(name, "[ \-]", "_") "_F" idx)
-        cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" RegExReplace(name, "[ \-]", "_") "_G" idx)
-        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center v" RegExReplace(name, "[ \-]", "_") "_K" idx)
+        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" safeName "_P" idx)
+        cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_F" idx)
+        cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" safeName "_G" idx)
+        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center v" safeName "_K" idx)
 
         cFact.Opt("Background" SubStr(LineObj.color, -6))
 
@@ -151,7 +151,7 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
     ; Add Total column
     X := 220 + INTERVALS.Length * 88
     MainGui.SetFont("bold")
-    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" RegExReplace(name, "[ \-]", "_") "_Total")
+    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Total")
     MainGui.SetFont("norm")
 
     Controls[name] := {intervals: lineCtrls, total: cTotal}
@@ -224,7 +224,7 @@ FetchTSData(channel, start_dt, end_dt) {
         if (req.Status == 200) {
             return req.ResponseText
         }
-    } catch Error as e) {
+    } catch Error as e {
         StatusText.Value := "Klaida: " e.Message
     }
     return ""
@@ -305,27 +305,25 @@ LoadDateData() {
 
     iniPath := LOG_DIR "\" dateStr ".ini"
 
-    for line in LINES {
-        name := line.name
+    for lineName, data in Controls {
         totalFact := 0
-
         Loop INTERVALS.Length {
             idx := A_Index
 
-            plan := IniRead(iniPath, name, "Plan_" idx, "")
-            fact := IniRead(iniPath, name, "Fact_" idx, "")
-            prod := IniRead(iniPath, name, "Prod_" idx, "")
-            comm := IniRead(iniPath, name, "Comm_" idx, "")
+            plan := IniRead(iniPath, lineName, "Plan_" idx, "")
+            fact := IniRead(iniPath, lineName, "Fact_" idx, "")
+            prod := IniRead(iniPath, lineName, "Prod_" idx, "")
+            comm := IniRead(iniPath, lineName, "Comm_" idx, "")
 
-            Controls[name].intervals[idx].Plan.Value := plan
-            Controls[name].intervals[idx].Fact.Value := fact
-            Controls[name].intervals[idx].Prod.Value := prod
-            Controls[name].intervals[idx].Comm.Value := comm
+            data.intervals[idx].Plan.Value := plan
+            data.intervals[idx].Fact.Value := fact
+            data.intervals[idx].Prod.Value := prod
+            data.intervals[idx].Comm.Value := comm
 
             if (fact != "" && IsNumber(fact))
                 totalFact += fact
         }
-        Controls[name].total.Value := totalFact
+        data.total.Value := totalFact
     }
 
     today := FormatTime(A_Now, "yyyy-MM-dd")
@@ -435,16 +433,15 @@ SaveAll() {
     dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
     StatusText.Value := "Saugoma..."
 
-    for line in LINES {
-        name := line.name
+    for lineName, data in Controls {
         Loop INTERVALS.Length {
             idx := A_Index
-            ctrls := Controls[name].intervals[idx]
+            ctrls := data.intervals[idx]
 
-            SaveToCache(dateStr, name, idx, "Plan", ctrls.Plan.Value)
-            SaveToCache(dateStr, name, idx, "Fact", ctrls.Fact.Value)
-            SaveToCache(dateStr, name, idx, "Prod", ctrls.Prod.Value)
-            SaveToCache(dateStr, name, idx, "Comm", ctrls.Comm.Value)
+            SaveToCache(dateStr, lineName, idx, "Plan", ctrls.Plan.Value)
+            SaveToCache(dateStr, lineName, idx, "Fact", ctrls.Fact.Value)
+            SaveToCache(dateStr, lineName, idx, "Prod", ctrls.Prod.Value)
+            SaveToCache(dateStr, lineName, idx, "Comm", ctrls.Comm.Value)
         }
     }
     StatusText.Value := "Visi duomenys išsaugoti (" dateStr ")."
