@@ -78,11 +78,11 @@ AddIntervalHeaders(YPos)
     MainGui.SetFont("s9 bold")
     Loop (INTERVALS.Length)
     {
-        X := 220 + (A_Index-1) * 88
+        X := 170 + (A_Index-1) * 88
         MainGui.Add("Text", "x" X " y" YPos " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
     }
-    MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" YPos " w85 h20 Center", "Viso")
-    MainGui.Add("Text", "x" (220 + (INTERVALS.Length + 1) * 88) " y" YPos " w85 h20 Center", "Vidurkis")
+    MainGui.Add("Text", "x" (170 + INTERVALS.Length * 88) " y" YPos " w85 h20 Center", "Viso")
+    MainGui.Add("Text", "x" (170 + (INTERVALS.Length + 1) * 88) " y" YPos " w85 h20 Center", "Vidurkis")
     MainGui.SetFont("s9 norm")
 }
 
@@ -95,20 +95,20 @@ CreateLineGrid(LineObj, YPos, TabIdx)
     Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x20 y" YPos " w120 h20", name)
+    MainGui.Add("Text", "x5 y" YPos " w100 h20", name)
 
     MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x150 y" YPos " w60 h20", "Planas")
-    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20", "Faktas")
-    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20", "Gaminys")
-    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20", "Komment.")
+    MainGui.Add("Text", "x105 y" YPos " w60 h20", "Planas")
+    MainGui.Add("Text", "x105 y" YPos+25 " w60 h20", "Faktas")
+    MainGui.Add("Text", "x105 y" YPos+50 " w60 h20", "Gaminys")
+    MainGui.Add("Text", "x105 y" YPos+75 " w70 h20", "Komentaras")
     MainGui.SetFont("s9 norm")
 
     lineCtrls := []
     Loop (INTERVALS.Length)
     {
         idx := A_Index
-        X := 220 + (idx-1) * 88
+        X := 170 + (idx-1) * 88
 
         cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" safeName "_P" idx)
         cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_F" idx)
@@ -121,7 +121,7 @@ CreateLineGrid(LineObj, YPos, TabIdx)
         cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
 
-    X := 220 + INTERVALS.Length * 88
+    X := 170 + INTERVALS.Length * 88
     MainGui.SetFont("s9 bold")
     cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Total")
 
@@ -140,22 +140,22 @@ CreateTabFooter(TabName, YPos, TabIdx)
     fH := [], pH := [], pcH := []
 
     MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x150 y" YPos " w60 h20", "Faktas")
-    MainGui.Add("Text", "x20 y" YPos+25 " w120 h20", "Tikslas:")
-    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20", "Planas")
+    MainGui.Add("Text", "x105 y" YPos " w60 h20", "Faktas")
+    MainGui.Add("Text", "x5 y" YPos+25 " w100 h20", "Tikslas:")
+    MainGui.Add("Text", "x105 y" YPos+25 " w60 h20", "Planas")
 
     Loop (INTERVALS.Length)
     {
         idx := A_Index
-        X := 220 + (idx-1) * 88
+        X := 170 + (idx-1) * 88
 
         fH.Push(MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center ReadOnly cRed BackgroundWhite"))
         pH.Push(MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly BackgroundWhite"))
         pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
     }
 
-    MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" YPos+75 " w100 h20 Right", "Visos dienos")
-    X_Grand := 220 + (INTERVALS.Length + 1) * 88
+    MainGui.Add("Text", "x" (170 + INTERVALS.Length * 88) " y" YPos+75 " w100 h20 Right", "Visos dienos")
+    X_Grand := 170 + (INTERVALS.Length + 1) * 88
     cGrand := MainGui.Add("Edit", "x" (X_Grand - 85) " y" YPos+75 " w85 h22 Center ReadOnly Border")
 
     TabFooters[TabName] := {Fact: fH, Plan: pH, Pct: pcH, Grand: cGrand}
@@ -164,8 +164,8 @@ CreateTabFooter(TabName, YPos, TabIdx)
 
 ; Populate Tabs
 ; Increased Y offsets to fix obscured top lines
-headerY := 35
-contentStartY := 65
+headerY := 75
+contentStartY := 105
 
 ; PLXE
 Tabs.UseTab(1)
@@ -174,10 +174,10 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "PLXE") {
         CreateLineGrid(line, Y, 1)
-        Y += 130
+        Y += 115
     }
 }
-CreateTabFooter("PLXE", 780, 1)
+CreateTabFooter("PLXE", Y, 1)
 
 ; NOBO
 Tabs.UseTab(2)
@@ -186,10 +186,10 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "NOBO") {
         CreateLineGrid(line, Y, 2)
-        Y += 100
+        Y += 90
     }
 }
-CreateTabFooter("NOBO", 780, 2)
+CreateTabFooter("NOBO", Y, 2)
 
 ; Kiti
 Tabs.UseTab(3)
@@ -198,10 +198,10 @@ Y := contentStartY
 for index, line in LINES {
     if (line.tab == "Kiti") {
         CreateLineGrid(line, Y, 3)
-        Y += 130
+        Y += 115
     }
 }
-CreateTabFooter("Kiti", 780, 3)
+CreateTabFooter("Kiti", Y, 3)
 
 MainGui.Show("w1350 h1000")
 
