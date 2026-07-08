@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "1.0"
+Global CURRENT_VERSION := "1.1"
 Global EXCEL_FILE := "GD_Gamybos_Ataskaita.xlsx"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
@@ -37,7 +37,7 @@ Global LINES := [
 ]
 
 Global INTERVALS := [
-    ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:00", "10:00"],
+    ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:10", "10:00"],
     ["10:00", "11:00"], ["11:30", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
     ["14:10", "15:00"], ["15:00", "16:00"]
 ]
@@ -55,18 +55,60 @@ Calendar.OnEvent("Change", (*) => LoadDateData())
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
 BtnRefresh.OnEvent("Click", (*) => FetchTodayData())
 
-StatusText := MainGui.Add("Text", "x380 y15 w400 vStatus", "Pasiruošęs")
+BtnTheme := MainGui.Add("Button", "x380 y10 w120", "Tamsi/Šviesi tema")
+BtnTheme.OnEvent("Click", (*) => ToggleTheme())
 
-Tabs := MainGui.Add("Tab3", "x10 y50 w1180 h930", ["PLXE", "NOBO", "Kiti"])
+BtnSaveAll := MainGui.Add("Button", "x510 y10 w120", "Saugoti viską")
+BtnSaveAll.OnEvent("Click", (*) => SaveAll())
+
+StatusText := MainGui.Add("Text", "x640 y15 w400 vStatus", "Pasiruošęs")
+
+; Headers outside of tabs
+MainGui.SetFont("s9 bold")
+Loop INTERVALS.Length {
+    X := 220 + (A_Index-1) * 88
+    MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
+}
+X := 220 + INTERVALS.Length * 88
+MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center", "Viso")
+MainGui.SetFont("s9 norm")
+
+Tabs := MainGui.Add("Tab3", "x10 y80 w1180 h900", ["PLXE", "NOBO", "Kiti"])
 
 ; Store control references for easy access
 Global Controls := Map()
+Global IsDarkTheme := false
 
-CreateLineGrid(LineObj, YPos) {
+ToggleTheme() {
+    global IsDarkTheme, MainGui
+    IsDarkTheme := !IsDarkTheme
+
+    bgColor := IsDarkTheme ? "1A1A1A" : "White"
+    txtColor := IsDarkTheme ? "cWhite" : "cBlack"
+
+    MainGui.BackColor := bgColor
+
+    for hwnd, ctrl in MainGui {
+        try {
+            if (ctrl is Gui.Text) {
+                ctrl.Opt(txtColor " Background" bgColor)
+            } else if (ctrl is Gui.Edit) {
+                if InStr(ctrl.Name, "_F") || InStr(ctrl.Name, "_Total") {
+                    ctrl.Opt("cBlack")
+                } else {
+                    ctrl.Opt(IsDarkTheme ? "Background333333 cWhite" : "BackgroundWhite cBlack")
+                }
+            }
+        }
+        try ctrl.Redraw()
+    }
+}
+
+CreateLineGrid(LineObj, YPos, TabIdx) {
     global Controls, Tabs
     name := LineObj.name
 
-    Tabs.UseTab()
+    Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
     MainGui.Add("Text", "x20 y" YPos " w120 h20", name)
@@ -80,61 +122,54 @@ CreateLineGrid(LineObj, YPos) {
     lineCtrls := []
     Loop INTERVALS.Length {
         idx := A_Index
-        X := 210 + (idx-1) * 88
+        X := 220 + (idx-1) * 88
 
-        if (YPos == 80)
-            MainGui.Add("Text", "x" X " y" 60 " w85 h20 Center", INTERVALS[idx][1] "-" INTERVALS[idx][2])
-
-        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center")
-        cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly")
-        cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center")
-        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center")
+        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" RegExReplace(name, " ", "_") "_P" idx)
+        cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" RegExReplace(name, " ", "_") "_F" idx)
+        cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" RegExReplace(name, " ", "_") "_G" idx)
+        cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center v" RegExReplace(name, " ", "_") "_K" idx)
 
         cFact.Opt("Background" SubStr(LineObj.color, -6))
 
         lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
 
         cPlan.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Plan", ctrl.Value))
-        cProd.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Prod", ctrl.Value))
         cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
 
     ; Add Total column
-    X := 210 + INTERVALS.Length * 88
-    if (YPos == 80)
-        MainGui.Add("Text", "x" X " y" 60 " w85 h20 Center", "Viso")
-
+    X := 220 + INTERVALS.Length * 88
     MainGui.SetFont("bold")
-    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly")
+    cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" RegExReplace(name, " ", "_") "_Total")
     MainGui.SetFont("norm")
 
     Controls[name] := {intervals: lineCtrls, total: cTotal}
 }
 
 ; Populate Tabs
-Tabs.UseTab(1) ; PLXE
-Y := 80
+; PLXE (1-5)
+Y := 20 ; Relative to tab
 for line in LINES {
     if InStr(line.name, "PLXE") {
-        CreateLineGrid(line, Y)
+        CreateLineGrid(line, Y, 1)
         Y += 120
     }
 }
 
-Tabs.UseTab(2) ; NOBO
-Y := 80
+; NOBO (1-7)
+Y := 20
 for line in LINES {
     if InStr(line.name, "NOBO") {
-        CreateLineGrid(line, Y)
+        CreateLineGrid(line, Y, 2)
         Y += 120
     }
 }
 
-Tabs.UseTab(3) ; Kiti
-Y := 80
+; Kiti (QRAD, XLE, UI)
+Y := 20
 for line in LINES {
     if !InStr(line.name, "PLXE") && !InStr(line.name, "NOBO") {
-        CreateLineGrid(line, Y)
+        CreateLineGrid(line, Y, 3)
         Y += 120
     }
 }
@@ -310,7 +345,12 @@ FetchTodayData() {
     }
 
     for channel, linesInChannel in channels {
-        startDT := selDate " 06:00:00"
+        ; Fetch from before the work day starts to ensure we catch the last product scan if it happened earlier
+        ; We look back 3 days to be sure we get the last product scanned even if it was a long weekend
+        ; DateAdd requires YYYYMMDDHH24MISS format (no hyphens)
+        rawSelDate := StrReplace(selDate, "-", "")
+        lookbackDate := DateAdd(rawSelDate "000000", -3, "Days")
+        startDT := FormatTime(lookbackDate, "yyyy-MM-dd HH:mm:ss")
         endDT := selDate " 16:00:00"
 
         json := FetchTSData(channel, startDT, endDT)
@@ -322,17 +362,22 @@ FetchTodayData() {
         for line in linesInChannel {
             StatusText.Value := "Apdorojama: " line.name
 
+            lastKnownBarcode := ""
+
             for intIdx, interval in INTERVALS {
                 iStart := selDate " " interval[1] ":00"
                 iEnd := selDate " " interval[2] ":00"
 
+                ; For production delta, we only care about the specific interval
                 intFeeds := FilterFeedsByTime(allFeeds, iStart, iEnd)
-
                 produced := CalculateDelta(intFeeds, "field" line.fieldCount)
 
+                ; For product (barcode), we want the last scan up to the end of this interval
+                ; We use allFeeds which now includes up to 3 days of lookback
+                feedsUpToNow := FilterFeedsByTime(allFeeds, startDT, iEnd)
                 barcode := ""
                 if (line.fieldBarcode)
-                    barcode := GetLastVal(intFeeds, "field" line.fieldBarcode)
+                    barcode := GetLastVal(feedsUpToNow, "field" line.fieldBarcode)
 
                 if (line.name == "UI perrašymas")
                     barcode := "UI v5"
@@ -386,4 +431,24 @@ SaveToCache(dateStr, lineName, idx, type, value) {
 SaveManualInput(lineName, intervalIdx, type, value) {
     dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
     SaveToCache(dateStr, lineName, intervalIdx, type, value)
+}
+
+SaveAll() {
+    dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
+    StatusText.Value := "Saugoma..."
+
+    for line in LINES {
+        name := line.name
+        Loop INTERVALS.Length {
+            idx := A_Index
+            ctrls := Controls[name].intervals[idx]
+
+            SaveToCache(dateStr, name, idx, "Plan", ctrls.Plan.Value)
+            SaveToCache(dateStr, name, idx, "Fact", ctrls.Fact.Value)
+            SaveToCache(dateStr, name, idx, "Prod", ctrls.Prod.Value)
+            SaveToCache(dateStr, name, idx, "Comm", ctrls.Comm.Value)
+        }
+    }
+    StatusText.Value := "Visi duomenys išsaugoti (" dateStr ")."
+    SoundBeep 750, 200
 }
