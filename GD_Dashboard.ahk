@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "1.3"
+Global CURRENT_VERSION := "1.5"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -56,16 +56,15 @@ Global THEMES := Map(
 MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 
-MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
+MainGui.Add("Text", "x10 y15 vLblDate", "Pasirinkite datą:")
 Calendar := MainGui.Add("DateTime", "x110 y10 w150 vSelectedDate", "yyyy-MM-dd")
 Calendar.OnEvent("Change", (*) => LoadDateData())
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
 BtnRefresh.OnEvent("Click", (*) => FetchTodayData())
 
-MainGui.Add("Text", "x380 y15", "Tema:")
-ThemeList := ["Šviesi", "Tamsi", "Pilka", "Mėlyna", "Žalia"]
-ThemeSelector := MainGui.Add("DropDownList", "x425 y10 w100 Choose1", ThemeList)
+MainGui.Add("Text", "x380 y15 vLblTheme", "Tema:")
+ThemeSelector := MainGui.Add("DropDownList", "x425 y10 w100 Choose1 vThemeSelect", ["Šviesi", "Tamsi", "Pilka", "Mėlyna", "Žalia"])
 ThemeSelector.OnEvent("Change", (ctrl, *) => ApplyTheme(ctrl.Text))
 
 BtnSaveAll := MainGui.Add("Button", "x535 y10 w120", "Saugoti viską")
@@ -77,13 +76,13 @@ StatusText := MainGui.Add("Text", "x665 y15 w400 vStatus", "Pasiruošęs")
 MainGui.SetFont("s9 bold")
 Loop INTERVALS.Length {
     X := 220 + (A_Index-1) * 88
-    MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
+    MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center vHdr_" A_Index, INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
 }
-X := 220 + INTERVALS.Length * 88
-MainGui.Add("Text", "x" X " y" 55 " w85 h20 Center", "Viso")
+MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" 55 " w85 h20 Center vHdr_Total", "Viso")
 MainGui.SetFont("s9 norm")
 
-Tabs := MainGui.Add("Tab3", "x10 y80 w1180 h900", ["PLXE", "NOBO", "Kiti"])
+; Shift Tab control down to avoid overlapping headers
+Tabs := MainGui.Add("Tab3", "x10 y80 w1180 h910 vTabsMain", ["PLXE", "NOBO", "Kiti"])
 
 ; Store control references for easy access
 Global Controls := Map()
@@ -99,8 +98,10 @@ ApplyTheme(themeName) {
     for hwnd, ctrl in MainGui {
         try {
             if (ctrl is Gui.Text) {
+                ; Set text color and background matching the GUI background
                 ctrl.Opt(theme.txt " Background" theme.bg)
             } else if (ctrl is Gui.Edit) {
+                ; Fact and Total fields always stay high-contrast (Black text)
                 if InStr(ctrl.Name, "_F") || InStr(ctrl.Name, "_Total") {
                     ctrl.Opt("cBlack")
                 } else {
@@ -122,13 +123,13 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
     Tabs.UseTab(TabIdx)
 
     MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x20 y" YPos " w120 h20", name)
+    MainGui.Add("Text", "x20 y" YPos " w120 h20 vLineName_" safeName, name)
     MainGui.SetFont("s9 norm")
 
-    MainGui.Add("Text", "x150 y" YPos " w60 h20", "Planas")
-    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20", "Faktas")
-    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20", "Gaminys")
-    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20", "Komment.")
+    MainGui.Add("Text", "x150 y" YPos " w60 h20 vLblP_" safeName, "Planas")
+    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20 vLblF_" safeName, "Faktas")
+    MainGui.Add("Text", "x150 y" YPos+50 " w60 h20 vLblG_" safeName, "Gaminys")
+    MainGui.Add("Text", "x150 y" YPos+75 " w60 h20 vLblK_" safeName, "Komment.")
 
     lineCtrls := []
     Loop INTERVALS.Length {
@@ -148,7 +149,7 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
         cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
 
-    ; Add Total column
+    ; Total column
     X := 220 + INTERVALS.Length * 88
     MainGui.SetFont("bold")
     cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Total")
@@ -157,9 +158,13 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
     Controls[name] := {intervals: lineCtrls, total: cTotal}
 }
 
-; Populate Tabs
+; Starting Y relative to GUI (client area inside Tab control).
+; Since Tab3 uses GUI coordinates, we need to leave room for the tab headers.
+; y80 is Tab start. y120 is about 40px below, should be safe.
+startY := 125
+
 ; PLXE (1-5)
-Y := 20
+Y := startY
 for line in LINES {
     if InStr(line.name, "PLXE") {
         CreateLineGrid(line, Y, 1)
@@ -168,7 +173,7 @@ for line in LINES {
 }
 
 ; NOBO (1-7)
-Y := 20
+Y := startY
 for line in LINES {
     if InStr(line.name, "NOBO") {
         CreateLineGrid(line, Y, 2)
@@ -177,7 +182,7 @@ for line in LINES {
 }
 
 ; Kiti (QRAD, XLE, UI)
-Y := 20
+Y := startY
 for line in LINES {
     if !InStr(line.name, "PLXE") && !InStr(line.name, "NOBO") {
         CreateLineGrid(line, Y, 3)
@@ -189,97 +194,64 @@ MainGui.Show("w1200 h1000")
 ApplyTheme("Šviesi")
 LoadDateData()
 
-; Auto-refresh every 5 minutes
 SetTimer AutoRefresh, 300000
-
 AutoRefresh() {
-    dateStr := FormatTime(A_Now, "yyyy-MM-dd")
-    selDate := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
-
-    ; Only auto-refresh if we are looking at today
-    if (selDate == dateStr) {
+    if (FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd") == FormatTime(A_Now, "yyyy-MM-dd"))
         FetchTodayData()
-    }
 }
 
 ; =======================================================
 ; DATA FETCHING & PROCESSING
 ; =======================================================
-
 FetchTSData(channel, start_dt, end_dt) {
     key := READ_KEYS.Has(channel) ? READ_KEYS[channel] : ""
-    url := "https://api.thingspeak.com/channels/" channel "/feeds.json"
-    url .= "?api_key=" key
-    url .= "&start=" StrReplace(start_dt, " ", "T")
-    url .= "&end=" StrReplace(end_dt, " ", "T")
-    url .= "&timezone=Europe/Vilnius"
-
-    StatusText.Value := "Kraunama iš ThingSpeak (Kanalas: " channel ")..."
-
+    url := "https://api.thingspeak.com/channels/" channel "/feeds.json?api_key=" key "&start=" StrReplace(start_dt, " ", "T") "&end=" StrReplace(end_dt, " ", "T") "&timezone=Europe/Vilnius"
+    StatusText.Value := "Kraunama iš ThingSpeak (" channel ")..."
     req := ComObject("WinHttp.WinHttpRequest.5.1")
     try {
         req.Open("GET", url, true)
         req.Send()
         req.WaitForResponse()
-        if (req.Status == 200) {
+        if (req.Status == 200)
             return req.ResponseText
-        }
     } catch Error as e {
         StatusText.Value := "Klaida: " e.Message
     }
     return ""
 }
 
-; Improved JSON parser to extract feeds array using RegEx
 ParseFeeds(jsonStr) {
     feeds := []
     pos := 1
     while pos := RegExMatch(jsonStr, '\{"created_at":"[^"]+"[^}]*\}', &match, pos) {
-        objStr := match[0]
-        obj := Map()
-
+        objStr := match[0], obj := Map()
         if RegExMatch(objStr, '"created_at":"([^"]+)"', &m)
             obj["created_at"] := m[1]
-
         Loop 8 {
             fName := "field" A_Index
             if RegExMatch(objStr, '"' fName '":"?([^",}]*)"?', &m) {
                 val := m[1]
-                if (val == "null")
-                    val := ""
-                obj[fName] := val
-            } else {
-                obj[fName] := ""
-            }
+                obj[fName] := (val == "null") ? "" : val
+            } else obj[fName] := ""
         }
-        feeds.Push(obj)
-        pos += match.Len
+        feeds.Push(obj), pos += match.Len
     }
     return feeds
 }
 
 CalculateDelta(feeds, fieldName) {
-    if (feeds.Length < 2)
-        return 0
-
+    if (feeds.Length < 2) return 0
     vals := []
     for f in feeds {
         val := f.Has(fieldName) ? f[fieldName] : ""
-        if (val != "" && val != "null") {
-            try {
-                vals.Push(Float(val))
-            }
-        }
+        if (val != "" && val != "null")
+            try vals.Push(Float(val))
     }
-
-    if (vals.Length < 2)
-        return 0
-
+    if (vals.Length < 2) return 0
     total := 0
     Loop vals.Length - 1 {
         diff := vals[A_Index + 1] - vals[A_Index]
-        if (diff > 0)
-            total += diff
+        if (diff > 0) total += diff
     }
     return Integer(total)
 }
@@ -288,116 +260,71 @@ GetLastVal(feeds, fieldName) {
     idx := feeds.Length
     while (idx > 0) {
         val := feeds[idx].Has(fieldName) ? feeds[idx][fieldName] : ""
-        if (val != "" && val != "null")
-            return val
+        if (val != "" && val != "null") return val
         idx--
     }
     return ""
 }
 
-; =======================================================
-; UI UPDATE & CACHING
-; =======================================================
-
 LoadDateData() {
     dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
     StatusText.Value := "Kraunami duomenys datai: " dateStr
-
     iniPath := LOG_DIR "\" dateStr ".ini"
-
     for lineName, data in Controls {
         totalFact := 0
         Loop INTERVALS.Length {
             idx := A_Index
-
             plan := IniRead(iniPath, lineName, "Plan_" idx, "")
             fact := IniRead(iniPath, lineName, "Fact_" idx, "")
             prod := IniRead(iniPath, lineName, "Prod_" idx, "")
             comm := IniRead(iniPath, lineName, "Comm_" idx, "")
-
             data.intervals[idx].Plan.Value := plan
             data.intervals[idx].Fact.Value := fact
             data.intervals[idx].Prod.Value := prod
             data.intervals[idx].Comm.Value := comm
-
-            if (fact != "" && IsNumber(fact))
-                totalFact += fact
+            if (fact != "" && IsNumber(fact)) totalFact += fact
         }
         data.total.Value := totalFact
     }
-
-    today := FormatTime(A_Now, "yyyy-MM-dd")
-    if (dateStr == today) {
-        FetchTodayData()
-    } else {
-        StatusText.Value := "Duomenys užkrauti iš log (" dateStr ")."
-    }
+    if (dateStr == FormatTime(A_Now, "yyyy-MM-dd")) FetchTodayData()
+    else StatusText.Value := "Duomenys užkrauti iš log (" dateStr ")."
 }
 
 FetchTodayData() {
-    dateStr := FormatTime(A_Now, "yyyy-MM-dd")
     selDate := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
-
-    if (selDate != dateStr) {
-        if (MsgBox("Pasirinkta ne šiandienos data. Ar tikrai norite atnaujinti iš ThingSpeak?", "Patvirtinimas", 4) == "No")
-            return
-    }
-
     StatusText.Value := "Jungiamasi prie ThingSpeak..."
-
     channels := Map()
     for line in LINES {
-        if !channels.Has(line.channel)
-            channels[line.channel] := []
+        if !channels.Has(line.channel) channels[line.channel] := []
         channels[line.channel].Push(line)
     }
-
     for channel, linesInChannel in channels {
         rawSelDate := StrReplace(selDate, "-", "")
         lookbackDate := DateAdd(rawSelDate "000000", -3, "Days")
         startDT := FormatTime(lookbackDate, "yyyy-MM-dd HH:mm:ss")
         endDT := selDate " 16:00:00"
-
         json := FetchTSData(channel, startDT, endDT)
-        if (json == "")
-            continue
-
+        if (json == "") continue
         allFeeds := ParseFeeds(json)
-
         for line in linesInChannel {
             StatusText.Value := "Apdorojama: " line.name
-
             for intIdx, interval in INTERVALS {
-                iStart := selDate " " interval[1] ":00"
-                iEnd := selDate " " interval[2] ":00"
-
+                iStart := selDate " " interval[1] ":00", iEnd := selDate " " interval[2] ":00"
                 intFeeds := FilterFeedsByTime(allFeeds, iStart, iEnd)
                 produced := CalculateDelta(intFeeds, "field" line.fieldCount)
-
                 feedsUpToNow := FilterFeedsByTime(allFeeds, startDT, iEnd)
-                barcode := ""
-                if (line.fieldBarcode)
-                    barcode := GetLastVal(feedsUpToNow, "field" line.fieldBarcode)
-
-                if (line.name == "UI perrašymas")
-                    barcode := "UI v5"
-                else if (barcode != "")
-                    barcode := "X-" barcode
-
+                barcode := (line.fieldBarcode) ? GetLastVal(feedsUpToNow, "field" line.fieldBarcode) : ""
+                if (line.name == "UI perrašymas") barcode := "UI v5"
+                else if (barcode != "") barcode := "X-" barcode
                 Controls[line.name].intervals[intIdx].Fact.Value := produced
-                if (barcode != "")
-                    Controls[line.name].intervals[intIdx].Prod.Value := barcode
-
+                if (barcode != "") Controls[line.name].intervals[intIdx].Prod.Value := barcode
                 SaveToCache(selDate, line.name, intIdx, "Fact", produced)
-                if (barcode != "")
-                    SaveToCache(selDate, line.name, intIdx, "Prod", barcode)
+                if (barcode != "") SaveToCache(selDate, line.name, intIdx, "Prod", barcode)
             }
-
             total := 0
             for intInfo in Controls[line.name].intervals {
                 val := intInfo.Fact.Value
-                if (val != "" && IsNumber(val))
-                    total += val
+                if (val != "" && IsNumber(val)) total += val
             }
             Controls[line.name].total.Value := total
         }
@@ -406,38 +333,28 @@ FetchTodayData() {
 }
 
 FilterFeedsByTime(feeds, startT, endT) {
-    filtered := []
-    s := StrReplace(StrReplace(StrReplace(startT, "-", ""), " ", ""), ":", "")
-    e := StrReplace(StrReplace(StrReplace(endT, "-", ""), " ", ""), ":", "")
-
+    filtered := [], s := StrReplace(StrReplace(StrReplace(startT, "-", ""), " ", ""), ":", ""), e := StrReplace(StrReplace(StrReplace(endT, "-", ""), " ", ""), ":", "")
     for f in feeds {
-        ft := f["created_at"]
-        ft := StrReplace(StrReplace(StrReplace(SubStr(ft, 1, 19), "-", ""), "T", ""), ":", "")
-        if (ft >= s && ft <= e)
-            filtered.Push(f)
+        ft := StrReplace(StrReplace(StrReplace(SubStr(f["created_at"], 1, 19), "-", ""), "T", ""), ":", "")
+        if (ft >= s && ft <= e) filtered.Push(f)
     }
     return filtered
 }
 
 SaveToCache(dateStr, lineName, idx, type, value) {
-    iniPath := LOG_DIR "\" dateStr ".ini"
-    IniWrite(value, iniPath, lineName, type "_" idx)
+    IniWrite(value, LOG_DIR "\" dateStr ".ini", lineName, type "_" idx)
 }
 
 SaveManualInput(lineName, intervalIdx, type, value) {
-    dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
-    SaveToCache(dateStr, lineName, intervalIdx, type, value)
+    SaveToCache(FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd"), lineName, intervalIdx, type, value)
 }
 
 SaveAll() {
     dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
     StatusText.Value := "Saugoma..."
-
     for lineName, data in Controls {
         Loop INTERVALS.Length {
-            idx := A_Index
-            ctrls := data.intervals[idx]
-
+            idx := A_Index, ctrls := data.intervals[idx]
             SaveToCache(dateStr, lineName, idx, "Plan", ctrls.Plan.Value)
             SaveToCache(dateStr, lineName, idx, "Fact", ctrls.Fact.Value)
             SaveToCache(dateStr, lineName, idx, "Prod", ctrls.Prod.Value)
