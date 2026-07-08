@@ -4,12 +4,16 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "1.9"
+Global CURRENT_VERSION := "2.1"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
 {
     DirCreate(LOG_DIR)
 }
+
+; GitHub Gist Configuration
+Global GIST_ID := "bca7d49ac0724f650842b0e7c691a1c1"
+Global GIST_TOKEN := "PLACEHOLDER_TOKEN" ; USER MUST PROVIDE TOKEN
 
 Global READ_KEYS := Map(
     "463450", "VAL3TD2W5LADX7K1",
@@ -19,22 +23,22 @@ Global READ_KEYS := Map(
 )
 
 Global LINES := [
-    {name: "PLXE 1",    channel: "463450", fieldCount: 1, fieldBarcode: 2, color: "C6EFCE"},
-    {name: "PLXE 2",    channel: "463450", fieldCount: 3, fieldBarcode: 4, color: "FFCCFF"},
-    {name: "PLXE 3",    channel: "463450", fieldCount: 5, fieldBarcode: 6, color: "FFCCFF"},
-    {name: "PLXE 4",    channel: "463450", fieldCount: 7, fieldBarcode: 8, color: "FFCCFF"},
-    {name: "QRAD 1",    channel: "807602", fieldCount: 3, fieldBarcode: 4, color: "CCFFFF"},
-    {name: "NOBO 1",    channel: "703669", fieldCount: 1, fieldBarcode: 2, color: "E2EFDA"},
-    {name: "NOBO 2",    channel: "703669", fieldCount: 3, fieldBarcode: 4, color: "E2EFDA"},
-    {name: "NOBO 3",    channel: "703669", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA"},
-    {name: "NOBO 4",    channel: "703669", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA"},
-    {name: "NOBO 5",    channel: "802414", fieldCount: 1, fieldBarcode: 2, color: "E2EFDA"},
-    {name: "NOBO 6",    channel: "802414", fieldCount: 3, fieldBarcode: 4, color: "E2EFDA"},
-    {name: "NOBO 7",    channel: "802414", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA"},
-    {name: "PLXE 5",    channel: "802414", fieldCount: 7, fieldBarcode: 8, color: "C6EFCE"},
-    {name: "XLE 1",     channel: "807602", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA"},
-    {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA"},
-    {name: "UI perrašymas", channel: "807602", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA"}
+    {name: "PLXE 1",    channel: "463450", fieldCount: 1, fieldBarcode: 2, color: "C6EFCE", tab: "PLXE"},
+    {name: "PLXE 2",    channel: "463450", fieldCount: 3, fieldBarcode: 4, color: "FFCCFF", tab: "PLXE"},
+    {name: "PLXE 3",    channel: "463450", fieldCount: 5, fieldBarcode: 6, color: "FFCCFF", tab: "PLXE"},
+    {name: "PLXE 4",    channel: "463450", fieldCount: 7, fieldBarcode: 8, color: "FFCCFF", tab: "PLXE"},
+    {name: "PLXE 5",    channel: "802414", fieldCount: 7, fieldBarcode: 8, color: "C6EFCE", tab: "PLXE"},
+    {name: "NOBO 1",    channel: "703669", fieldCount: 1, fieldBarcode: 2, color: "E2EFDA", tab: "NOBO"},
+    {name: "NOBO 2",    channel: "703669", fieldCount: 3, fieldBarcode: 4, color: "E2EFDA", tab: "NOBO"},
+    {name: "NOBO 3",    channel: "703669", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "NOBO"},
+    {name: "NOBO 4",    channel: "703669", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "NOBO"},
+    {name: "NOBO 5",    channel: "802414", fieldCount: 1, fieldBarcode: 2, color: "E2EFDA", tab: "NOBO"},
+    {name: "NOBO 6",    channel: "802414", fieldCount: 3, fieldBarcode: 4, color: "E2EFDA", tab: "NOBO"},
+    {name: "NOBO 7",    channel: "802414", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "NOBO"},
+    {name: "QRAD 1",    channel: "807602", fieldCount: 3, fieldBarcode: 4, color: "CCFFFF", tab: "Kiti"},
+    {name: "XLE 1",     channel: "807602", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "Kiti"},
+    {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"},
+    {name: "UI perrašymas", channel: "807602", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Kiti"}
 ]
 
 Global INTERVALS := [
@@ -46,57 +50,31 @@ Global INTERVALS := [
 ; =======================================================
 ; GUI CONSTRUCTION
 ; =======================================================
-MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
+Global MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 MainGui.BackColor := "White"
 
 MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
-Calendar := MainGui.Add("DateTime", "x110 y10 w150 vSelectedDate", "yyyy-MM-dd")
+Global Calendar := MainGui.Add("DateTime", "x110 y10 w150 vSelectedDate", "yyyy-MM-dd")
 Calendar.OnEvent("Change", (ctrl, *) => LoadDateData())
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
 BtnRefresh.OnEvent("Click", (ctrl, *) => FetchTodayData())
 
 BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
-BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAll())
+BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAndSync())
 
-StatusText := MainGui.Add("Text", "x515 y15 w400 vStatus", "Pasiruošęs")
+Global StatusText := MainGui.Add("Text", "x515 y15 w600 vStatus", "Pasiruošęs")
 
-Tabs := MainGui.Add("Tab3", "x10 y50 w1320 h850 vTabsMain", ["PLXE", "NOBO", "Kiti"])
-
-; Expanded Comment Box (Initially Hidden)
-ExpandedBox := MainGui.Add("Edit", "x0 y0 w300 h150 vExpandedComment Multi Hidden Border BackgroundFFFFE0 cRed")
-
-; Footer Summary Row (outside tabs)
-MainGui.SetFont("s10 bold")
-MainGui.Add("Text", "x20 y915 w120 h20", "Bendra suvestinė")
-MainGui.SetFont("s9 bold")
-MainGui.Add("Text", "x150 y915 w60 h20", "Tikslas")
-MainGui.Add("Text", "x150 y940 w60 h20", "Faktas")
-
-Global HourlyTikslas := []
-Global HourlyFaktas := []
-Global GrandTikslas, GrandFaktas
-
-Loop (INTERVALS.Length)
-{
-    idx := A_Index
-    X := 220 + (idx-1) * 88
-    HourlyTikslas.Push(MainGui.Add("Edit", "x" X " y915 w85 h22 Center ReadOnly BackgroundWhite"))
-    HourlyFaktas.Push(MainGui.Add("Edit", "x" X " y940 w85 h22 Center ReadOnly BackgroundWhite"))
-}
-
-X := 220 + INTERVALS.Length * 88
-GrandTikslas := MainGui.Add("Edit", "x" X " y915 w85 h22 Center ReadOnly BackgroundWhite")
-GrandFaktas := MainGui.Add("Edit", "x" X " y940 w85 h22 Center ReadOnly BackgroundWhite")
-MainGui.SetFont("s9 norm")
+Global Tabs := MainGui.Add("Tab3", "x10 y50 w1330 h920 vTabsMain", ["PLXE", "NOBO", "Kiti"])
 
 ; Store control references
 Global Controls := Map()
-Global ActiveCommentCtrl := 0
+Global TabFooters := Map() ; {TabName: {Fact: [], Plan: [], Pct: [], Grand: ctrl}}
 
 AddIntervalHeaders(YPos)
 {
+    global MainGui, INTERVALS
     MainGui.SetFont("s9 bold")
     Loop (INTERVALS.Length)
     {
@@ -110,7 +88,7 @@ AddIntervalHeaders(YPos)
 
 CreateLineGrid(LineObj, YPos, TabIdx)
 {
-    global Controls, Tabs
+    global Controls, Tabs, MainGui, INTERVALS
     name := LineObj.name
     safeName := RegExReplace(name, "[ \-]", "_")
 
@@ -140,63 +118,92 @@ CreateLineGrid(LineObj, YPos, TabIdx)
         lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
 
         cPlan.OnEvent("LoseFocus", (ctrl, *) => (SaveManualInput(name, idx, "Plan", ctrl.Value), UpdateCalculations()))
-        cComm.OnEvent("Focus", ShowExpandedComment)
+        cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
 
     X := 220 + INTERVALS.Length * 88
-    MainGui.SetFont("bold")
+    MainGui.SetFont("s9 bold")
     cTotal := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Total")
 
     X_Avg := X + 88
     cAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_Avg")
-    MainGui.SetFont("norm")
+    MainGui.SetFont("s9 norm")
 
-    Controls[name] := {intervals: lineCtrls, total: cTotal, avg: cAvg}
+    Controls[name] := {intervals: lineCtrls, total: cTotal, avg: cAvg, tab: LineObj.tab}
 }
 
-ShowExpandedComment(ctrl, *)
+CreateTabFooter(TabName, YPos, TabIdx)
 {
-    global ExpandedBox, ActiveCommentCtrl
-    ActiveCommentCtrl := ctrl
+    global TabFooters, Tabs, MainGui, INTERVALS
+    Tabs.UseTab(TabIdx)
 
-    ctrl.GetPos(&x, &y, &w, &h)
+    fH := [], pH := [], pcH := []
 
-    exW := 350, exH := 120
-    newX := x - (exW - w)/2
-    newY := y + h + 2
+    MainGui.SetFont("s9 bold")
+    MainGui.Add("Text", "x150 y" YPos " w60 h20", "Faktas")
+    MainGui.Add("Text", "x20 y" YPos+25 " w120 h20", "Tikslas:")
+    MainGui.Add("Text", "x150 y" YPos+25 " w60 h20", "Planas")
 
-    ExpandedBox.Value := ctrl.Value
-    ExpandedBox.Move(newX, newY, exW, exH)
-    ExpandedBox.Visible := true
-    ExpandedBox.Focus()
-
-    ExpandedBox.OnEvent("LoseFocus", HideExpandedComment)
-}
-
-HideExpandedComment(ctrl, *)
-{
-    global ExpandedBox, ActiveCommentCtrl
-    if (ActiveCommentCtrl)
+    Loop (INTERVALS.Length)
     {
-        ActiveCommentCtrl.Value := ExpandedBox.Value
-        RegExMatch(ActiveCommentCtrl.Name, "(.+)_K(\d+)", &m)
-        if (m)
-        {
-            lineName := m[1]
-            for l in LINES
-            {
-                if (RegExReplace(l.name, "[ \-]", "_") == m[1])
-                {
-                    lineName := l.name
-                    break
-                }
-            }
-            SaveManualInput(lineName, Integer(m[2]), "Comm", ActiveCommentCtrl.Value)
-        }
+        idx := A_Index
+        X := 220 + (idx-1) * 88
+
+        fH.Push(MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center ReadOnly cRed BackgroundWhite"))
+        pH.Push(MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly BackgroundWhite"))
+        pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
     }
-    ExpandedBox.Visible := false
-    ActiveCommentCtrl := 0
+
+    MainGui.Add("Text", "x" (220 + INTERVALS.Length * 88) " y" YPos+75 " w100 h20 Right", "Visos dienos")
+    X_Grand := 220 + (INTERVALS.Length + 1) * 88
+    cGrand := MainGui.Add("Edit", "x" (X_Grand - 85) " y" YPos+75 " w85 h22 Center ReadOnly Border")
+
+    TabFooters[TabName] := {Fact: fH, Plan: pH, Pct: pcH, Grand: cGrand}
+    MainGui.SetFont("norm")
 }
+
+; Populate Tabs
+; Increased Y offsets to fix obscured top lines
+headerY := 35
+contentStartY := 65
+
+; PLXE
+Tabs.UseTab(1)
+AddIntervalHeaders(headerY)
+Y := contentStartY
+for index, line in LINES {
+    if (line.tab == "PLXE") {
+        CreateLineGrid(line, Y, 1)
+        Y += 130
+    }
+}
+CreateTabFooter("PLXE", 780, 1)
+
+; NOBO
+Tabs.UseTab(2)
+AddIntervalHeaders(headerY)
+Y := contentStartY
+for index, line in LINES {
+    if (line.tab == "NOBO") {
+        CreateLineGrid(line, Y, 2)
+        Y += 100
+    }
+}
+CreateTabFooter("NOBO", 780, 2)
+
+; Kiti
+Tabs.UseTab(3)
+AddIntervalHeaders(headerY)
+Y := contentStartY
+for index, line in LINES {
+    if (line.tab == "Kiti") {
+        CreateLineGrid(line, Y, 3)
+        Y += 130
+    }
+}
+CreateTabFooter("Kiti", 780, 3)
+
+MainGui.Show("w1350 h1000")
 
 OnMessage(0x0200, WM_MOUSEMOVE)
 WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
@@ -218,50 +225,7 @@ WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
     }
 }
 
-; Populate Tabs
-headerY := 25
-contentStartY := 55
-
-; PLXE (1-5)
-Tabs.UseTab(1)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for index, line in LINES
-{
-    if InStr(line.name, "PLXE")
-    {
-        CreateLineGrid(line, Y, 1)
-        Y += 135
-    }
-}
-
-; NOBO (1-7)
-Tabs.UseTab(2)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for index, line in LINES
-{
-    if InStr(line.name, "NOBO")
-    {
-        CreateLineGrid(line, Y, 2)
-        Y += 110
-    }
-}
-
-; Kiti
-Tabs.UseTab(3)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for index, line in LINES
-{
-    if !InStr(line.name, "PLXE") && !InStr(line.name, "NOBO")
-    {
-        CreateLineGrid(line, Y, 3)
-        Y += 135
-    }
-}
-
-MainGui.Show("w1350 h980")
+SyncGist("down")
 LoadDateData()
 
 SetTimer(AutoRefresh, 300000)
@@ -275,27 +239,27 @@ AutoRefresh()
 
 UpdateCalculations()
 {
-    global Controls, INTERVALS, HourlyTikslas, HourlyFaktas, GrandTikslas, GrandFaktas
+    global Controls, TabFooters, INTERVALS
 
-    totalHourlyTikslas := [0,0,0,0,0,0,0,0,0,0]
-    totalHourlyFaktas := [0,0,0,0,0,0,0,0,0,0]
-    grandT := 0, grandF := 0
+    ; Initialize Tab Aggregates
+    stats := Map("PLXE", {Fact: [0,0,0,0,0,0,0,0,0,0], Plan: [0,0,0,0,0,0,0,0,0,0], Grand: 0},
+                 "NOBO", {Fact: [0,0,0,0,0,0,0,0,0,0], Plan: [0,0,0,0,0,0,0,0,0,0], Grand: 0},
+                 "Kiti", {Fact: [0,0,0,0,0,0,0,0,0,0], Plan: [0,0,0,0,0,0,0,0,0,0], Grand: 0})
 
     for lineName, data in Controls
     {
         lineTotalFact := 0
-        lineTotalPlan := 0
         activeIntervals := 0
+        tabName := data.tab
 
         for idx, interval in data.intervals
         {
             pVal := IsNumber(interval.Plan.Value) ? Integer(interval.Plan.Value) : 0
             fVal := IsNumber(interval.Fact.Value) ? Integer(interval.Fact.Value) : 0
 
-            totalHourlyTikslas[idx] += pVal
-            totalHourlyFaktas[idx] += fVal
+            stats[tabName].Plan[idx] += pVal
+            stats[tabName].Fact[idx] += fVal
             lineTotalFact += fVal
-            lineTotalPlan += pVal
 
             if (fVal > 0 || pVal > 0)
                 activeIntervals++
@@ -303,13 +267,13 @@ UpdateCalculations()
             ; Conditional Formatting
             if (fVal >= pVal && (fVal > 0 || pVal > 0))
             {
-                interval.Plan.Opt("Background90EE90")
-                interval.Fact.Opt("Background90EE90")
+                interval.Plan.Opt("Background0x90EE90")
+                interval.Fact.Opt("Background0x90EE90")
             }
             else if (fVal < pVal && (fVal > 0 || pVal > 0))
             {
-                interval.Plan.Opt("BackgroundFF7F7F")
-                interval.Fact.Opt("BackgroundFF7F7F")
+                interval.Plan.Opt("Background0xFF7F7F")
+                interval.Fact.Opt("Background0xFF7F7F")
             }
             else
             {
@@ -321,25 +285,114 @@ UpdateCalculations()
         }
 
         data.total.Value := lineTotalFact
+        stats[tabName].Grand += lineTotalFact
         avg := activeIntervals > 0 ? Round(lineTotalFact / activeIntervals, 1) : 0
         data.avg.Value := avg
-
-        grandT += lineTotalPlan
-        grandF += lineTotalFact
     }
 
-    Loop (INTERVALS.Length)
+    ; Update Tab Footers
+    for tName, tData in stats
     {
-        HourlyTikslas[A_Index].Value := totalHourlyTikslas[A_Index]
-        HourlyFaktas[A_Index].Value := totalHourlyFaktas[A_Index]
+        footer := TabFooters[tName]
+        Loop (INTERVALS.Length)
+        {
+            i := A_Index
+            fVal := tData.Fact[i]
+            pVal := tData.Plan[i]
+            footer.Fact[i].Value := fVal
+            footer.Plan[i].Value := pVal
+
+            pct := 0
+            if (pVal > 0)
+            {
+                pct := Round((fVal / pVal - 1) * 100)
+            }
+            footer.Pct[i].Value := (pct >= 0 ? "+" pct : pct) "%"
+        }
+        footer.Grand.Value := tData.Grand
     }
-    GrandTikslas.Value := grandT
-    GrandFaktas.Value := grandF
 }
 
-; =======================================================
-; DATA FETCHING & PROCESSING
-; =======================================================
+SyncGist(mode)
+{
+    global GIST_ID, GIST_TOKEN, LOG_DIR, StatusText
+    if (GIST_TOKEN == "PLACEHOLDER_TOKEN")
+        return
+
+    StatusText.Value := (mode == "up" ? "Siunčiama į Gist..." : "Sinchronizuojama iš Gist...")
+    url := "https://api.github.com/gists/" GIST_ID
+    req := ComObject("WinHttp.WinHttpRequest.5.1")
+
+    try
+    {
+        if (mode == "down")
+        {
+            req.Open("GET", url, true)
+            req.SetRequestHeader("Authorization", "token " GIST_TOKEN)
+            req.Send()
+            req.WaitForResponse()
+
+            if (req.Status == 200)
+            {
+                res := req.ResponseText
+                ; Improved RegEx to handle escaped quotes in content
+                if RegExMatch(res, '"logas\.txt":\{"filename":"logas\.txt",.*?"content":"((?:[^"\\]|\\.)*)"\}', &m)
+                {
+                    content := m[1]
+                    content := StrReplace(content, "\n", "`n")
+                    content := StrReplace(content, "\r", "`r")
+                    content := StrReplace(content, '\"', '"')
+                    content := StrReplace(content, '\\', '\')
+
+                    currentFile := ""
+                    Loop Parse, content, "`n", "`r"
+                    {
+                        line := A_LoopField
+                        if (line == "")
+                            continue
+                        if RegExMatch(line, "^\[FILE:(.+)\]$", &fm)
+                        {
+                            currentFile := LOG_DIR "\" fm[1]
+                            if FileExist(currentFile)
+                                FileDelete(currentFile)
+                        }
+                        else if (currentFile != "")
+                            FileAppend(line "`n", currentFile)
+                    }
+                }
+            }
+        }
+        else if (mode == "up")
+        {
+            payload := ""
+            Loop Files, LOG_DIR "\*.ini"
+            {
+                payload .= "[FILE:" A_LoopFileName "]`n"
+                payload .= FileRead(A_LoopFileFullPath) "`n"
+            }
+            jsonPayload := StrReplace(payload, '"', '\"')
+            jsonPayload := StrReplace(jsonPayload, "`r`n", "\n")
+            jsonPayload := StrReplace(jsonPayload, "`n", "\n")
+            body := '{"files":{"logas.txt":{"content":"' jsonPayload '"}}}'
+            req.Open("PATCH", url, true)
+            req.SetRequestHeader("Authorization", "token " GIST_TOKEN)
+            req.SetRequestHeader("Content-Type", "application/json")
+            req.Send(body)
+            req.WaitForResponse()
+        }
+    }
+    catch Error as e
+    {
+        StatusText.Value := "Gist klaida: " e.Message
+    }
+}
+
+SaveAndSync()
+{
+    SaveAll()
+    SyncGist("up")
+}
+
 FetchTSData(channel, start_dt, end_dt)
 {
     key := READ_KEYS.Has(channel) ? READ_KEYS[channel] : ""
@@ -352,14 +405,10 @@ FetchTSData(channel, start_dt, end_dt)
         req.Send()
         req.WaitForResponse()
         if (req.Status == 200)
-        {
             return req.ResponseText
-        }
     }
     catch Error as e
-    {
         StatusText.Value := "Klaida: " e.Message
-    }
     return ""
 }
 
@@ -369,12 +418,9 @@ ParseFeeds(jsonStr)
     pos := 1
     while pos := RegExMatch(jsonStr, '\{"created_at":"[^"]+"[^}]*\}', &match, pos)
     {
-        objStr := match[0]
-        obj := Map()
+        objStr := match[0], obj := Map()
         if RegExMatch(objStr, '"created_at":"([^"]+)"', &m)
-        {
             obj["created_at"] := m[1]
-        }
         Loop 8
         {
             fName := "field" A_Index
@@ -384,9 +430,7 @@ ParseFeeds(jsonStr)
                 obj[fName] := (val == "null") ? "" : val
             }
             else
-            {
                 obj[fName] := ""
-            }
         }
         feeds.Push(obj)
         pos += match.Len
@@ -397,9 +441,7 @@ ParseFeeds(jsonStr)
 CalculateDelta(feeds, fieldName)
 {
     if (feeds.Length < 2)
-    {
         return 0
-    }
     vals := []
     for index, f in feeds
     {
@@ -407,28 +449,19 @@ CalculateDelta(feeds, fieldName)
         if (val != "" && val != "null")
         {
             try
-            {
                 vals.Push(Float(val))
-            }
             catch
-            {
                 continue
-            }
         }
     }
     if (vals.Length < 2)
-    {
         return 0
-    }
-    total := 0
-    loopCount := vals.Length - 1
+    total := 0, loopCount := vals.Length - 1
     Loop loopCount
     {
         diff := vals[A_Index + 1] - vals[A_Index]
         if (diff > 0)
-        {
             total += diff
-        }
     }
     return Integer(total)
 }
@@ -440,9 +473,7 @@ GetLastVal(feeds, fieldName)
     {
         val := feeds[idx].Has(fieldName) ? feeds[idx][fieldName] : ""
         if (val != "" && val != "null")
-        {
             return val
-        }
         idx--
     }
     return ""
@@ -450,6 +481,7 @@ GetLastVal(feeds, fieldName)
 
 LoadDateData()
 {
+    global MainGui, StatusText, Controls, INTERVALS, LOG_DIR
     dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
     StatusText.Value := "Kraunami duomenys datai: " dateStr
     iniPath := LOG_DIR "\" dateStr ".ini"
@@ -458,81 +490,58 @@ LoadDateData()
         Loop (INTERVALS.Length)
         {
             idx := A_Index
-            plan := IniRead(iniPath, lineName, "Plan_" idx, "")
-            fact := IniRead(iniPath, lineName, "Fact_" idx, "")
-            prod := IniRead(iniPath, lineName, "Prod_" idx, "")
-            comm := IniRead(iniPath, lineName, "Comm_" idx, "")
-            data.intervals[idx].Plan.Value := plan
-            data.intervals[idx].Fact.Value := fact
-            data.intervals[idx].Prod.Value := prod
-            data.intervals[idx].Comm.Value := comm
+            data.intervals[idx].Plan.Value := IniRead(iniPath, lineName, "Plan_" idx, "")
+            data.intervals[idx].Fact.Value := IniRead(iniPath, lineName, "Fact_" idx, "")
+            data.intervals[idx].Prod.Value := IniRead(iniPath, lineName, "Prod_" idx, "")
+            data.intervals[idx].Comm.Value := IniRead(iniPath, lineName, "Comm_" idx, "")
         }
     }
     UpdateCalculations()
     if (dateStr == FormatTime(A_Now, "yyyy-MM-dd"))
-    {
         FetchTodayData()
-    }
     else
-    {
         StatusText.Value := "Duomenys užkrauti iš log (" dateStr ")."
-    }
 }
 
 FetchTodayData()
 {
+    global MainGui, StatusText, LINES, INTERVALS, Controls
     selDate := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
     StatusText.Value := "Jungiamasi prie ThingSpeak..."
     channels := Map()
     for index, line in LINES
     {
         if !channels.Has(line.channel)
-        {
             channels[line.channel] := []
-        }
         channels[line.channel].Push(line)
     }
     for channel, linesInChannel in channels
     {
-        rawSelDate := StrReplace(selDate, "-", "")
-        lookbackDate := DateAdd(rawSelDate "000000", -3, "Days")
-        startDT := FormatTime(lookbackDate, "yyyy-MM-dd HH:mm:ss")
-        endDT := selDate " 16:00:00"
+        rawSelDate := StrReplace(selDate, "-", ""), lookbackDate := DateAdd(rawSelDate "000000", -3, "Days")
+        startDT := FormatTime(lookbackDate, "yyyy-MM-dd HH:mm:ss"), endDT := selDate " 16:00:00"
         json := FetchTSData(channel, startDT, endDT)
         if (json == "")
-        {
             continue
-        }
         allFeeds := ParseFeeds(json)
         for index, line in linesInChannel
         {
-            StatusText.Value := "Apdorojama: " line.name
             for intIdx, interval in INTERVALS
             {
-                iStart := selDate " " interval[1] ":00"
-                iEnd := selDate " " interval[2] ":00"
+                iStart := selDate " " interval[1] ":00", iEnd := selDate " " interval[2] ":00"
                 intFeeds := FilterFeedsByTime(allFeeds, iStart, iEnd)
                 produced := CalculateDelta(intFeeds, "field" line.fieldCount)
                 feedsUpToNow := FilterFeedsByTime(allFeeds, startDT, iEnd)
                 barcode := (line.fieldBarcode) ? GetLastVal(feedsUpToNow, "field" line.fieldBarcode) : ""
                 if (line.name == "UI perrašymas")
-                {
                     barcode := "UI v5"
-                }
                 else if (barcode != "")
-                {
                     barcode := "X-" barcode
-                }
                 Controls[line.name].intervals[intIdx].Fact.Value := produced
                 if (barcode != "")
-                {
                     Controls[line.name].intervals[intIdx].Prod.Value := barcode
-                }
                 SaveToCache(selDate, line.name, intIdx, "Fact", produced)
                 if (barcode != "")
-                {
                     SaveToCache(selDate, line.name, intIdx, "Prod", barcode)
-                }
             }
         }
     }
@@ -542,16 +551,12 @@ FetchTodayData()
 
 FilterFeedsByTime(feeds, startT, endT)
 {
-    filtered := []
-    s := StrReplace(StrReplace(StrReplace(startT, "-", ""), " ", ""), ":", "")
-    e := StrReplace(StrReplace(StrReplace(endT, "-", ""), " ", ""), ":", "")
+    filtered := [], s := StrReplace(StrReplace(StrReplace(startT, "-", ""), " ", ""), ":", ""), e := StrReplace(StrReplace(StrReplace(endT, "-", ""), " ", ""), ":", "")
     for index, f in feeds
     {
         ft := StrReplace(StrReplace(StrReplace(SubStr(f["created_at"], 1, 19), "-", ""), "T", ""), ":", "")
         if (ft >= s && ft <= e)
-        {
             filtered.Push(f)
-        }
     }
     return filtered
 }
@@ -568,14 +573,14 @@ SaveManualInput(lineName, intervalIdx, type, value)
 
 SaveAll()
 {
+    global MainGui, StatusText, Controls, INTERVALS
     dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
     StatusText.Value := "Saugoma..."
     for lineName, data in Controls
     {
         Loop (INTERVALS.Length)
         {
-            idx := A_Index
-            ctrls := data.intervals[idx]
+            idx := A_Index, ctrls := data.intervals[idx]
             SaveToCache(dateStr, lineName, idx, "Plan", ctrls.Plan.Value)
             SaveToCache(dateStr, lineName, idx, "Fact", ctrls.Fact.Value)
             SaveToCache(dateStr, lineName, idx, "Prod", ctrls.Prod.Value)
