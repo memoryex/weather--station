@@ -106,7 +106,7 @@ ApplyTheme(themeName) {
 
 AddIntervalHeaders(YPos) {
     MainGui.SetFont("s9 bold")
-    Loop INTERVALS.Length {
+    Loop (INTERVALS.Length) {
         X := 220 + (A_Index-1) * 88
         MainGui.Add("Text", "x" X " y" YPos " w85 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
     }
@@ -131,7 +131,7 @@ CreateLineGrid(LineObj, YPos, TabIdx) {
     MainGui.Add("Text", "x150 y" YPos+75 " w60 h20", "Komment.")
 
     lineCtrls := []
-    Loop INTERVALS.Length {
+    Loop (INTERVALS.Length) {
         idx := A_Index
         X := 220 + (idx-1) * 88
 
@@ -257,7 +257,7 @@ CalculateDelta(feeds, fieldName) {
     }
     if (vals.Length < 2) return 0
     total := 0
-    Loop vals.Length - 1 {
+    Loop (vals.Length - 1) {
         diff := vals[A_Index + 1] - vals[A_Index]
         if (diff > 0) total += diff
     }
@@ -280,7 +280,7 @@ LoadDateData() {
     iniPath := LOG_DIR "\" dateStr ".ini"
     for lineName, data in Controls {
         totalFact := 0
-        Loop INTERVALS.Length {
+        Loop (INTERVALS.Length) {
             idx := A_Index
             plan := IniRead(iniPath, lineName, "Plan_" idx, "")
             fact := IniRead(iniPath, lineName, "Fact_" idx, "")
@@ -361,7 +361,7 @@ SaveAll() {
     dateStr := FormatTime(MainGui["SelectedDate"].Value, "yyyy-MM-dd")
     StatusText.Value := "Saugoma..."
     for lineName, data in Controls {
-        Loop INTERVALS.Length {
+        Loop (INTERVALS.Length) {
             idx := A_Index, ctrls := data.intervals[idx]
             SaveToCache(dateStr, lineName, idx, "Plan", ctrls.Plan.Value)
             SaveToCache(dateStr, lineName, idx, "Fact", ctrls.Fact.Value)
