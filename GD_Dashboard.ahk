@@ -89,7 +89,7 @@ ApplyTheme(themeName)
     theme := THEMES[themeName]
     MainGui.BackColor := theme.bg
 
-    ; Map safe names to colors for Fact/Total fields
+    ; Map safe names to colors for Fact/Total/Prod fields
     colorMap := Map()
     for index, line in LINES
     {
@@ -107,18 +107,19 @@ ApplyTheme(themeName)
             }
             else if (ctrl is Gui.Edit)
             {
-                isFactOrTotal := false
+                isColored := false
                 for safeName, color in colorMap
                 {
-                    if (InStr(ctrl.Name, safeName "_F") || InStr(ctrl.Name, safeName "_Total"))
+                    ; Apply line specific background to Fact, Total AND Product (Gaminys)
+                    if (InStr(ctrl.Name, safeName "_F") || InStr(ctrl.Name, safeName "_Total") || InStr(ctrl.Name, safeName "_G"))
                     {
                         ctrl.Opt("cBlack Background" color)
-                        isFactOrTotal := true
+                        isColored := true
                         break
                     }
                 }
 
-                if (!isFactOrTotal)
+                if (!isColored)
                 {
                     ctrl.Opt("c" theme.editTxt " Background" theme.editBg)
                 }
@@ -175,13 +176,14 @@ CreateLineGrid(LineObj, YPos, TabIdx)
         cPlan := MainGui.Add("Edit", "x" X " y" YPos " w85 h22 Center v" safeName "_P" idx)
         cFact := MainGui.Add("Edit", "x" X " y" YPos+25 " w85 h22 Center ReadOnly v" safeName "_F" idx)
 
-        MainGui.SetFont("bold")
+        ; Product (Gaminys) should not be bold as per user request
         cProd := MainGui.Add("Edit", "x" X " y" YPos+50 " w85 h22 Center ReadOnly v" safeName "_G" idx)
-        MainGui.SetFont("norm")
 
         cComm := MainGui.Add("Edit", "x" X " y" YPos+75 " w85 h22 Center v" safeName "_K" idx)
 
+        ; Apply colors immediately on creation
         cFact.Opt("Background" SubStr(LineObj.color, -6))
+        cProd.Opt("Background" SubStr(LineObj.color, -6))
 
         lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
 
