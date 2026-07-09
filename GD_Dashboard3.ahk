@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "5.1 (Local Server Sync)"
+Global CURRENT_VERSION := "5.2 (Activity Indicators)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR) {
     DirCreate(LOG_DIR)
@@ -152,6 +152,10 @@ CreateLineGrid(TargetGui, LineObj, YPos) {
 
     TargetGui.SetFont("s10 bold")
     TargetGui.Add("Text", "x15 y" YPos " w100 h20", name)
+
+    ; Activity Indicator
+    cIndicator := TargetGui.Add("Progress", "x15 y" YPos+22 " w100 h10 BackgroundRed cRed", 0)
+
     TargetGui.SetFont("s9 bold")
     TargetGui.Add("Text", "x125 y" YPos " w95 h20", "Planas")
     TargetGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Faktas")
@@ -186,7 +190,7 @@ CreateLineGrid(TargetGui, LineObj, YPos) {
     cFactAvg := TargetGui.Add("Edit", "x" X_Avg " y" YPos+23 " w90 h20 Center ReadOnly")
     TargetGui.SetFont("s9 norm")
 
-    Controls[name] := {intervals: lineCtrls, planTotal: cPlanTotal, planAvg: cPlanAvg, factTotal: cFactTotal, factAvg: cFactAvg, tab: LineObj.tab}
+    Controls[name] := {intervals: lineCtrls, planTotal: cPlanTotal, planAvg: cPlanAvg, factTotal: cFactTotal, factAvg: cFactAvg, tab: LineObj.tab, indicator: cIndicator}
 }
 
 CreateTabFooter(TargetGui, TabName, YPos) {
@@ -540,6 +544,23 @@ GetLastVal(feeds, fieldName) {
     return ""
 }
 
+; Activity logic: Find timestamp of the very last counter increment
+GetLastActivityTS(feeds, fieldName) {
+    if (feeds.Length < 2) {
+        return ""
+    }
+    idx := feeds.Length
+    while (idx > 1) {
+        currVal := GetNum(feeds[idx].Has(fieldName) ? feeds[idx][fieldName] : "")
+        prevVal := GetNum(feeds[idx-1].Has(fieldName) ? feeds[idx-1][fieldName] : "")
+        if (currVal > prevVal && currVal > 0) {
+            return feeds[idx]["created_at"]
+        }
+        idx--
+    }
+    return ""
+}
+
 FilterFeedsByTime(feeds, startT, endT) {
     filtered := []
     s := StrReplace(StrReplace(StrReplace(startT, "-", ""), " ", ""), ":", "")
@@ -596,6 +617,8 @@ RefreshDataFromTS(targetDate := "") {
     }
     today := FormatTime(A_Now, "yyyy-MM-dd")
     nowT := FormatTime(A_Now, "HH:mm")
+    nowFull := A_Now
+
     for ch, lines in channels {
         rawSelDate := StrReplace(tDate, "-", "")
         lookback := DateAdd(rawSelDate "000000", -3, "Days")
@@ -607,7 +630,22 @@ RefreshDataFromTS(targetDate := "") {
         }
         allF := ParseFeeds(json)
         for l in lines {
-            Loop (INTERVALS.Length) {
+            ; Check Activity for Indicator
+            lastAct := GetLastActivityTS(allF, "field" l.fieldCount)
+            if (lastAct != "") {
+                ; Parse ThingSpeak ISO 8601 to AHK YYYYMMDDHH24MISS
+                ts := StrReplace(StrReplace(StrReplace(SubStr(lastAct, 1, 19), "-", ""), "T", ""), ":", "")
+                diff := DateDiff(nowFull, ts, "Minutes")
+                if (diff <= 60) {
+                    Controls[l.name].indicator.Opt("BackgroundGreen cGreen")
+                } else {
+                    Controls[l.name].indicator.Opt("BackgroundRed cRed")
+                }
+            } else {
+                Controls[l.name].indicator.Opt("BackgroundRed cRed")
+            }
+
+            Loop INTERVALS.Length {
                 idx := A_Index
                 int_v := INTERVALS[idx]
                 if (tDate == today) {
