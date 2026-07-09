@@ -4,21 +4,21 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "5.0 (String Fix)"
+Global CURRENT_VERSION := "5.1 (Local Server Sync)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR) {
     DirCreate(LOG_DIR)
 }
 
+; Local Server Path for synchronization
+Global SERVER_LOG_FILE := "\\10.12.24.50\fgt_hal\AHK_log\logas.txt"
+
 ; Configuration (Loaded from config.ini)
 Global CONFIG_FILE := A_ScriptDir "\config.ini"
-Global GIST_ID := "bca7d49ac0724f650842b0e7c691a1c1"
-Global GIST_TOKEN := ""
 Global READ_KEYS := Map()
 
 if FileExist(CONFIG_FILE) {
     try {
-        GIST_TOKEN := IniRead(CONFIG_FILE, "Gist", "Token", "")
         for ch in ["463450", "703669", "802414", "807602"] {
             READ_KEYS[ch] := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" ch, "")
         }
@@ -43,7 +43,7 @@ Global LINES := [
     {name: "QRAD 1",    channel: "807602", fieldCount: 3, fieldBarcode: 4, color: "CCFFFF", tab: "Kiti"},
     {name: "XLE 1",     channel: "807602", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "Kiti"},
     {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"},
-    {name: "UI perrasymas", channel: "807602", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Kiti"}
+    {name: "UI perrašymas", channel: "807602", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Kiti"}
 ]
 
 Global INTERVALS := [
@@ -80,7 +80,7 @@ GetNum(Value) {
 Global MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 
-MainGui.Add("Text", "x10 y15", "Pasirinkite data:")
+MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
 Global Calendar := MainGui.Add("DateTime", "x110 y10 w150", "yyyy-MM-dd")
 
 OnCalendarChange(ctrl, *) {
@@ -90,12 +90,13 @@ Calendar.OnEvent("Change", OnCalendarChange)
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
 OnRefreshClick(ctrl, *) {
-    SyncGist("down")
+    SyncLocalServer("down")
     LoadDateData(true)
+    RefreshDataFromTS()
 }
 BtnRefresh.OnEvent("Click", OnRefreshClick)
 
-BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viska")
+BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
 OnSaveAllClick(ctrl, *) {
     SaveAndSync()
 }
@@ -107,7 +108,7 @@ OnExportClick(ctrl, *) {
 }
 BtnExport.OnEvent("Click", OnExportClick)
 
-Global StatusText := MainGui.Add("Text", "x645 y15 w600", "Pasiruoses")
+Global StatusText := MainGui.Add("Text", "x645 y15 w600", "Pasiruošęs")
 
 Global Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti"])
 
@@ -386,50 +387,23 @@ UpdateCalculations() {
     }
 }
 
-SyncGist(mode) {
-    global GIST_ID, GIST_TOKEN, LOG_DIR, StatusText
-    if (GIST_TOKEN == "") {
-        StatusText.Value := "Gist Token nerastas config.ini"
-        return
-    }
-    url := "https://api.github.com/gists/" GIST_ID
-    req := ComObject("WinHttp.WinHttpRequest.5.1")
+SyncLocalServer(mode) {
+    global SERVER_LOG_FILE, LOG_DIR, StatusText
     try {
         if (mode == "down") {
-            StatusText.Value := "Siunciama is debesies..."
-            req.Open("GET", url, false)
-            req.SetRequestHeader("Authorization", "Bearer " GIST_TOKEN)
-            req.Send()
-            if (req.Status == 200) {
-                res := req.ResponseText
-                if RegExMatch(res, 's)"logas\.txt":\s*\{.*?"content":\s*"((?:[^"\\]|\\.)*)"', &m) {
-                    content := m[1]
-                    content := StrReplace(content, "\\", "[[BS]]")
-                    content := StrReplace(content, "\n", "`n")
-                    content := StrReplace(content, "\r", "`r")
-                    content := StrReplace(content, "\t", "`t")
-                    content := StrReplace(content, '\"', '"')
-                    content := StrReplace(content, "[[BS]]", "\")
-                    if (InStr(content, "[FILE:")) {
-                        fileCount := 0
-                        currentFile := ""
-                        fileBuffer := ""
-                        Loop Parse, content, "`n", "`r" {
-                            line := Trim(A_LoopField, " `t")
-                            if RegExMatch(line, "^\[FILE:(.+)\]$", &fm) {
-                                if (currentFile != "") {
-                                    if FileExist(currentFile) {
-                                        FileDelete(currentFile)
-                                    }
-                                    FileAppend(RTrim(fileBuffer, "`n`r"), currentFile, "UTF-8")
-                                    fileCount++
-                                }
-                                currentFile := LOG_DIR "\" fm[1]
-                                fileBuffer := ""
-                            } else if (currentFile != "") {
-                                fileBuffer .= A_LoopField "`r`n"
-                            }
-                        }
+            StatusText.Value := "Siunčiama iš serverio..."
+            if !FileExist(SERVER_LOG_FILE) {
+                StatusText.Value := "Serverio failas nerastas."
+                return
+            }
+            content := FileRead(SERVER_LOG_FILE, "UTF-8")
+            if (InStr(content, "[FILE:")) {
+                fileCount := 0
+                currentFile := ""
+                fileBuffer := ""
+                Loop Parse, content, "`n", "`r" {
+                    line := Trim(A_LoopField, " `t")
+                    if RegExMatch(line, "^\[FILE:(.+)\]$", &fm) {
                         if (currentFile != "") {
                             if FileExist(currentFile) {
                                 FileDelete(currentFile)
@@ -437,18 +411,25 @@ SyncGist(mode) {
                             FileAppend(RTrim(fileBuffer, "`n`r"), currentFile, "UTF-8")
                             fileCount++
                         }
-                        StatusText.Value := "Sinchronizuota (" fileCount " failai)."
-                    } else {
-                        StatusText.Value := "Gist turinys tuscias."
+                        currentFile := LOG_DIR "\" fm[1]
+                        fileBuffer := ""
+                    } else if (currentFile != "") {
+                        fileBuffer .= A_LoopField "`r`n"
                     }
-                } else {
-                    StatusText.Value := "Gist failas nerastas."
                 }
+                if (currentFile != "") {
+                    if FileExist(currentFile) {
+                        FileDelete(currentFile)
+                    }
+                    FileAppend(RTrim(fileBuffer, "`n`r"), currentFile, "UTF-8")
+                    fileCount++
+                }
+                StatusText.Value := "Sinchronizuota (" fileCount " failai)."
             } else {
-                StatusText.Value := "Gist klaida: " req.Status
+                StatusText.Value := "Serverio failas tuščias."
             }
         } else if (mode == "up") {
-            StatusText.Value := "Siunciama i debesi..."
+            StatusText.Value := "Siunčiama į serverį..."
             payload := ""
             fileCount := 0
             Loop Files, LOG_DIR "\*.ini" {
@@ -456,32 +437,23 @@ SyncGist(mode) {
                 fileCount++
             }
             if (fileCount == 0) {
-                StatusText.Value := "Nera duomenu logs aplanke."
+                StatusText.Value := "Nėra duomenų logs aplanke."
                 return
             }
-            jsonPayload := StrReplace(payload, "\", "\\")
-            jsonPayload := StrReplace(jsonPayload, '"', '\"')
-            jsonPayload := StrReplace(jsonPayload, "`r`n", "\n")
-            jsonPayload := StrReplace(jsonPayload, "`n", "\n")
-            body := '{"files":{"logas.txt":{"content":"' jsonPayload '"}}}'
-            req.Open("PATCH", url, false)
-            req.SetRequestHeader("Authorization", "Bearer " GIST_TOKEN)
-            req.SetRequestHeader("Content-Type", "application/json")
-            req.Send(body)
-            if (req.Status == 200) {
-                StatusText.Value := "Ikelta i debesi (" fileCount ")."
-            } else {
-                StatusText.Value := "Ikelimo klaida: " req.Status
+            if FileExist(SERVER_LOG_FILE) {
+                FileDelete(SERVER_LOG_FILE)
             }
+            FileAppend(payload, SERVER_LOG_FILE, "UTF-8")
+            StatusText.Value := "Įkelta į serverį (" fileCount ")."
         }
     } catch Error as e {
-        StatusText.Value := "Klaida: " e.Message
+        StatusText.Value := "Serverio klaida: " e.Message
     }
 }
 
 SaveAndSync() {
     SaveAll()
-    SyncGist("up")
+    SyncLocalServer("up")
 }
 
 FetchTSData(channel, start_dt, end_dt) {
@@ -613,7 +585,7 @@ LoadDateData(forceRefresh := false) {
 RefreshDataFromTS(targetDate := "") {
     global Calendar, StatusText, LINES, INTERVALS, Controls
     tDate := (targetDate == "") ? FormatTime(Calendar.Value, "yyyy-MM-dd") : targetDate
-    StatusText.Value := "Siunciama is ThingSpeak..."
+    StatusText.Value := "Siunčiama iš ThingSpeak..."
     channels := Map()
     for l in LINES {
         if !channels.Has(l.channel) {
@@ -648,7 +620,7 @@ RefreshDataFromTS(targetDate := "") {
                 prod := CalculateDelta(intF, "field" l.fieldCount)
                 upToNowF := FilterFeedsByTime(allF, startDT, endTimeStr)
                 barcode := (l.fieldBarcode) ? GetLastVal(upToNowF, "field" l.fieldBarcode) : ""
-                ; UI perrasymas check
+                ; UI perrašymas check
                 if (l.channel == "807602" && l.fieldCount == 1) {
                     barcode := "UI v5"
                 } else if (barcode != "") {
@@ -669,7 +641,7 @@ RefreshDataFromTS(targetDate := "") {
         }
     }
     UpdateCalculations()
-    StatusText.Value := "Uzkrauta: " FormatTime(, "HH:mm:ss")
+    StatusText.Value := "Užkrauta: " FormatTime(, "HH:mm:ss")
 }
 
 SaveToCache(date, line, idx, type, val) {
@@ -798,7 +770,7 @@ UpdateScrollBars(GuiObj) {
 }
 
 StartupProc(*) {
-    SyncGist("down")
+    SyncLocalServer("down")
     LoadDateData()
 }
 SetTimer(StartupProc, -500)
