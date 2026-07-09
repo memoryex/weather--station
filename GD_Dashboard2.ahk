@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "3.3 (Excel)"
+Global CURRENT_VERSION := "3.4 (Excel)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -502,7 +502,10 @@ SyncGist(mode)
 {
     global GIST_ID, GIST_TOKEN, LOG_DIR, StatusText
     if (GIST_TOKEN == "" || GIST_TOKEN == "PLACEHOLDER_TOKEN")
+    {
+        StatusText.Value := "Gist Token nerastas config.ini"
         return
+    }
 
     url := "https://api.github.com/gists/" GIST_ID
     req := ComObject("WinHttp.WinHttpRequest.5.1")
@@ -518,28 +521,32 @@ SyncGist(mode)
             if (req.Status == 200)
             {
                 res := req.ResponseText
-                if RegExMatch(res, '"logas\.txt":\{"filename":"logas\.txt",.*?"content":"((?:[^"\\]|\\.)*)"\}', &m)
+                ; Use 's' option to allow dot to match newlines in res
+                if RegExMatch(res, 's)"logas\.txt":\{.*?"content":"(.*?)"\s*\}', &m)
                 {
                     content := m[1]
-                    content := StrReplace(content, "\n", "`n"), content := StrReplace(content, "\r", "`r")
-                    content := StrReplace(content, '\"', '"'), content := StrReplace(content, '\\', '\')
+                    ; Unescape JSON: order is important
+                    content := StrReplace(content, "\\", "\")
+                    content := StrReplace(content, "\"", '"')
+                    content := StrReplace(content, "\n", "`n")
+                    content := StrReplace(content, "\r", "`r")
+                    content := StrReplace(content, "\t", "`t")
 
-                    ; Safeguard: only process if content is not empty and contains file tags
-                    if (content != "" && InStr(content, "[FILE:"))
+                    if (InStr(content, "[FILE:"))
                     {
                         currentFile := ""
                         Loop Parse, content, "`n", "`r"
                         {
                             line := A_LoopField
-                            if (line == "")
-                                continue
                             if RegExMatch(line, "^\[FILE:(.+)\]$", &fm)
                             {
                                 currentFile := LOG_DIR "\" fm[1]
                                 if FileExist(currentFile)
                                     FileDelete(currentFile)
+                                continue
                             }
-                            else if (currentFile != "")
+
+                            if (currentFile != "")
                                 FileAppend(line "`n", currentFile)
                         }
                         StatusText.Value := "Duomenys sinchronizuoti."
