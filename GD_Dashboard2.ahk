@@ -84,7 +84,7 @@ Global Calendar := MainGui.Add("DateTime", "x110 y10 w150", "yyyy-MM-dd")
 Calendar.OnEvent("Change", (ctrl, *) => LoadDateData())
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
-BtnRefresh.OnEvent("Click", (ctrl, *) => (SyncGist("down"), LoadDateData(true)))
+BtnRefresh.OnEvent("Click", (ctrl, *) => (SyncGist("down"), LoadDateData(true), RefreshDataFromTS()))
 
 BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
 BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAndSync())
@@ -144,13 +144,14 @@ CreateLineGrid(TargetGui, LineObj, YPos)
 
         cPlan := TargetGui.Add("Edit", "x" X " y" YPos " w90 h20 Center")
         cFact := TargetGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly")
-        cProd := TargetGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly")
+        cProd := TargetGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center")
         cComm := TargetGui.Add("Edit", "x" X " y" YPos+69 " w90 h20 Center cRed")
 
         lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
         CommHwnds[cComm.Hwnd] := cComm
 
         cPlan.OnEvent("LoseFocus", (ctrl, *) => (SaveManualInput(name, idx, "Plan", ctrl.Value), UpdateCalculations()))
+        cProd.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Prod", ctrl.Value))
         cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
 
@@ -516,6 +517,7 @@ SyncGist(mode)
     {
         if (mode == "down")
         {
+            StatusText.Value := "Siunčiami duomenys iš debesies..."
             if !DirExist(LOG_DIR)
                 DirCreate(LOG_DIR)
 
@@ -526,66 +528,82 @@ SyncGist(mode)
             if (req.Status == 200)
             {
                 res := req.ResponseText
-                ; Use 's' option to allow dot to match newlines in res
-                ; Handle escaped quotes in content correctly
-                if RegExMatch(res, 's)"logas\.txt":\{.*?"content":"((?:[^"\\]|\\.)*)"', &m)
+                ; Robust JSON content extraction
+                if RegExMatch(res, 's)"logas\.txt":\s*\{.*?"content":\s*"((?:[^"\\]|\\.)*)"', &m)
                 {
                     content := m[1]
-                    ; Correct JSON string unescaping order: literals first, then backslashes
+                    ; Unescape JSON correctly: literals first, then backslashes
+                    content := StrReplace(content, "\\", "[[BS]]")
                     content := StrReplace(content, "\n", "`n")
                     content := StrReplace(content, "\r", "`r")
                     content := StrReplace(content, "\t", "`t")
                     content := StrReplace(content, '\"', '"')
-                    content := StrReplace(content, "\\", "\")
+                    content := StrReplace(content, "[[BS]]", "\")
 
                     if (InStr(content, "[FILE:"))
                     {
+                        fileCount := 0
                         currentFile := ""
                         fileBuffer := ""
                         Loop Parse, content, "`n", "`r"
                         {
                             line := A_LoopField
-                            if RegExMatch(line, "^\[FILE:(.+)\]$", &fm)
+                            if RegExMatch(line, "^\[FILE:(.+)\]\s*$", &fm)
                             {
-                                ; Save previous file buffer
-                                if (currentFile != "" && fileBuffer != "")
+                                if (currentFile != "")
                                 {
                                     if FileExist(currentFile)
                                         FileDelete(currentFile)
                                     FileAppend(fileBuffer, currentFile)
+                                    fileCount++
                                 }
                                 currentFile := LOG_DIR "\" fm[1]
                                 fileBuffer := ""
                                 continue
                             }
-
                             if (currentFile != "")
                                 fileBuffer .= line "`n"
                         }
-                        ; Save last file buffer
-                        if (currentFile != "" && fileBuffer != "")
+                        if (currentFile != "")
                         {
                             if FileExist(currentFile)
                                 FileDelete(currentFile)
                             FileAppend(fileBuffer, currentFile)
+                            fileCount++
                         }
-                        StatusText.Value := "Duomenys sinchronizuoti."
+                        StatusText.Value := "Sinchronizuota. Atkurta failų: " fileCount
                     }
+                    else
+                        StatusText.Value := "Gist turinys tuščias arba netinkamas."
                 }
+                else
+                    StatusText.Value := "Nepavyko rasti logas.txt Gist'e."
             }
             else
                 StatusText.Value := "Gist klaida: Status " req.Status
         }
         else if (mode == "up")
         {
+            StatusText.Value := "Siunčiama į debesį..."
             payload := ""
+            fileCount := 0
             Loop Files, LOG_DIR "\*.ini"
             {
                 payload .= "[FILE:" A_LoopFileName "]`n"
                 payload .= FileRead(A_LoopFileFullPath) "`n"
+                fileCount++
             }
-            jsonPayload := StrReplace(payload, '\', '\\'), jsonPayload := StrReplace(jsonPayload, '"', '\"')
-            jsonPayload := StrReplace(jsonPayload, "`r`n", "\n"), jsonPayload := StrReplace(jsonPayload, "`n", "\n")
+
+            if (fileCount == 0)
+            {
+                StatusText.Value := "Nėra duomenų kėlimui (logs tuščias)."
+                return
+            }
+
+            jsonPayload := StrReplace(payload, "\", "\\")
+            jsonPayload := StrReplace(jsonPayload, '"', '\"')
+            jsonPayload := StrReplace(jsonPayload, "`r`n", "\n")
+            jsonPayload := StrReplace(jsonPayload, "`n", "\n")
             body := '{"files":{"logas.txt":{"content":"' jsonPayload '"}}}'
 
             req.Open("PATCH", url, false)
@@ -594,7 +612,7 @@ SyncGist(mode)
             req.Send(body)
 
             if (req.Status == 200)
-                StatusText.Value := "Duomenys įkelti į debesį."
+                StatusText.Value := "Sėkmingai įkelta failų: " fileCount
             else
                 StatusText.Value := "Gist įkėlimo klaida: Status " req.Status
         }
@@ -737,10 +755,21 @@ LoadDateData(forceRefresh := false)
 
             isFuture := (dateStr == today && StrCompare(intStart, nowTime) > 0)
 
-            data.intervals[idx].Plan.Value := isFuture ? "" : IniRead(iniPath, lineName, "Plan_" idx, "")
-            data.intervals[idx].Fact.Value := isFuture ? "" : IniRead(iniPath, lineName, "Fact_" idx, "")
-            data.intervals[idx].Prod.Value := isFuture ? "" : IniRead(iniPath, lineName, "Prod_" idx, "")
-            data.intervals[idx].Comm.Value := isFuture ? "" : IniRead(iniPath, lineName, "Comm_" idx, "")
+            pVal := isFuture ? "" : IniRead(iniPath, lineName, "Plan_" idx, "")
+            fVal := isFuture ? "" : IniRead(iniPath, lineName, "Fact_" idx, "")
+            prVal := isFuture ? "" : IniRead(iniPath, lineName, "Prod_" idx, "")
+            cVal := isFuture ? "" : IniRead(iniPath, lineName, "Comm_" idx, "")
+
+            data.intervals[idx].Plan.Value := pVal
+            data.intervals[idx].Fact.Value := fVal
+            data.intervals[idx].Prod.Value := prVal
+            data.intervals[idx].Comm.Value := cVal
+
+            ; Set ReadOnly for Prod if it came from TS (starts with X- or is UI v5)
+            if (prVal != "" && (SubStr(prVal, 1, 2) == "X-" || prVal == "UI v5"))
+                data.intervals[idx].Prod.Opt("+ReadOnly")
+            else
+                data.intervals[idx].Prod.Opt("-ReadOnly")
         }
     }
     UpdateCalculations()
@@ -802,10 +831,19 @@ RefreshDataFromTS(targetDate := "")
                     barcode := "X-" barcode
 
                 Controls[line.name].intervals[intIdx].Fact.Value := produced
-                Controls[line.name].intervals[intIdx].Prod.Value := barcode
-
                 SaveToCache(targetDate, line.name, intIdx, "Fact", produced)
-                SaveToCache(targetDate, line.name, intIdx, "Prod", barcode)
+
+                if (barcode != "")
+                {
+                    Controls[line.name].intervals[intIdx].Prod.Value := barcode
+                    Controls[line.name].intervals[intIdx].Prod.Opt("+ReadOnly")
+                    SaveToCache(targetDate, line.name, intIdx, "Prod", barcode)
+                }
+                else
+                {
+                    ; If DB barcode is empty, allow manual entry and don't overwrite existing local entry
+                    Controls[line.name].intervals[intIdx].Prod.Opt("-ReadOnly")
+                }
             }
         }
     }
