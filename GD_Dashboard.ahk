@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "2.8"
+Global CURRENT_VERSION := "2.9 (Sync & BGR Fix)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -22,10 +22,6 @@ if FileExist(CONFIG_FILE)
         GIST_TOKEN := IniRead(CONFIG_FILE, "Gist", "Token", "")
         for ch in ["463450", "703669", "802414", "807602"]
             READ_KEYS[ch] := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" ch, "")
-    }
-    catch
-    {
-        ; Silent fail
     }
 }
 
@@ -54,24 +50,7 @@ Global INTERVALS := [
     ["14:10", "15:00"], ["15:00", "16:00"]
 ]
 
-; =======================================================
-; HELPERS
-; =======================================================
-GetNum(Value)
-{
-    if IsNumber(Value)
-        return Value
-    str := String(Value)
-    if (str == "")
-        return 0
-    clean := RegExReplace(str, "[^\d\.]")
-    if (clean == "" || clean == ".")
-        return 0
-    try
-        return Number(clean)
-    catch
-        return 0
-}
+GetNum(V) => IsNumber(V) ? V : (clean := RegExReplace(String(V), "[^\d\.]"), clean == "" || clean == "." ? 0 : Number(clean))
 
 ; =======================================================
 ; GUI CONSTRUCTION
@@ -84,27 +63,23 @@ Global Calendar := MainGui.Add("DateTime", "x110 y10 w150", "yyyy-MM-dd")
 Calendar.OnEvent("Change", (ctrl, *) => LoadDateData())
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
-BtnRefresh.OnEvent("Click", (ctrl, *) => (SyncGist("down"), LoadDateData()))
+BtnRefresh.OnEvent("Click", (ctrl, *) => (SyncGist("down"), LoadDateData(true)))
 
 BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
 BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAndSync())
 
-Global StatusText := MainGui.Add("Text", "x515 y15 w600", "Pasiruošęs")
+BtnExport := MainGui.Add("Button", "x510 y10 w120", "Eksportuoti Excel")
+BtnExport.OnEvent("Click", (ctrl, *) => ExportToExcel())
 
-; Tab3 handles control containment correctly
+Global StatusText := MainGui.Add("Text", "x645 y15 w600", "Pasiruošęs")
+
 Global Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h960", ["PLXE", "NOBO", "Kiti"])
+Global Controls := Map(), TabFooters := Map(), CommHwnds := Map()
 
-; Store control references
-Global Controls := Map()
-Global TabFooters := Map()
-Global CommHwnds := Map()
-
-AddIntervalHeaders(YPos)
-{
+AddIntervalHeaders(YPos) {
     global MainGui, INTERVALS
     MainGui.SetFont("s9 bold")
-    Loop (INTERVALS.Length)
-    {
+    Loop (INTERVALS.Length) {
         X := 230 + (A_Index-1) * 95
         MainGui.Add("Text", "x" X " y" YPos " w90 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
     }
@@ -113,130 +88,61 @@ AddIntervalHeaders(YPos)
     MainGui.SetFont("s9 norm")
 }
 
-CreateLineGrid(LineObj, YPos)
-{
+CreateLineGrid(LineObj, YPos) {
     global Controls, MainGui, INTERVALS, CommHwnds
     name := LineObj.name
-
     MainGui.SetFont("s10 bold")
     MainGui.Add("Text", "x15 y" YPos " w100 h20", name)
-
     MainGui.SetFont("s9 bold")
     MainGui.Add("Text", "x125 y" YPos " w95 h20", "Planas")
     MainGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Faktas")
     MainGui.Add("Text", "x125 y" YPos+46 " w95 h20", "Gaminys")
     MainGui.Add("Text", "x125 y" YPos+69 " w95 h20", "Komentaras")
     MainGui.SetFont("s9 norm")
-
     lineCtrls := []
-    Loop (INTERVALS.Length)
-    {
-        idx := A_Index
-        X := 230 + (idx-1) * 95
-
+    Loop (INTERVALS.Length) {
+        idx := A_Index, X := 230 + (idx-1) * 95
         cPlan := MainGui.Add("Edit", "x" X " y" YPos " w90 h20 Center")
         cFact := MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly")
-        cProd := MainGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly")
+        cProd := MainGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center")
         cComm := MainGui.Add("Edit", "x" X " y" YPos+69 " w90 h20 Center cRed")
-
-        lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
-        CommHwnds[cComm.Hwnd] := cComm
-
+        lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm}), CommHwnds[cComm.Hwnd] := cComm
         cPlan.OnEvent("LoseFocus", (ctrl, *) => (SaveManualInput(name, idx, "Plan", ctrl.Value), UpdateCalculations()))
+        cProd.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Prod", ctrl.Value))
         cComm.OnEvent("LoseFocus", (ctrl, *) => SaveManualInput(name, idx, "Comm", ctrl.Value))
     }
-
-    X := 230 + INTERVALS.Length * 95
-    MainGui.SetFont("s9 bold")
-    cPlanTotal := MainGui.Add("Edit", "x" X " y" YPos " w90 h20 Center ReadOnly")
-    cFactTotal := MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly")
-
-    X_Avg := X + 95
-    cPlanAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos " w90 h20 Center ReadOnly")
-    cFactAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos+23 " w90 h20 Center ReadOnly")
+    X_T := 230 + INTERVALS.Length * 95, MainGui.SetFont("s9 bold")
+    cPlanTotal := MainGui.Add("Edit", "x" X_T " y" YPos " w90 h20 Center ReadOnly")
+    cFactTotal := MainGui.Add("Edit", "x" X_T " y" YPos+23 " w90 h20 Center ReadOnly")
+    X_A := X_T + 95
+    cPlanAvg := MainGui.Add("Edit", "x" X_A " y" YPos " w90 h20 Center ReadOnly")
+    cFactAvg := MainGui.Add("Edit", "x" X_A " y" YPos+23 " w90 h20 Center ReadOnly")
     MainGui.SetFont("s9 norm")
-
     Controls[name] := {intervals: lineCtrls, planTotal: cPlanTotal, planAvg: cPlanAvg, factTotal: cFactTotal, factAvg: cFactAvg, tab: LineObj.tab}
 }
 
-CreateTabFooter(TabName, YPos)
-{
+CreateTabFooter(TabName, YPos) {
     global TabFooters, MainGui, INTERVALS
-
     fH := [], pH := [], pcH := []
-
     MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x125 y" YPos " w95 h20", "Faktas")
-    MainGui.Add("Text", "x15 y" YPos+23 " w100 h20", "Tikslas:")
-    MainGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Planas")
-
-    Loop (INTERVALS.Length)
-    {
-        idx := A_Index
-        X := 230 + (idx-1) * 95
-
+    MainGui.Add("Text", "x125 y" YPos " w95 h20", "Faktas"), MainGui.Add("Text", "x15 y" YPos+23 " w100 h20", "Tikslas:"), MainGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Planas")
+    Loop (INTERVALS.Length) {
+        X := 230 + (A_Index-1) * 95
         fH.Push(MainGui.Add("Edit", "x" X " y" YPos " w90 h20 Center ReadOnly cRed BackgroundWhite"))
         pH.Push(MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly BackgroundWhite"))
-        pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
+        pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly +0x800 BackgroundWhite"))
     }
-
-    X_Total := 1380
-    MainGui.Add("Text", "x" X_Total " y" YPos-25 " w130 h20 Center", "Visos dienos:")
-    MainGui.SetFont("s32 bold")
-    cGrand := MainGui.Add("Edit", "x" X_Total " y" YPos-5 " w130 h80 Center ReadOnly Border")
-    MainGui.SetFont("s9 norm")
-
+    MainGui.SetFont("s32 bold"), cGrand := MainGui.Add("Edit", "x1380 y" YPos-5 " w130 h80 Center ReadOnly Border"), MainGui.SetFont("s9 norm")
     TabFooters[TabName] := {Fact: fH, Plan: pH, Pct: pcH, Grand: cGrand}
 }
 
-; Build Grid
-headerY := 20
-contentStartY := 50
-lineStep := 120
-footerGap := 40
-
-; PLXE
-Tabs.UseTab(1)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for line in LINES
-{
-    if (line.tab == "PLXE")
-    {
-        CreateLineGrid(line, Y)
-        Y += lineStep
-    }
+for tName in ["PLXE", "NOBO", "Kiti"] {
+    Tabs.UseTab(A_Index), AddIntervalHeaders(20), Y := 50
+    for l in LINES
+        if (l.tab == tName)
+            CreateLineGrid(l, Y), Y += 120
+    CreateTabFooter(tName, Y + 40)
 }
-CreateTabFooter("PLXE", Y + footerGap)
-
-; NOBO
-Tabs.UseTab(2)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for line in LINES
-{
-    if (line.tab == "NOBO")
-    {
-        CreateLineGrid(line, Y)
-        Y += lineStep
-    }
-}
-CreateTabFooter("NOBO", Y + footerGap)
-
-; Kiti
-Tabs.UseTab(3)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for line in LINES
-{
-    if (line.tab == "Kiti")
-    {
-        CreateLineGrid(line, Y)
-        Y += lineStep
-    }
-}
-CreateTabFooter("Kiti", Y + footerGap)
-
 Tabs.UseTab()
 MainGui.Show("w1540 h1040")
 
@@ -244,432 +150,242 @@ MainGui.Show("w1540 h1040")
 ; LOGIC
 ; =======================================================
 OnMessage(0x0200, WM_MOUSEMOVE)
-WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
-{
+WM_MOUSEMOVE(wp, lp, msg, hwnd) {
     static LastHwnd := 0
-    if (hwnd == LastHwnd)
-        return
+    if (hwnd == LastHwnd) return
     LastHwnd := hwnd
-
-    try
-    {
-        if CommHwnds.Has(hwnd)
-        {
+    try {
+        if CommHwnds.Has(hwnd) {
             val := CommHwnds[hwnd].Value
-            if (val != "")
-            {
-                ToolTip(val)
-                SetTimer(CheckMousePos.Bind(hwnd), 500)
-            }
-            else
-                ToolTip()
-        }
-        else
-            ToolTip()
-    }
-    catch
-        ToolTip()
+            if (val != "") ToolTip(val), SetTimer(CheckMousePos.Bind(hwnd), 500)
+            else ToolTip()
+        } else ToolTip()
+    } catch ToolTip()
+}
+CheckMousePos(OriginalHwnd) {
+    try {
+        MouseGetPos(,, &TH, &CH, 2)
+        if (TH != OriginalHwnd && CH != OriginalHwnd) ToolTip(), SetTimer(CheckMousePos.Bind(OriginalHwnd), 0)
+    } catch ToolTip(), SetTimer(CheckMousePos.Bind(OriginalHwnd), 0)
 }
 
-CheckMousePos(OriginalHwnd)
-{
-    try
-    {
-        MouseGetPos(,, &TargetHwnd, &ControlHwnd, 2)
-        if (TargetHwnd != OriginalHwnd && ControlHwnd != OriginalHwnd)
-        {
-            ToolTip()
-            SetTimer(CheckMousePos.Bind(OriginalHwnd), 0)
-        }
-    }
-    catch
-    {
-        ToolTip()
-        SetTimer(CheckMousePos.Bind(OriginalHwnd), 0)
-    }
-}
-
-UpdateCalculations()
-{
+UpdateCalculations() {
     global Controls, TabFooters, INTERVALS
-
     stats := Map()
-    stats["PLXE"] := {Fact: [0,0,0,0,0,0,0,0,0,0], Plan: [0,0,0,0,0,0,0,0,0,0], Grand: 0}
-    stats["NOBO"] := {Fact: [0,0,0,0,0,0,0,0,0,0], Plan: [0,0,0,0,0,0,0,0,0,0], Grand: 0}
-    stats["Kiti"] := {Fact: [0,0,0,0,0,0,0,0,0,0], Plan: [0,0,0,0,0,0,0,0,0,0], Grand: 0}
-
-    for lineName, data in Controls
-    {
-        lineTotalFact := 0
-        lineTotalPlan := 0
-        activeIntervalsFact := 0
-        activeIntervalsPlan := 0
-        tabName := data.tab
-
-        for idx, interval in data.intervals
-        {
-            pVal := GetNum(interval.Plan.Value)
-            fVal := GetNum(interval.Fact.Value)
-
-            stats[tabName].Plan[idx] += pVal
-            stats[tabName].Fact[idx] += fVal
-
-            lineTotalPlan += pVal
-            lineTotalFact += fVal
-
-            if (fVal > 0)
-                activeIntervalsFact++
-            if (pVal > 0)
-                activeIntervalsPlan++
-
-            try
-            {
-                if (pVal > 0)
-                {
-                    if (fVal >= pVal)
-                    {
-                        interval.Plan.Opt("Background90EE90")
-                        interval.Fact.Opt("Background90EE90")
-                    }
-                    else
-                    {
-                        interval.Plan.Opt("BackgroundFF7F7F")
-                        interval.Fact.Opt("BackgroundFF7F7F")
-                    }
-                }
-                else
-                {
-                    interval.Plan.Opt("BackgroundWhite")
-                    interval.Fact.Opt("BackgroundWhite")
-                }
-                interval.Plan.Redraw()
-                interval.Fact.Redraw()
+    for t in ["PLXE", "NOBO", "Kiti"] stats[t] := {Fact: [0,0,0,0,0,0,0,0,0,0], Plan: [0,0,0,0,0,0,0,0,0,0], Grand: 0}
+    for name, data in Controls {
+        lF := 0, lP := 0, aF := 0, aP := 0
+        for idx, int in data.intervals {
+            p := GetNum(int.Plan.Value), f := GetNum(int.Fact.Value)
+            stats[data.tab].Plan[idx] += p, stats[data.tab].Fact[idx] += f, lP += p, lF += f
+            if (f > 0) aF++
+            if (p > 0) aP++
+            if (p > 0) {
+                int.Plan.Opt(f >= p ? "Background90EE90" : "BackgroundFF7F7F")
+                int.Fact.Opt(f >= p ? "Background90EE90" : "BackgroundFF7F7F")
+            } else {
+                int.Plan.Opt("BackgroundWhite"), int.Fact.Opt("BackgroundWhite")
             }
-            catch
-            {
-            }
+            int.Plan.Redraw(), int.Fact.Redraw()
         }
-
-        data.planTotal.Value := lineTotalPlan
-        data.factTotal.Value := lineTotalFact
-
-        stats[tabName].Grand += lineTotalFact
-
-        data.planAvg.Value := activeIntervalsPlan > 0 ? Round(lineTotalPlan / activeIntervalsPlan, 1) : 0
-        data.factAvg.Value := activeIntervalsFact > 0 ? Round(lineTotalFact / activeIntervalsFact, 1) : 0
+        data.planTotal.Value := lP, data.factTotal.Value := lF, stats[data.tab].Grand += lF
+        data.planAvg.Value := aP > 0 ? Round(lP / aP, 1) : 0
+        data.factAvg.Value := aF > 0 ? Round(lF / aF, 1) : 0
     }
-
-    for tName, tData in stats
-    {
-        if TabFooters.Has(tName)
-        {
-            footer := TabFooters[tName]
-            Loop (INTERVALS.Length)
-            {
-                i := A_Index
-                fVal := tData.Fact[i]
-                pVal := tData.Plan[i]
-                footer.Fact[i].Value := fVal
-                footer.Plan[i].Value := pVal
-
-                pct := 0
-                if (pVal > 0)
-                    pct := Round((fVal / pVal - 1) * 100)
-
-                if (pct > 0)
-                    footer.Pct[i].Value := "+" . pct . "%"
-                else if (pct < 0)
-                    footer.Pct[i].Value := pct . "%"
-                else
-                    footer.Pct[i].Value := "0%"
+    for t, d in stats {
+        if TabFooters.Has(t) {
+            f := TabFooters[t]
+            Loop (INTERVALS.Length) {
+                fv := d.Fact[A_Index], pv := d.Plan[A_Index], f.Fact[A_Index].Value := fv, f.Plan[A_Index].Value := pv
+                pct := pv > 0 ? Round((fv/pv-1)*100) : 0
+                f.Pct[A_Index].Value := (pct > 0 ? "+" : "") pct "%"
             }
-            footer.Grand.Value := tData.Grand
+            f.Grand.Value := d.Grand
         }
     }
 }
 
-SyncGist(mode)
-{
+SyncGist(mode) {
     global GIST_ID, GIST_TOKEN, LOG_DIR, StatusText
-    if (GIST_TOKEN == "" || GIST_TOKEN == "PLACEHOLDER_TOKEN")
-        return
-
+    if (GIST_TOKEN == "") return
     url := "https://api.github.com/gists/" GIST_ID
     req := ComObject("WinHttp.WinHttpRequest.5.1")
-
-    try
-    {
-        if (mode == "down")
-        {
-            req.Open("GET", url, false)
-            req.SetRequestHeader("Authorization", "token " GIST_TOKEN)
-            req.Send()
-
-            if (req.Status == 200)
-            {
-                res := req.ResponseText
-                if RegExMatch(res, '"logas\.txt":\{"filename":"logas\.txt",.*?"content":"((?:[^"\\]|\\.)*)"\}', &m)
-                {
-                    content := m[1]
-                    content := StrReplace(content, "\n", "`n"), content := StrReplace(content, "\r", "`r")
-                    content := StrReplace(content, '\"', '"'), content := StrReplace(content, '\\', '\')
-
-                    currentFile := ""
-                    Loop Parse, content, "`n", "`r"
-                    {
-                        line := A_LoopField
-                        if (line == "")
-                            continue
-                        if RegExMatch(line, "^\[FILE:(.+)\]$", &fm)
-                        {
-                            currentFile := LOG_DIR "\" fm[1]
-                            if FileExist(currentFile)
-                                FileDelete(currentFile)
-                        }
-                        else if (currentFile != "")
-                            FileAppend(line "`n", currentFile)
-                    }
-                    StatusText.Value := "Duomenys sinchronizuoti."
+    try {
+        if (mode == "down") {
+            req.Open("GET", url, false), req.SetRequestHeader("Authorization", "Bearer " GIST_TOKEN), req.Send()
+            if (req.Status == 200 && RegExMatch(req.ResponseText, 's)"logas\.txt":\s*\{.*?"content":\s*"((?:[^"\\]|\\.)*)"', &m)) {
+                content := m[1], content := StrReplace(content, "\\", "[[BS]]"), content := StrReplace(content, "\n", "`n"), content := StrReplace(content, "\r", "`r"), content := StrReplace(content, '\"', '"'), content := StrReplace(content, "[[BS]]", "\")
+                cf := ""
+                Loop Parse, content, "`n", "`r" {
+                    if RegExMatch(A_LoopField, "^\[FILE:(.+)\]$", &fm) {
+                        cf := LOG_DIR "\" fm[1]
+                        if FileExist(cf) FileDelete(cf)
+                    } else if (cf != "") FileAppend(A_LoopField "`n", cf)
                 }
+                StatusText.Value := "Sinchronizuota."
             }
-        }
-        else if (mode == "up")
-        {
+        } else if (mode == "up") {
             payload := ""
-            Loop Files, LOG_DIR "\*.ini"
-            {
-                payload .= "[FILE:" A_LoopFileName "]`n"
-                payload .= FileRead(A_LoopFileFullPath) "`n"
-            }
-            jsonPayload := StrReplace(payload, '\', '\\'), jsonPayload := StrReplace(jsonPayload, '"', '\"')
-            jsonPayload := StrReplace(jsonPayload, "`r`n", "\n"), jsonPayload := StrReplace(jsonPayload, "`n", "\n")
-            body := '{"files":{"logas.txt":{"content":"' jsonPayload '"}}}'
-
-            req.Open("PATCH", url, false)
-            req.SetRequestHeader("Authorization", "token " GIST_TOKEN)
-            req.SetRequestHeader("Content-Type", "application/json")
-            req.Send(body)
+            Loop Files, LOG_DIR "\*.ini" payload .= "[FILE:" A_LoopFileName "]`n" FileRead(A_LoopFileFullPath) "`n"
+            jsonP := StrReplace(payload, "\", "\\"), jsonP := StrReplace(jsonP, '"', '\"'), jsonP := StrReplace(jsonP, "`r`n", "\n"), jsonP := StrReplace(jsonP, "`n", "\n")
+            req.Open("PATCH", url, false), req.SetRequestHeader("Authorization", "Bearer " GIST_TOKEN), req.SetRequestHeader("Content-Type", "application/json"), req.Send('{"files":{"logas.txt":{"content":"' jsonP '"}}}')
         }
-    }
-    catch Error as e
-        StatusText.Value := "Gist klaida: " e.Message
+    } catch Error as e StatusText.Value := "Gist klaida: " e.Message
 }
 
-SaveAndSync()
-{
-    SaveAll()
-    SyncGist("up")
-}
+SaveAndSync() => (SaveAll(), SyncGist("up"))
 
-FetchTSData(channel, start_dt, end_dt)
-{
+FetchTSData(ch, start, end) {
     global READ_KEYS
-    key := READ_KEYS.Has(channel) ? READ_KEYS[channel] : ""
-    url := "https://api.thingspeak.com/channels/" channel "/feeds.json?api_key=" key "&start=" StrReplace(start_dt, " ", "T") "&end=" StrReplace(end_dt, " ", "T") "&timezone=Europe/Vilnius"
+    url := "https://api.thingspeak.com/channels/" ch "/feeds.json?api_key=" (READ_KEYS.Has(ch)?READ_KEYS[ch]:"") "&start=" StrReplace(start, " ", "T") "&end=" StrReplace(end, " ", "T") "&timezone=Europe/Vilnius"
     req := ComObject("WinHttp.WinHttpRequest.5.1")
-    try
-    {
-        req.Open("GET", url, true)
-        req.Send()
-        req.WaitForResponse()
-        if (req.Status == 200)
-            return req.ResponseText
+    try {
+        req.Open("GET", url, true), req.Send()
+        if (req.WaitForResponse(10) && req.Status == 200) return req.ResponseText
     }
     return ""
 }
 
-ParseFeeds(jsonStr)
-{
-    feeds := []
-    pos := 1
-    while pos := RegExMatch(jsonStr, '\{"created_at":"[^"]+"[^}]*\}', &match, pos)
-    {
-        objStr := match[0], obj := Map()
-        if RegExMatch(objStr, '"created_at":"([^"]+)"', &m)
-            obj["created_at"] := m[1]
-        Loop 8
-        {
-            fName := "field" A_Index
-            if RegExMatch(objStr, '"' fName '":"?([^",}]*)"?', &m)
-            {
-                val := m[1]
-                obj[fName] := (val == "null") ? "" : val
-            }
-            else
-                obj[fName] := ""
+ParseFeeds(jsonStr) {
+    feeds := [], pos := 1
+    while pos := RegExMatch(jsonStr, '\{"created_at":"[^"]+"[^}]*\}', &m, pos) {
+        obj := Map(), objStr := m[0]
+        if RegExMatch(objStr, '"created_at":"([^"]+)"', &mm) obj["created_at"] := mm[1]
+        Loop 8 {
+            f := "field" A_Index
+            if RegExMatch(objStr, '"' f '":"?([^",}]*)"?', &mm) obj[f] := mm[1]=="null"?"":mm[1]
+            else obj[f] := ""
         }
-        feeds.Push(obj)
-        pos += match.Len
+        feeds.Push(obj), pos += m.Len
     }
     return feeds
 }
 
-CalculateDelta(feeds, fieldName)
-{
-    if (feeds.Length < 2)
-        return 0
+CalculateDelta(feeds, field) {
+    if (feeds.Length < 2) return 0
     vals := []
-    for index, f in feeds
-    {
-        val := f.Has(fieldName) ? f[fieldName] : ""
-        if (val != "" && val != "null")
-        {
-            try
-            {
-                vals.Push(Float(val))
-            }
-            catch
-            {
-                ; skip
-            }
-        }
+    for f in feeds {
+        v := f.Has(field)?f[field]:""
+        if (v != "" && v != "null") try vals.Push(Float(v))
     }
-    if (vals.Length < 2)
-        return 0
+    if (vals.Length < 2) return 0
     total := 0
-    Loop (vals.Length - 1)
-    {
-        v1 := vals[A_Index]
-        v2 := vals[A_Index + 1]
-        diff := v2 - v1
-        if (diff > 0)
-            total += diff
+    Loop (vals.Length - 1) {
+        d := vals[A_Index+1] - vals[A_Index]
+        if (d > 0) total += d
     }
     return Integer(total)
 }
 
-GetLastVal(feeds, fieldName)
-{
+GetLastVal(feeds, field) {
     idx := feeds.Length
-    while (idx > 0)
-    {
-        val := feeds[idx].Has(fieldName) ? feeds[idx][fieldName] : ""
-        if (val != "" && val != "null")
-            return val
+    while (idx > 0) {
+        v := feeds[idx].Has(field)?feeds[idx][field]:""
+        if (v != "" && v != "null") return v
         idx--
     }
     return ""
 }
 
-FilterFeedsByTime(feeds, startT, endT)
-{
-    filtered := []
-    s := StrReplace(StrReplace(StrReplace(startT, "-", ""), " ", ""), ":", "")
-    e := StrReplace(StrReplace(StrReplace(endT, "-", ""), " ", ""), ":", "")
-    for index, f in feeds
-    {
+FilterFeedsByTime(feeds, sT, eT) {
+    filt := [], s := StrReplace(StrReplace(StrReplace(sT, "-", ""), " ", ""), ":", ""), e := StrReplace(StrReplace(StrReplace(eT, "-", ""), " ", ""), ":", "")
+    for f in feeds {
         ft := StrReplace(StrReplace(StrReplace(SubStr(f["created_at"], 1, 19), "-", ""), "T", ""), ":", "")
-        if (ft >= s && ft <= e)
-            filtered.Push(f)
+        if (ft >= s && ft <= e) filt.Push(f)
     }
-    return filtered
+    return filt
 }
 
-LoadDateData()
-{
-    global Calendar, StatusText, Controls, INTERVALS, LOG_DIR
-    dateStr := FormatTime(Calendar.Value, "yyyy-MM-dd")
-    StatusText.Value := "Kraunama: " dateStr
-    iniPath := LOG_DIR "\" dateStr ".ini"
-    for lineName, data in Controls
-    {
-        Loop (INTERVALS.Length)
-        {
-            idx := A_Index
-            data.intervals[idx].Plan.Value := IniRead(iniPath, lineName, "Plan_" idx, "")
-            data.intervals[idx].Fact.Value := IniRead(iniPath, lineName, "Fact_" idx, "")
-            data.intervals[idx].Prod.Value := IniRead(iniPath, lineName, "Prod_" idx, "")
-            data.intervals[idx].Comm.Value := IniRead(iniPath, lineName, "Comm_" idx, "")
+LoadDateData(forceRefresh := false) {
+    global Calendar, Controls, INTERVALS, LOG_DIR, StatusText
+    dStr := FormatTime(Calendar.Value, "yyyy-MM-dd"), iniP := LOG_DIR "\" dStr ".ini"
+    for name, data in Controls {
+        Loop (INTERVALS.Length) {
+            idx := A_Index, int := data.intervals[idx]
+            int.Plan.Value := IniRead(iniP, name, "Plan_" idx, ""), int.Fact.Value := IniRead(iniP, name, "Fact_" idx, ""), int.Prod.Value := IniRead(iniP, name, "Prod_" idx, ""), int.Comm.Value := IniRead(iniP, name, "Comm_" idx, "")
+            if (int.Prod.Value != "" && (SubStr(int.Prod.Value, 1, 2) == "X-" || int.Prod.Value == "UI v5")) int.Prod.Opt("+ReadOnly")
+            else int.Prod.Opt("-ReadOnly")
         }
     }
     UpdateCalculations()
-    if (dateStr == FormatTime(A_Now, "yyyy-MM-dd"))
-        FetchTodayData()
+    if (dStr == FormatTime(A_Now, "yyyy-MM-dd") || forceRefresh) RefreshDataFromTS(dStr)
 }
 
-FetchTodayData()
-{
+RefreshDataFromTS(targetDate := "") {
     global Calendar, StatusText, LINES, INTERVALS, Controls
-    selDate := FormatTime(Calendar.Value, "yyyy-MM-dd")
-    StatusText.Value := "Siunčiamasi iš ThingSpeak..."
+    targetDate := targetDate == "" ? FormatTime(Calendar.Value, "yyyy-MM-dd") : targetDate
+    StatusText.Value := "Siunčiama iš ThingSpeak..."
     channels := Map()
-    for index, line in LINES
-    {
-        if !channels.Has(line.channel)
-            channels[line.channel] := []
-        channels[line.channel].Push(line)
+    for l in LINES {
+        if !channels.Has(l.channel) channels[l.channel] := []
+        channels[l.channel].Push(l)
     }
-    for channel, linesInChannel in channels
-    {
-        rawSelDate := StrReplace(selDate, "-", "")
-        lookbackDate := DateAdd(rawSelDate "000000", -3, "Days")
-        startDT := FormatTime(lookbackDate, "yyyy-MM-dd HH:mm:ss")
-        endDT := selDate " 16:00:00"
-        json := FetchTSData(channel, startDT, endDT)
-        if (json == "")
-            continue
-        allFeeds := ParseFeeds(json)
-        for index, line in linesInChannel
-        {
-            for intIdx, interval in INTERVALS
-            {
-                iStart := selDate " " interval[1] ":00"
-                iEnd := selDate " " interval[2] ":00"
-                intFeeds := FilterFeedsByTime(allFeeds, iStart, iEnd)
-                produced := CalculateDelta(intFeeds, "field" line.fieldCount)
-
-                feedsUpToNow := FilterFeedsByTime(allFeeds, startDT, iEnd)
-                barcode := (line.fieldBarcode) ? GetLastVal(feedsUpToNow, "field" line.fieldBarcode) : ""
-                if (line.name == "UI perrašymas")
-                    barcode := "UI v5"
-                else if (barcode != "")
-                    barcode := "X-" barcode
-
-                Controls[line.name].intervals[intIdx].Fact.Value := produced
-                if (barcode != "")
-                    Controls[line.name].intervals[intIdx].Prod.Value := barcode
-
-                SaveToCache(selDate, line.name, intIdx, "Fact", produced)
-                if (barcode != "")
-                    SaveToCache(selDate, line.name, intIdx, "Prod", barcode)
+    today := FormatTime(A_Now, "yyyy-MM-dd"), nowT := FormatTime(A_Now, "HH:mm")
+    for ch, lines in channels {
+        lb := DateAdd(StrReplace(targetDate, "-", "") "000000", -3, "Days")
+        json := FetchTSData(ch, FormatTime(lb, "yyyy-MM-dd HH:mm:ss"), targetDate " 16:00:00")
+        if (json == "") continue
+        allF := ParseFeeds(json)
+        for l in lines {
+            for idx, int_v in INTERVALS {
+                if (targetDate == today && StrCompare(int_v[1], nowT) > 0) continue
+                iS := targetDate " " int_v[1] ":00", iE := targetDate " " int_v[2] ":00"
+                intF := FilterFeedsByTime(allF, iS, iE), prod := CalculateDelta(intF, "field" l.fieldCount)
+                upToNowF := FilterFeedsByTime(allF, FormatTime(lb, "yyyy-MM-dd HH:mm:ss"), iE)
+                barcode := (l.fieldBarcode) ? GetLastVal(upToNowF, "field" l.fieldBarcode) : ""
+                barcode := l.name == "UI perrašymas" ? "UI v5" : (barcode != "" ? "X-" barcode : "")
+                guiInt := Controls[l.name].intervals[idx]
+                guiInt.Fact.Value := prod, SaveToCache(targetDate, l.name, idx, "Fact", prod)
+                if (barcode != "") {
+                    guiInt.Prod.Value := barcode, guiInt.Prod.Opt("+ReadOnly"), SaveToCache(targetDate, l.name, idx, "Prod", barcode)
+                } else guiInt.Prod.Opt("-ReadOnly")
             }
         }
     }
-    UpdateCalculations()
-    StatusText.Value := "Atnaujinta: " FormatTime(, "HH:mm:ss")
+    UpdateCalculations(), StatusText.Value := "Užkrauta: " FormatTime(, "HH:mm:ss")
 }
 
-SaveToCache(dateStr, lineName, idx, type, value)
-{
-    IniWrite(value, LOG_DIR "\" dateStr ".ini", lineName, type "_" idx)
-}
+SaveToCache(d, l, i, t, v) => IniWrite(v, LOG_DIR "\" d ".ini", l, t "_" i)
+SaveManualInput(l, i, t, v) => SaveToCache(FormatTime(Calendar.Value, "yyyy-MM-dd"), l, i, t, v)
 
-SaveManualInput(lineName, intervalIdx, type, value)
-{
-    global Calendar
-    SaveToCache(FormatTime(Calendar.Value, "yyyy-MM-dd"), lineName, intervalIdx, type, value)
-}
-
-SaveAll()
-{
-    global Calendar, StatusText, Controls, INTERVALS
-    dateStr := FormatTime(Calendar.Value, "yyyy-MM-dd")
-    for lineName, data in Controls
-    {
-        Loop (INTERVALS.Length)
-        {
-            idx := A_Index, ctrls := data.intervals[idx]
-            SaveToCache(dateStr, lineName, idx, "Plan", ctrls.Plan.Value)
-            SaveToCache(dateStr, lineName, idx, "Fact", ctrls.Fact.Value)
-            SaveToCache(dateStr, lineName, idx, "Prod", ctrls.Prod.Value)
-            SaveToCache(dateStr, lineName, idx, "Comm", ctrls.Comm.Value)
+SaveAll() {
+    global Calendar, Controls, INTERVALS
+    d := FormatTime(Calendar.Value, "yyyy-MM-dd")
+    for n, data in Controls {
+        Loop (INTERVALS.Length) {
+            c := data.intervals[A_Index]
+            SaveToCache(d, n, A_Index, "Plan", c.Plan.Value), SaveToCache(d, n, A_Index, "Fact", c.Fact.Value)
+            SaveToCache(d, n, A_Index, "Prod", c.Prod.Value), SaveToCache(d, n, A_Index, "Comm", c.Comm.Value)
         }
     }
-    StatusText.Value := "Išsaugota (" dateStr ")."
     SoundBeep(750, 100)
 }
 
-; Startup
-StatusText.Value := "Kraunami duomenys..."
+ExportToExcel() {
+    global Calendar, Controls, INTERVALS, LINES
+    date := FormatTime(Calendar.Value, "yyyy-MM-dd")
+    try {
+        xl := ComObject("Excel.Application"), xl.Visible := true, wb := xl.Workbooks.Add(), ws := wb.ActiveSheet, ws.Name := date
+        ws.Cells(1,1).Value := "Laikas", ws.Range(ws.Cells(1,1), ws.Cells(1,2)).Merge(), ws.Cells(1,1).Font.Bold := true
+        Loop (INTERVALS.Length) ws.Cells(1, A_Index+2).Value := INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2], ws.Cells(1, A_Index+2).Font.Bold := true
+        ws.Cells(1, INTERVALS.Length+3).Value := "Viso", ws.Cells(1, INTERVALS.Length+3).Font.Bold := true
+        row := 2
+        for l in LINES {
+            d := Controls[l.name], ws.Cells(row, 1).Value := l.name, ws.Range(ws.Cells(row, 1), ws.Cells(row+3, 1)).Merge(), ws.Cells(row, 1).Font.Bold := true
+            ws.Cells(row, 2).Value := l.name " Planas", ws.Range(ws.Cells(row, 2), ws.Cells(row, INTERVALS.Length+2)).Interior.Color := 0x90EE90
+            Loop (INTERVALS.Length) ws.Cells(row, A_Index+2).Value := d.intervals[A_Index].Plan.Value
+            hex := Integer("0x" l.color), r := (hex>>16)&0xFF, g := (hex>>8)&0xFF, b := hex&0xFF, bgr := (b<<16)|(g<<8)|r
+            ws.Cells(row+1, 2).Value := l.name " Faktas", ws.Range(ws.Cells(row+1, 2), ws.Cells(row+1, INTERVALS.Length+2)).Interior.Color := bgr
+            Loop (INTERVALS.Length) ws.Cells(row+1, A_Index+2).Value := d.intervals[A_Index].Fact.Value
+            ws.Cells(row+2, 2).Value := "Gaminys", ws.Range(ws.Cells(row+2, 2), ws.Cells(row+2, INTERVALS.Length+2)).Interior.Color := bgr
+            Loop (INTERVALS.Length) ws.Cells(row+2, A_Index+2).Value := d.intervals[A_Index].Prod.Value
+            ws.Cells(row+3, 2).Value := "Komentaras", ws.Range(ws.Cells(row+3, 2), ws.Cells(row+3, INTERVALS.Length+2)).Interior.Color := bgr
+            Loop (INTERVALS.Length) ws.Cells(row+3, A_Index+2).Value := d.intervals[A_Index].Comm.Value
+            row += 4
+        }
+        ws.Columns.AutoFit()
+    } catch Error as e MsgBox(e.Message)
+}
+
 SetTimer(() => (SyncGist("down"), LoadDateData()), -500)
-SetTimer(() => (FetchTodayData()), 300000)
+SetTimer(() => (RefreshDataFromTS()), 300000)

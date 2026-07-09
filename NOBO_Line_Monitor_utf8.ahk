@@ -39,11 +39,11 @@ Global COM_BAUD := 9600
 Global Stebimas_Katalogas := A_Desktop
 Global Selected_Line := "XLE 1"
 
-; ThingSpeak Globals
-Global TS_CHANNEL_ID := "807602"
-Global TS_READ_KEY := "WUO1DG7GXYNZP6SG"
-Global TS_API_KEY := "O7IB88R7L2ELXR3Q"
-Global TS_FIELD_COUNT := "field5"
+; ThingSpeak Globals (Will be overwritten by LoadSettings)
+Global TS_CHANNEL_ID := ""
+Global TS_READ_KEY := ""
+Global TS_API_KEY := ""
+Global TS_FIELD_COUNT := ""
 Global TS_FIELD_BARCODE := "field6"
 
 Global TS_MIN_INTERVAL := 15000
