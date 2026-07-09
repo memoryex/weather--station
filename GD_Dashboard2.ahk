@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "2.9 (Excel)"
+Global CURRENT_VERSION := "3.0 (Excel)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -76,7 +76,7 @@ GetNum(Value)
 ; =======================================================
 ; GUI CONSTRUCTION
 ; =======================================================
-Global MainGui := Gui("+Resize +0x00200000", "GD Gamybos Dashboard v" CURRENT_VERSION)
+Global MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 
 MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
@@ -94,41 +94,47 @@ BtnExport.OnEvent("Click", (ctrl, *) => ExportToExcel())
 
 Global StatusText := MainGui.Add("Text", "x645 y15 w600", "Pasiruošęs")
 
-Global Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h960", ["PLXE", "NOBO", "Kiti"])
+; We use Tab only for the header, content is in Child GUIs
+Global Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti"])
+Tabs.OnEvent("Change", OnTabChange)
+
+; Child GUIs for scrollable content
+Global ChildGuis := Map()
+Global ActiveChild := ""
 
 ; Store control references
 Global Controls := Map()
 Global TabFooters := Map()
 Global CommHwnds := Map()
 
-AddIntervalHeaders(YPos)
+AddIntervalHeaders(TargetGui, YPos)
 {
-    global MainGui, INTERVALS
-    MainGui.SetFont("s9 bold")
+    global INTERVALS
+    TargetGui.SetFont("s9 bold")
     Loop (INTERVALS.Length)
     {
         X := 230 + (A_Index-1) * 95
-        MainGui.Add("Text", "x" X " y" YPos " w90 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
+        TargetGui.Add("Text", "x" X " y" YPos " w90 h20 Center", INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2])
     }
-    MainGui.Add("Text", "x" (230 + INTERVALS.Length * 95) " y" YPos " w90 h20 Center", "Viso")
-    MainGui.Add("Text", "x" (230 + (INTERVALS.Length + 1) * 95) " y" YPos " w90 h20 Center", "Vidurkis")
-    MainGui.SetFont("s9 norm")
+    TargetGui.Add("Text", "x" (230 + INTERVALS.Length * 95) " y" YPos " w90 h20 Center", "Viso")
+    TargetGui.Add("Text", "x" (230 + (INTERVALS.Length + 1) * 95) " y" YPos " w90 h20 Center", "Vidurkis")
+    TargetGui.SetFont("s9 norm")
 }
 
-CreateLineGrid(LineObj, YPos)
+CreateLineGrid(TargetGui, LineObj, YPos)
 {
-    global Controls, MainGui, INTERVALS, CommHwnds
+    global Controls, INTERVALS, CommHwnds
     name := LineObj.name
 
-    MainGui.SetFont("s10 bold")
-    MainGui.Add("Text", "x15 y" YPos " w100 h20", name)
+    TargetGui.SetFont("s10 bold")
+    TargetGui.Add("Text", "x15 y" YPos " w100 h20", name)
 
-    MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x125 y" YPos " w95 h20", "Planas")
-    MainGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Faktas")
-    MainGui.Add("Text", "x125 y" YPos+46 " w95 h20", "Gaminys")
-    MainGui.Add("Text", "x125 y" YPos+69 " w95 h20", "Komentaras")
-    MainGui.SetFont("s9 norm")
+    TargetGui.SetFont("s9 bold")
+    TargetGui.Add("Text", "x125 y" YPos " w95 h20", "Planas")
+    TargetGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Faktas")
+    TargetGui.Add("Text", "x125 y" YPos+46 " w95 h20", "Gaminys")
+    TargetGui.Add("Text", "x125 y" YPos+69 " w95 h20", "Komentaras")
+    TargetGui.SetFont("s9 norm")
 
     lineCtrls := []
     Loop (INTERVALS.Length)
@@ -136,10 +142,10 @@ CreateLineGrid(LineObj, YPos)
         idx := A_Index
         X := 230 + (idx-1) * 95
 
-        cPlan := MainGui.Add("Edit", "x" X " y" YPos " w90 h20 Center")
-        cFact := MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly")
-        cProd := MainGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly")
-        cComm := MainGui.Add("Edit", "x" X " y" YPos+69 " w90 h20 Center cRed")
+        cPlan := TargetGui.Add("Edit", "x" X " y" YPos " w90 h20 Center")
+        cFact := TargetGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly")
+        cProd := TargetGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly")
+        cComm := TargetGui.Add("Edit", "x" X " y" YPos+69 " w90 h20 Center cRed")
 
         lineCtrls.Push({Plan: cPlan, Fact: cFact, Prod: cProd, Comm: cComm})
         CommHwnds[cComm.Hwnd] := cComm
@@ -149,105 +155,91 @@ CreateLineGrid(LineObj, YPos)
     }
 
     X := 230 + INTERVALS.Length * 95
-    MainGui.SetFont("s9 bold")
-    cPlanTotal := MainGui.Add("Edit", "x" X " y" YPos " w90 h20 Center ReadOnly")
-    cFactTotal := MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly")
+    TargetGui.SetFont("s9 bold")
+    cPlanTotal := TargetGui.Add("Edit", "x" X " y" YPos " w90 h20 Center ReadOnly")
+    cFactTotal := TargetGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly")
 
     X_Avg := X + 95
-    cPlanAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos " w90 h20 Center ReadOnly")
-    cFactAvg := MainGui.Add("Edit", "x" X_Avg " y" YPos+23 " w90 h20 Center ReadOnly")
-    MainGui.SetFont("s9 norm")
+    cPlanAvg := TargetGui.Add("Edit", "x" X_Avg " y" YPos " w90 h20 Center ReadOnly")
+    cFactAvg := TargetGui.Add("Edit", "x" X_Avg " y" YPos+23 " w90 h20 Center ReadOnly")
+    TargetGui.SetFont("s9 norm")
 
     Controls[name] := {intervals: lineCtrls, planTotal: cPlanTotal, planAvg: cPlanAvg, factTotal: cFactTotal, factAvg: cFactAvg, tab: LineObj.tab}
 }
 
-CreateTabFooter(TabName, YPos)
+CreateTabFooter(TargetGui, TabName, YPos)
 {
-    global TabFooters, MainGui, INTERVALS
+    global TabFooters, INTERVALS
 
     fH := [], pH := [], pcH := []
 
-    MainGui.SetFont("s9 bold")
-    MainGui.Add("Text", "x125 y" YPos " w95 h20", "Faktas")
-    MainGui.Add("Text", "x15 y" YPos+23 " w100 h20", "Tikslas:")
-    MainGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Planas")
+    TargetGui.SetFont("s9 bold")
+    TargetGui.Add("Text", "x125 y" YPos " w95 h20", "Faktas")
+    TargetGui.Add("Text", "x15 y" YPos+23 " w100 h20", "Tikslas:")
+    TargetGui.Add("Text", "x125 y" YPos+23 " w95 h20", "Planas")
 
     Loop (INTERVALS.Length)
     {
         idx := A_Index
         X := 230 + (idx-1) * 95
 
-        fH.Push(MainGui.Add("Edit", "x" X " y" YPos " w90 h20 Center ReadOnly cRed BackgroundWhite"))
-        pH.Push(MainGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly BackgroundWhite"))
-        pcH.Push(MainGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
+        fH.Push(TargetGui.Add("Edit", "x" X " y" YPos " w90 h20 Center ReadOnly cRed BackgroundWhite"))
+        pH.Push(TargetGui.Add("Edit", "x" X " y" YPos+23 " w90 h20 Center ReadOnly BackgroundWhite"))
+        pcH.Push(TargetGui.Add("Edit", "x" X " y" YPos+46 " w90 h20 Center ReadOnly +0x800 BackgroundWhite")) ; Flat look
     }
 
     X_Total := 1380
-    MainGui.Add("Text", "x" X_Total " y" YPos-25 " w130 h20 Center", "Visos dienos:")
-    MainGui.SetFont("s32 bold")
-    cGrand := MainGui.Add("Edit", "x" X_Total " y" YPos-5 " w130 h80 Center ReadOnly Border")
-    MainGui.SetFont("s9 norm")
+    TargetGui.Add("Text", "x" X_Total " y" YPos-25 " w130 h20 Center", "Visos dienos:")
+    TargetGui.SetFont("s32 bold")
+    cGrand := TargetGui.Add("Edit", "x" X_Total " y" YPos-5 " w130 h80 Center ReadOnly Border")
+    TargetGui.SetFont("s9 norm")
 
     TabFooters[TabName] := {Fact: fH, Plan: pH, Pct: pcH, Grand: cGrand}
 }
 
-; Build Grid
-headerY := 20
-contentStartY := 50
+; Build Content
+headerY := 5
+contentStartY := 35
 lineStep := 120
 footerGap := 40
 
-; PLXE
-Tabs.UseTab(1)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for line in LINES
+for tName in ["PLXE", "NOBO", "Kiti"]
 {
-    if (line.tab == "PLXE")
+    cG := Gui("-Caption +Parent" MainGui.Hwnd " +0x00200000")
+    cG.BackColor := "White"
+    AddIntervalHeaders(cG, headerY)
+    Y := contentStartY
+    for line in LINES
     {
-        CreateLineGrid(line, Y)
-        Y += lineStep
+        if (line.tab == tName)
+        {
+            CreateLineGrid(cG, line, Y)
+            Y += lineStep
+        }
     }
+    CreateTabFooter(cG, tName, Y + footerGap)
+    ChildGuis[tName] := cG
 }
-CreateTabFooter("PLXE", Y + footerGap)
 
-; NOBO
-Tabs.UseTab(2)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for line in LINES
+OnTabChange(ctrl, *)
 {
-    if (line.tab == "NOBO")
-    {
-        CreateLineGrid(line, Y)
-        Y += lineStep
-    }
-}
-CreateTabFooter("NOBO", Y + footerGap)
+    global ActiveChild, ChildGuis
+    tName := ctrl.Text
+    if (ActiveChild != "")
+        ChildGuis[ActiveChild].Hide()
 
-; Kiti
-Tabs.UseTab(3)
-AddIntervalHeaders(headerY)
-Y := contentStartY
-for line in LINES
-{
-    if (line.tab == "Kiti")
-    {
-        CreateLineGrid(line, Y)
-        Y += lineStep
-    }
+    ChildGuis[tName].Show("x10 y85 w1520 h950")
+    ActiveChild := tName
+    UpdateScrollBars(ChildGuis[tName])
 }
-CreateTabFooter("Kiti", Y + footerGap)
 
-Tabs.UseTab()
+; Initial show
+MainGui.Show("w1540 h1040")
+OnTabChange(Tabs)
 
 ; Scrolling support
-MainGui.OnEvent("Size", (guiObj, minMax, width, height) => UpdateScrollBars(guiObj))
 OnMessage(0x0115, OnScroll) ; WM_VSCROLL
 OnMessage(0x020A, OnWheel)  ; WM_MOUSEWHEEL
-
-MainGui.Show("w1540 h1040")
-UpdateScrollBars(MainGui)
 
 ; =======================================================
 ; LOGIC
@@ -283,10 +275,11 @@ UpdateScrollBars(GuiObj) {
 }
 
 OnScroll(wp, lp, msg, hwnd) {
-    if (hwnd != MainGui.Hwnd)
+    global ActiveChild, ChildGuis
+    if (ActiveChild == "" || hwnd != ChildGuis[ActiveChild].Hwnd)
         return
 
-    static SIF_ALL := 0x17, SCROLL_STEP := 20
+    static SIF_ALL := 0x17, SCROLL_STEP := 40
 
     si := Buffer(28, 0)
     NumPut("UInt", 28, si, 0)
@@ -322,9 +315,12 @@ OnScroll(wp, lp, msg, hwnd) {
 }
 
 OnWheel(wp, lp, msg, hwnd) {
+    global ActiveChild, ChildGuis
+    if (ActiveChild == "")
+        return
     delta := (wp >> 16) > 0x7FFF ? (wp >> 16) - 0x10000 : (wp >> 16)
     Loop Integer(Abs(delta) / 120)
-        SendMessage(0x0115, delta > 0 ? 0 : 1, 0, MainGui.Hwnd)
+        SendMessage(0x0115, delta > 0 ? 0 : 1, 0, ChildGuis[ActiveChild].Hwnd)
 }
 
 OnMessage(0x0200, WM_MOUSEMOVE)
