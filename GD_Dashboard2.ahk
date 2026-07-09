@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "3.0 (Excel)"
+Global CURRENT_VERSION := "3.3 (Excel)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -84,7 +84,7 @@ Global Calendar := MainGui.Add("DateTime", "x110 y10 w150", "yyyy-MM-dd")
 Calendar.OnEvent("Change", (ctrl, *) => LoadDateData())
 
 BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
-BtnRefresh.OnEvent("Click", (ctrl, *) => (SyncGist("down"), LoadDateData()))
+BtnRefresh.OnEvent("Click", (ctrl, *) => (SyncGist("down"), LoadDateData(true)))
 
 BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
 BtnSaveAll.OnEvent("Click", (ctrl, *) => SaveAndSync())
@@ -228,10 +228,14 @@ OnTabChange(ctrl, *)
     if (ActiveChild != "")
         ChildGuis[ActiveChild].Hide()
 
-    ChildGuis[tName].Show("x10 y85 w1520 h950")
+    MainGui.GetClientPos(,, &guiW, &guiH)
+    ChildGuis[tName].Show("x10 y85 w" (guiW - 20) " h" (guiH - 90))
     ActiveChild := tName
     UpdateScrollBars(ChildGuis[tName])
 }
+
+; Resize support
+MainGui.OnEvent("Size", OnMainGuiSize)
 
 ; Initial show
 MainGui.Show("w1540 h1040")
@@ -244,6 +248,23 @@ OnMessage(0x020A, OnWheel)  ; WM_MOUSEWHEEL
 ; =======================================================
 ; LOGIC
 ; =======================================================
+OnMainGuiSize(guiObj, minMax, width, height)
+{
+    if (minMax == -1) ; Minimized
+        return
+
+    ; Resize Tabs header
+    Tabs.Move(,, width - 20)
+
+    ; Resize Active Child
+    global ActiveChild, ChildGuis
+    if (ActiveChild != "")
+    {
+        ChildGuis[ActiveChild].Show("w" (width - 20) " h" (height - 90))
+        UpdateScrollBars(ChildGuis[ActiveChild])
+    }
+}
+
 UpdateScrollBars(GuiObj) {
     static SIF_ALL := 0x17, OBJID_VSCROLL := 0xFFFFFFFB
 
@@ -309,9 +330,11 @@ OnScroll(wp, lp, msg, hwnd) {
     if (newPos == nPos)
         return
 
-    DllCall("ScrollWindowEx", "Ptr", hwnd, "Int", 0, "Int", nPos - newPos, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 0x0001 | 0x0002)
+    ; SW_SCROLLCHILDREN | SW_INVALIDATE | SW_ERASE (0x1 | 0x2 | 0x4)
+    DllCall("ScrollWindowEx", "Ptr", hwnd, "Int", 0, "Int", nPos - newPos, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 0x7)
     NumPut("Int", newPos, si, 20)
     DllCall("SetScrollInfo", "Ptr", hwnd, "Int", 1, "Ptr", si, "Int", 1)
+    DllCall("UpdateWindow", "Ptr", hwnd)
 }
 
 OnWheel(wp, lp, msg, hwnd) {
@@ -339,7 +362,8 @@ WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
             if (val != "")
             {
                 ToolTip(val)
-                SetTimer(CheckMousePos.Bind(hwnd), 500)
+                ; Set a repeating timer to ensure tooltip doesn't fade
+                SetTimer(CheckMousePos.Bind(hwnd), 100)
             }
             else
                 ToolTip()
@@ -359,7 +383,13 @@ CheckMousePos(OriginalHwnd)
         if (TargetHwnd != OriginalHwnd && ControlHwnd != OriginalHwnd)
         {
             ToolTip()
-            SetTimer(CheckMousePos.Bind(OriginalHwnd), 0)
+            SetTimer(CheckMousePos.Bind(OriginalHwnd), 0) ; Turn off
+        }
+        else
+        {
+            ; Mouse still over, keep tooltip alive
+            if (CommHwnds.Has(OriginalHwnd))
+                ToolTip(CommHwnds[OriginalHwnd].Value)
         }
     }
     catch
@@ -494,22 +524,26 @@ SyncGist(mode)
                     content := StrReplace(content, "\n", "`n"), content := StrReplace(content, "\r", "`r")
                     content := StrReplace(content, '\"', '"'), content := StrReplace(content, '\\', '\')
 
-                    currentFile := ""
-                    Loop Parse, content, "`n", "`r"
+                    ; Safeguard: only process if content is not empty and contains file tags
+                    if (content != "" && InStr(content, "[FILE:"))
                     {
-                        line := A_LoopField
-                        if (line == "")
-                            continue
-                        if RegExMatch(line, "^\[FILE:(.+)\]$", &fm)
+                        currentFile := ""
+                        Loop Parse, content, "`n", "`r"
                         {
-                            currentFile := LOG_DIR "\" fm[1]
-                            if FileExist(currentFile)
-                                FileDelete(currentFile)
+                            line := A_LoopField
+                            if (line == "")
+                                continue
+                            if RegExMatch(line, "^\[FILE:(.+)\]$", &fm)
+                            {
+                                currentFile := LOG_DIR "\" fm[1]
+                                if FileExist(currentFile)
+                                    FileDelete(currentFile)
+                            }
+                            else if (currentFile != "")
+                                FileAppend(line "`n", currentFile)
                         }
-                        else if (currentFile != "")
-                            FileAppend(line "`n", currentFile)
+                        StatusText.Value := "Duomenys sinchronizuoti."
                     }
-                    StatusText.Value := "Duomenys sinchronizuoti."
                 }
             }
         }
@@ -645,7 +679,7 @@ FilterFeedsByTime(feeds, startT, endT)
     return filtered
 }
 
-LoadDateData()
+LoadDateData(forceRefresh := false)
 {
     global Calendar, StatusText, Controls, INTERVALS, LOG_DIR
     dateStr := FormatTime(Calendar.Value, "yyyy-MM-dd")
@@ -670,15 +704,22 @@ LoadDateData()
         }
     }
     UpdateCalculations()
-    if (dateStr == FormatTime(A_Now, "yyyy-MM-dd"))
-        FetchTodayData()
+
+    ; If today OR if cache is empty OR if forced - fetch from TS
+    cacheExists := FileExist(iniPath)
+    if (dateStr == today || !cacheExists || forceRefresh)
+        RefreshDataFromTS(dateStr)
+    else
+        StatusText.Value := "Užkrauta: " dateStr
 }
 
-FetchTodayData()
+RefreshDataFromTS(targetDate := "")
 {
     global Calendar, StatusText, LINES, INTERVALS, Controls
-    selDate := FormatTime(Calendar.Value, "yyyy-MM-dd")
-    StatusText.Value := "Siunčiamasi iš ThingSpeak..."
+    if (targetDate == "")
+        targetDate := FormatTime(Calendar.Value, "yyyy-MM-dd")
+
+    StatusText.Value := "Siunčiamasi iš ThingSpeak (" targetDate ")..."
     channels := Map()
     for index, line in LINES
     {
@@ -686,26 +727,30 @@ FetchTodayData()
             channels[line.channel] := []
         channels[line.channel].Push(line)
     }
+    today := FormatTime(A_Now, "yyyy-MM-dd")
+    nowTime := FormatTime(A_Now, "HH:mm")
+
     for channel, linesInChannel in channels
     {
-        rawSelDate := StrReplace(selDate, "-", "")
+        rawSelDate := StrReplace(targetDate, "-", "")
         lookbackDate := DateAdd(rawSelDate "000000", -3, "Days")
         startDT := FormatTime(lookbackDate, "yyyy-MM-dd HH:mm:ss")
-        endDT := selDate " 16:00:00"
+        endDT := targetDate " 16:00:00"
         json := FetchTSData(channel, startDT, endDT)
         if (json == "")
             continue
         allFeeds := ParseFeeds(json)
-        nowTime := FormatTime(A_Now, "HH:mm")
+
         for index, line in linesInChannel
         {
             for intIdx, interval in INTERVALS
             {
-                if (StrCompare(interval[1], nowTime) > 0)
+                ; Skip future intervals only if targetDate is today
+                if (targetDate == today && StrCompare(interval[1], nowTime) > 0)
                     continue
 
-                iStart := selDate " " interval[1] ":00"
-                iEnd := selDate " " interval[2] ":00"
+                iStart := targetDate " " interval[1] ":00"
+                iEnd := targetDate " " interval[2] ":00"
                 intFeeds := FilterFeedsByTime(allFeeds, iStart, iEnd)
                 produced := CalculateDelta(intFeeds, "field" line.fieldCount)
 
@@ -720,14 +765,14 @@ FetchTodayData()
                 if (barcode != "")
                     Controls[line.name].intervals[intIdx].Prod.Value := barcode
 
-                SaveToCache(selDate, line.name, intIdx, "Fact", produced)
+                SaveToCache(targetDate, line.name, intIdx, "Fact", produced)
                 if (barcode != "")
-                    SaveToCache(selDate, line.name, intIdx, "Prod", barcode)
+                    SaveToCache(targetDate, line.name, intIdx, "Prod", barcode)
             }
         }
     }
     UpdateCalculations()
-    StatusText.Value := "Atnaujinta: " FormatTime(, "HH:mm:ss")
+    StatusText.Value := "Užkrauta: " FormatTime(, "HH:mm:ss")
 }
 
 SaveToCache(dateStr, lineName, idx, type, value)
@@ -836,4 +881,4 @@ ExportToExcel()
 ; Startup
 StatusText.Value := "Kraunami duomenys..."
 SetTimer(() => (SyncGist("down"), LoadDateData()), -500)
-SetTimer(() => (FetchTodayData()), 300000)
+SetTimer(() => (RefreshDataFromTS()), 300000)
