@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "3.5 (Excel)"
+Global CURRENT_VERSION := "3.6 (Excel & Sync)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -49,7 +49,7 @@ Global LINES := [
 ]
 
 Global INTERVALS := [
-    ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:00", "10:00"],
+    ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:10", "10:00"],
     ["10:00", "11:00"], ["11:30", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
     ["14:10", "15:00"], ["15:00", "16:00"]
 ]
@@ -267,20 +267,17 @@ OnMainGuiSize(guiObj, minMax, width, height)
 }
 
 UpdateScrollBars(GuiObj) {
-    static SIF_ALL := 0x17, OBJID_VSCROLL := 0xFFFFFFFB
+    static SIF_ALL := 0x17
 
     ; Get current window size
     GuiObj.GetClientPos(,, &guiW, &guiH)
 
-    ; Content height calculation:
-    ; find number of lines in this tab
+    ; Content height calculation
     numLines := 0
     for line in LINES {
         if (ChildGuis.Has(line.tab) && ChildGuis[line.tab].Hwnd == GuiObj.Hwnd)
             numLines++
     }
-
-    ; headerY(5) + (numLines * lineStep(120)) + footerGap(40) + totalRow(80) + padding
     contentH := 5 + (numLines * 120) + 40 + 100 + 50
 
     si := Buffer(28, 0)
@@ -333,7 +330,6 @@ OnScroll(wp, lp, msg, hwnd) {
     if (newPos == nPos)
         return
 
-    ; SW_SCROLLCHILDREN | SW_INVALIDATE | SW_ERASE (0x1 | 0x2 | 0x4)
     DllCall("ScrollWindowEx", "Ptr", hwnd, "Int", 0, "Int", nPos - newPos, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 0x7)
     NumPut("Int", newPos, si, 20)
     DllCall("SetScrollInfo", "Ptr", hwnd, "Int", 1, "Ptr", si, "Int", 1)
@@ -365,7 +361,6 @@ WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
             if (val != "")
             {
                 ToolTip(val)
-                ; Set a repeating timer to ensure tooltip doesn't fade
                 SetTimer(CheckMousePos.Bind(hwnd), 100)
             }
             else
@@ -386,11 +381,10 @@ CheckMousePos(OriginalHwnd)
         if (TargetHwnd != OriginalHwnd && ControlHwnd != OriginalHwnd)
         {
             ToolTip()
-            SetTimer(CheckMousePos.Bind(OriginalHwnd), 0) ; Turn off
+            SetTimer(CheckMousePos.Bind(OriginalHwnd), 0)
         }
         else
         {
-            ; Mouse still over, keep tooltip alive
             if (CommHwnds.Has(OriginalHwnd))
                 ToolTip(CommHwnds[OriginalHwnd].Value)
         }
@@ -517,7 +511,6 @@ SyncGist(mode)
     {
         if (mode == "down")
         {
-            StatusText.Value := "Siunčiami duomenys iš debesies..."
             if !DirExist(LOG_DIR)
                 DirCreate(LOG_DIR)
 
@@ -542,7 +535,6 @@ SyncGist(mode)
 
                     if (InStr(content, "[FILE:"))
                     {
-                        fileCount := 0
                         currentFile := ""
                         fileBuffer := ""
                         Loop Parse, content, "`n", "`r"
@@ -555,7 +547,6 @@ SyncGist(mode)
                                     if FileExist(currentFile)
                                         FileDelete(currentFile)
                                     FileAppend(fileBuffer, currentFile)
-                                    fileCount++
                                 }
                                 currentFile := LOG_DIR "\" fm[1]
                                 fileBuffer := ""
@@ -569,41 +560,24 @@ SyncGist(mode)
                             if FileExist(currentFile)
                                 FileDelete(currentFile)
                             FileAppend(fileBuffer, currentFile)
-                            fileCount++
                         }
-                        StatusText.Value := "Sinchronizuota. Atkurta failų: " fileCount
+                        StatusText.Value := "Duomenys parsiųsti ir sinchronizuoti."
                     }
-                    else
-                        StatusText.Value := "Gist turinys tuščias arba netinkamas."
                 }
-                else
-                    StatusText.Value := "Nepavyko rasti logas.txt Gist'e."
             }
             else
                 StatusText.Value := "Gist klaida: Status " req.Status
         }
         else if (mode == "up")
         {
-            StatusText.Value := "Siunčiama į debesį..."
             payload := ""
-            fileCount := 0
             Loop Files, LOG_DIR "\*.ini"
             {
                 payload .= "[FILE:" A_LoopFileName "]`n"
                 payload .= FileRead(A_LoopFileFullPath) "`n"
-                fileCount++
             }
-
-            if (fileCount == 0)
-            {
-                StatusText.Value := "Nėra duomenų kėlimui (logs tuščias)."
-                return
-            }
-
-            jsonPayload := StrReplace(payload, "\", "\\")
-            jsonPayload := StrReplace(jsonPayload, '"', '\"')
-            jsonPayload := StrReplace(jsonPayload, "`r`n", "\n")
-            jsonPayload := StrReplace(jsonPayload, "`n", "\n")
+            jsonPayload := StrReplace(payload, "\", "\\"), jsonPayload := StrReplace(jsonPayload, '"', '\"')
+            jsonPayload := StrReplace(jsonPayload, "`r`n", "\n"), jsonPayload := StrReplace(jsonPayload, "`n", "\n")
             body := '{"files":{"logas.txt":{"content":"' jsonPayload '"}}}'
 
             req.Open("PATCH", url, false)
@@ -612,7 +586,7 @@ SyncGist(mode)
             req.Send(body)
 
             if (req.Status == 200)
-                StatusText.Value := "Sėkmingai įkelta failų: " fileCount
+                StatusText.Value := "Duomenys įkelti į debesį."
             else
                 StatusText.Value := "Gist įkėlimo klaida: Status " req.Status
         }
@@ -743,22 +717,17 @@ LoadDateData(forceRefresh := false)
     dateStr := FormatTime(Calendar.Value, "yyyy-MM-dd")
     StatusText.Value := "Kraunama: " dateStr
     iniPath := LOG_DIR "\" dateStr ".ini"
-    today := FormatTime(A_Now, "yyyy-MM-dd")
-    nowTime := FormatTime(A_Now, "HH:mm")
 
     for lineName, data in Controls
     {
         Loop (INTERVALS.Length)
         {
             idx := A_Index
-            intStart := INTERVALS[idx][1]
 
-            isFuture := (dateStr == today && StrCompare(intStart, nowTime) > 0)
-
-            pVal := isFuture ? "" : IniRead(iniPath, lineName, "Plan_" idx, "")
-            fVal := isFuture ? "" : IniRead(iniPath, lineName, "Fact_" idx, "")
-            prVal := isFuture ? "" : IniRead(iniPath, lineName, "Prod_" idx, "")
-            cVal := isFuture ? "" : IniRead(iniPath, lineName, "Comm_" idx, "")
+            pVal := IniRead(iniPath, lineName, "Plan_" idx, "")
+            fVal := IniRead(iniPath, lineName, "Fact_" idx, "")
+            prVal := IniRead(iniPath, lineName, "Prod_" idx, "")
+            cVal := IniRead(iniPath, lineName, "Comm_" idx, "")
 
             data.intervals[idx].Plan.Value := pVal
             data.intervals[idx].Fact.Value := fVal
@@ -776,6 +745,7 @@ LoadDateData(forceRefresh := false)
 
     ; If today OR if cache is empty OR if forced - fetch from TS
     cacheExists := FileExist(iniPath)
+    today := FormatTime(A_Now, "yyyy-MM-dd")
     if (dateStr == today || !cacheExists || forceRefresh)
         RefreshDataFromTS(dateStr)
     else
@@ -895,53 +865,89 @@ ExportToExcel()
         ws := wb.ActiveSheet
         ws.Name := dateStr
 
+        ; Formatting Constants
+        xlCenter := -4108
+        xlContinuous := 1
+
         ; Headers
-        ws.Cells(1, 1).Value := "Linija"
-        ws.Cells(1, 2).Value := "Laukas"
+        ws.Cells(1, 1).Value := "Laikas"
+        ws.Cells(1, 1).Font.Bold := true
+        ws.Range(ws.Cells(1, 1), ws.Cells(1, 2)).Merge()
+
         Loop (INTERVALS.Length) {
-            ws.Cells(1, A_Index + 2).Value := INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2]
+            cell := ws.Cells(1, A_Index + 2)
+            cell.Value := INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2]
+            cell.Font.Bold := true
+            cell.HorizontalAlignment := xlCenter
         }
         ws.Cells(1, INTERVALS.Length + 3).Value := "Viso"
-        ws.Cells(1, INTERVALS.Length + 4).Value := "Vidurkis"
+        ws.Cells(1, INTERVALS.Length + 3).Font.Bold := true
+        ws.Cells(1, INTERVALS.Length + 4).Value := "Linijos vnt"
+        ws.Cells(1, INTERVALS.Length + 4).Font.Bold := true
+        ws.Cells(1, INTERVALS.Length + 5).Value := "Vnt/val"
+        ws.Cells(1, INTERVALS.Length + 5).Font.Bold := true
 
         currentRow := 2
         for lineObj in LINES {
             name := lineObj.name
             data := Controls[name]
 
-            ; Linija merge
-            ws.Range(ws.Cells(currentRow, 1), ws.Cells(currentRow + 3, 1)).Merge()
-            ws.Cells(currentRow, 1).Value := name
-            ws.Cells(currentRow, 1).VerticalAlignment := -4108 ; xlCenter
-            ws.Cells(currentRow, 1).HorizontalAlignment := -4108
-
             ; Row 1: Planas
+            ws.Cells(currentRow, 1).Value := name
+            ws.Range(ws.Cells(currentRow, 1), ws.Cells(currentRow + 3, 1)).Merge()
+            ws.Cells(currentRow, 1).VerticalAlignment := xlCenter
+            ws.Cells(currentRow, 1).HorizontalAlignment := xlCenter
+            ws.Cells(currentRow, 1).Font.Bold := true
+
             ws.Cells(currentRow, 2).Value := name " Planas"
+            ws.Range(ws.Cells(currentRow, 2), ws.Cells(currentRow, INTERVALS.Length + 2)).Interior.Color := 0x90EE90 ; Light Green
             Loop (INTERVALS.Length) {
                 ws.Cells(currentRow, A_Index + 2).Value := data.intervals[A_Index].Plan.Value
             }
             ws.Cells(currentRow, INTERVALS.Length + 3).Value := data.planTotal.Value
-            ws.Cells(currentRow, INTERVALS.Length + 4).Value := data.planAvg.Value
+            ws.Cells(currentRow, INTERVALS.Length + 3).Font.Bold := true
+            ws.Cells(currentRow, INTERVALS.Length + 3).Interior.Color := 0x90EE90
+
+            ; Color conversions RGB -> BGR for Excel
+            colorInt := Integer("0x" lineObj.color)
+            r := (colorInt >> 16) & 0xFF
+            g := (colorInt >> 8) & 0xFF
+            b := colorInt & 0xFF
+            bgr := (b << 16) | (g << 8) | r
 
             ; Row 2: Faktas
             ws.Cells(currentRow + 1, 2).Value := name " Faktas"
+            ws.Range(ws.Cells(currentRow + 1, 2), ws.Cells(currentRow + 1, INTERVALS.Length + 2)).Interior.Color := bgr
+
             Loop (INTERVALS.Length) {
-                ws.Cells(currentRow + 1, A_Index + 2).Value := data.intervals[A_Index].Fact.Value
+                val := data.intervals[A_Index].Fact.Value
+                cell := ws.Cells(currentRow + 1, A_Index + 2)
+                cell.Value := val
+                cell.Font.Color := 0x0000FF ; Red (Excel BGR so it's FF0000 but ComObject might expect BGR)
             }
             ws.Cells(currentRow + 1, INTERVALS.Length + 3).Value := data.factTotal.Value
+            ws.Cells(currentRow + 1, INTERVALS.Length + 3).Font.Bold := true
+            ws.Cells(currentRow + 1, INTERVALS.Length + 3).Interior.Color := bgr
+
+            ; Stats
             ws.Cells(currentRow + 1, INTERVALS.Length + 4).Value := data.factAvg.Value
 
             ; Row 3: Gaminys
             ws.Cells(currentRow + 2, 2).Value := "Gaminys"
+            ws.Range(ws.Cells(currentRow + 2, 2), ws.Cells(currentRow + 2, INTERVALS.Length + 2)).Interior.Color := bgr
             Loop (INTERVALS.Length) {
                 ws.Cells(currentRow + 2, A_Index + 2).Value := data.intervals[A_Index].Prod.Value
             }
 
             ; Row 4: Komentaras
             ws.Cells(currentRow + 3, 2).Value := "Komentaras"
+            ws.Range(ws.Cells(currentRow + 3, 2), ws.Cells(currentRow + 3, INTERVALS.Length + 2)).Interior.Color := bgr
             Loop (INTERVALS.Length) {
                 ws.Cells(currentRow + 3, A_Index + 2).Value := data.intervals[A_Index].Comm.Value
             }
+
+            ; Borders
+            ws.Range(ws.Cells(currentRow, 1), ws.Cells(currentRow + 3, INTERVALS.Length + 5)).Borders.LineStyle := xlContinuous
 
             currentRow += 4
         }
