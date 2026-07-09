@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "2.8 (Excel)"
+Global CURRENT_VERSION := "2.9 (Excel)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -76,7 +76,7 @@ GetNum(Value)
 ; =======================================================
 ; GUI CONSTRUCTION
 ; =======================================================
-Global MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
+Global MainGui := Gui("+Resize +0x00200000", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 
 MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
@@ -240,11 +240,93 @@ for line in LINES
 CreateTabFooter("Kiti", Y + footerGap)
 
 Tabs.UseTab()
+
+; Scrolling support
+MainGui.OnEvent("Size", (guiObj, minMax, width, height) => UpdateScrollBars(guiObj))
+OnMessage(0x0115, OnScroll) ; WM_VSCROLL
+OnMessage(0x020A, OnWheel)  ; WM_MOUSEWHEEL
+
 MainGui.Show("w1540 h1040")
+UpdateScrollBars(MainGui)
 
 ; =======================================================
 ; LOGIC
 ; =======================================================
+UpdateScrollBars(GuiObj) {
+    static SIF_ALL := 0x17, OBJID_VSCROLL := 0xFFFFFFFB
+
+    ; Get current window size
+    GuiObj.GetClientPos(,, &guiW, &guiH)
+
+    maxH := 0
+    for hwnd, ctrl in GuiObj
+    {
+        ctrl.GetPos(, &y, , &h)
+        if (y + h > maxH)
+            maxH := y + h
+    }
+    contentH := maxH + 20
+
+    si := Buffer(28, 0)
+    NumPut("UInt", 28, si, 0) ; cbSize
+    NumPut("UInt", SIF_ALL, si, 4) ; fMask
+
+    DllCall("GetScrollInfo", "Ptr", GuiObj.Hwnd, "Int", 1, "Ptr", si)
+    currPos := NumGet(si, 20, "Int")
+
+    NumPut("Int", 0, si, 8) ; nMin
+    NumPut("Int", contentH, si, 12) ; nMax
+    NumPut("UInt", guiH, si, 16) ; nPage
+    NumPut("Int", currPos, si, 20) ; nPos
+
+    DllCall("SetScrollInfo", "Ptr", GuiObj.Hwnd, "Int", 1, "Ptr", si, "Int", 1)
+}
+
+OnScroll(wp, lp, msg, hwnd) {
+    if (hwnd != MainGui.Hwnd)
+        return
+
+    static SIF_ALL := 0x17, SCROLL_STEP := 20
+
+    si := Buffer(28, 0)
+    NumPut("UInt", 28, si, 0)
+    NumPut("UInt", SIF_ALL, si, 4)
+    DllCall("GetScrollInfo", "Ptr", hwnd, "Int", 1, "Ptr", si)
+
+    nPos := NumGet(si, 20, "Int")
+    nMin := NumGet(si, 8, "Int")
+    nMax := NumGet(si, 12, "Int")
+    nPage := NumGet(si, 16, "UInt")
+
+    action := wp & 0xFFFF
+    if (action == 0) ; SB_LINEUP
+        newPos := nPos - SCROLL_STEP
+    else if (action == 1) ; SB_LINEDOWN
+        newPos := nPos + SCROLL_STEP
+    else if (action == 2) ; SB_PAGEUP
+        newPos := nPos - nPage
+    else if (action == 3) ; SB_PAGEDOWN
+        newPos := nPos + nPage
+    else if (action == 4 || action == 5) ; SB_THUMBPOSITION or SB_THUMBTRACK
+        newPos := wp >> 16
+    else
+        return
+
+    newPos := Max(nMin, Min(newPos, nMax - Integer(nPage)))
+    if (newPos == nPos)
+        return
+
+    DllCall("ScrollWindowEx", "Ptr", hwnd, "Int", 0, "Int", nPos - newPos, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 0x0001 | 0x0002)
+    NumPut("Int", newPos, si, 20)
+    DllCall("SetScrollInfo", "Ptr", hwnd, "Int", 1, "Ptr", si, "Int", 1)
+}
+
+OnWheel(wp, lp, msg, hwnd) {
+    delta := (wp >> 16) > 0x7FFF ? (wp >> 16) - 0x10000 : (wp >> 16)
+    Loop Integer(Abs(delta) / 120)
+        SendMessage(0x0115, delta > 0 ? 0 : 1, 0, MainGui.Hwnd)
+}
+
 OnMessage(0x0200, WM_MOUSEMOVE)
 WM_MOUSEMOVE(wParam, lParam, msg, hwnd)
 {
@@ -573,15 +655,22 @@ LoadDateData()
     dateStr := FormatTime(Calendar.Value, "yyyy-MM-dd")
     StatusText.Value := "Kraunama: " dateStr
     iniPath := LOG_DIR "\" dateStr ".ini"
+    today := FormatTime(A_Now, "yyyy-MM-dd")
+    nowTime := FormatTime(A_Now, "HH:mm")
+
     for lineName, data in Controls
     {
         Loop (INTERVALS.Length)
         {
             idx := A_Index
-            data.intervals[idx].Plan.Value := IniRead(iniPath, lineName, "Plan_" idx, "")
-            data.intervals[idx].Fact.Value := IniRead(iniPath, lineName, "Fact_" idx, "")
-            data.intervals[idx].Prod.Value := IniRead(iniPath, lineName, "Prod_" idx, "")
-            data.intervals[idx].Comm.Value := IniRead(iniPath, lineName, "Comm_" idx, "")
+            intStart := INTERVALS[idx][1]
+
+            isFuture := (dateStr == today && StrCompare(intStart, nowTime) > 0)
+
+            data.intervals[idx].Plan.Value := isFuture ? "" : IniRead(iniPath, lineName, "Plan_" idx, "")
+            data.intervals[idx].Fact.Value := isFuture ? "" : IniRead(iniPath, lineName, "Fact_" idx, "")
+            data.intervals[idx].Prod.Value := isFuture ? "" : IniRead(iniPath, lineName, "Prod_" idx, "")
+            data.intervals[idx].Comm.Value := isFuture ? "" : IniRead(iniPath, lineName, "Comm_" idx, "")
         }
     }
     UpdateCalculations()
@@ -611,10 +700,14 @@ FetchTodayData()
         if (json == "")
             continue
         allFeeds := ParseFeeds(json)
+        nowTime := FormatTime(A_Now, "HH:mm")
         for index, line in linesInChannel
         {
             for intIdx, interval in INTERVALS
             {
+                if (StrCompare(interval[1], nowTime) > 0)
+                    continue
+
                 iStart := selDate " " interval[1] ":00"
                 iEnd := selDate " " interval[2] ":00"
                 intFeeds := FilterFeedsByTime(allFeeds, iStart, iEnd)
