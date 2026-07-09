@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "3.4 (Excel)"
+Global CURRENT_VERSION := "3.5 (Excel)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR)
     DirCreate(LOG_DIR)
@@ -49,7 +49,7 @@ Global LINES := [
 ]
 
 Global INTERVALS := [
-    ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:10", "10:00"],
+    ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:00", "10:00"],
     ["10:00", "11:00"], ["11:30", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
     ["14:10", "15:00"], ["15:00", "16:00"]
 ]
@@ -271,14 +271,16 @@ UpdateScrollBars(GuiObj) {
     ; Get current window size
     GuiObj.GetClientPos(,, &guiW, &guiH)
 
-    maxH := 0
-    for hwnd, ctrl in GuiObj
-    {
-        ctrl.GetPos(, &y, , &h)
-        if (y + h > maxH)
-            maxH := y + h
+    ; Content height calculation:
+    ; find number of lines in this tab
+    numLines := 0
+    for line in LINES {
+        if (ChildGuis.Has(line.tab) && ChildGuis[line.tab].Hwnd == GuiObj.Hwnd)
+            numLines++
     }
-    contentH := maxH + 20
+
+    ; headerY(5) + (numLines * lineStep(120)) + footerGap(40) + totalRow(80) + padding
+    contentH := 5 + (numLines * 120) + 40 + 100 + 50
 
     si := Buffer(28, 0)
     NumPut("UInt", 28, si, 0) ; cbSize
@@ -514,6 +516,9 @@ SyncGist(mode)
     {
         if (mode == "down")
         {
+            if !DirExist(LOG_DIR)
+                DirCreate(LOG_DIR)
+
             req.Open("GET", url, false)
             req.SetRequestHeader("Authorization", "token " GIST_TOKEN)
             req.Send()
@@ -522,37 +527,54 @@ SyncGist(mode)
             {
                 res := req.ResponseText
                 ; Use 's' option to allow dot to match newlines in res
-                if RegExMatch(res, 's)"logas\.txt":\{.*?"content":"(.*?)"\s*\}', &m)
+                ; Handle escaped quotes in content correctly
+                if RegExMatch(res, 's)"logas\.txt":\{.*?"content":"((?:[^"\\]|\\.)*)"', &m)
                 {
                     content := m[1]
-                    ; Unescape JSON: order is important
-                    content := StrReplace(content, "\\", "\")
-                    content := StrReplace(content, "\"", '"')
+                    ; Correct JSON string unescaping order: literals first, then backslashes
                     content := StrReplace(content, "\n", "`n")
                     content := StrReplace(content, "\r", "`r")
                     content := StrReplace(content, "\t", "`t")
+                    content := StrReplace(content, '\"', '"')
+                    content := StrReplace(content, "\\", "\")
 
                     if (InStr(content, "[FILE:"))
                     {
                         currentFile := ""
+                        fileBuffer := ""
                         Loop Parse, content, "`n", "`r"
                         {
                             line := A_LoopField
                             if RegExMatch(line, "^\[FILE:(.+)\]$", &fm)
                             {
+                                ; Save previous file buffer
+                                if (currentFile != "" && fileBuffer != "")
+                                {
+                                    if FileExist(currentFile)
+                                        FileDelete(currentFile)
+                                    FileAppend(fileBuffer, currentFile)
+                                }
                                 currentFile := LOG_DIR "\" fm[1]
-                                if FileExist(currentFile)
-                                    FileDelete(currentFile)
+                                fileBuffer := ""
                                 continue
                             }
 
                             if (currentFile != "")
-                                FileAppend(line "`n", currentFile)
+                                fileBuffer .= line "`n"
+                        }
+                        ; Save last file buffer
+                        if (currentFile != "" && fileBuffer != "")
+                        {
+                            if FileExist(currentFile)
+                                FileDelete(currentFile)
+                            FileAppend(fileBuffer, currentFile)
                         }
                         StatusText.Value := "Duomenys sinchronizuoti."
                     }
                 }
             }
+            else
+                StatusText.Value := "Gist klaida: Status " req.Status
         }
         else if (mode == "up")
         {
@@ -570,6 +592,11 @@ SyncGist(mode)
             req.SetRequestHeader("Authorization", "token " GIST_TOKEN)
             req.SetRequestHeader("Content-Type", "application/json")
             req.Send(body)
+
+            if (req.Status == 200)
+                StatusText.Value := "Duomenys įkelti į debesį."
+            else
+                StatusText.Value := "Gist įkėlimo klaida: Status " req.Status
         }
     }
     catch Error as e
@@ -592,9 +619,15 @@ FetchTSData(channel, start_dt, end_dt)
     {
         req.Open("GET", url, true)
         req.Send()
-        req.WaitForResponse()
-        if (req.Status == 200)
-            return req.ResponseText
+        if (req.WaitForResponse(10)) ; 10 second timeout
+        {
+            if (req.Status == 200)
+                return req.ResponseText
+            else
+                StatusText.Value := "TS Klaida: Status " req.Status
+        }
+        else
+            StatusText.Value := "ThingSpeak timeout (10s)"
     }
     return ""
 }
@@ -769,12 +802,10 @@ RefreshDataFromTS(targetDate := "")
                     barcode := "X-" barcode
 
                 Controls[line.name].intervals[intIdx].Fact.Value := produced
-                if (barcode != "")
-                    Controls[line.name].intervals[intIdx].Prod.Value := barcode
+                Controls[line.name].intervals[intIdx].Prod.Value := barcode
 
                 SaveToCache(targetDate, line.name, intIdx, "Fact", produced)
-                if (barcode != "")
-                    SaveToCache(targetDate, line.name, intIdx, "Prod", barcode)
+                SaveToCache(targetDate, line.name, intIdx, "Prod", barcode)
             }
         }
     }
@@ -847,7 +878,7 @@ ExportToExcel()
             ws.Cells(currentRow, 1).HorizontalAlignment := -4108
 
             ; Row 1: Planas
-            ws.Cells(currentRow, 2).Value := "Planas"
+            ws.Cells(currentRow, 2).Value := name " Planas"
             Loop (INTERVALS.Length) {
                 ws.Cells(currentRow, A_Index + 2).Value := data.intervals[A_Index].Plan.Value
             }
@@ -855,7 +886,7 @@ ExportToExcel()
             ws.Cells(currentRow, INTERVALS.Length + 4).Value := data.planAvg.Value
 
             ; Row 2: Faktas
-            ws.Cells(currentRow + 1, 2).Value := "Faktas"
+            ws.Cells(currentRow + 1, 2).Value := name " Faktas"
             Loop (INTERVALS.Length) {
                 ws.Cells(currentRow + 1, A_Index + 2).Value := data.intervals[A_Index].Fact.Value
             }
