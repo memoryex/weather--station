@@ -4,28 +4,31 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "5.3 (Date Nav & UI Fix)"
+Global CURRENT_VERSION := "5.4 (Advanced Settings)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR) {
     DirCreate(LOG_DIR)
 }
 
-; Local Server Path for synchronization
-Global SERVER_LOG_FILE := "\\10.12.24.50\fgt_hal\AHK_log\logas.txt"
-
 ; Configuration (Loaded from config.ini)
 Global CONFIG_FILE := A_ScriptDir "\config.ini"
+Global SERVER_LOG_FILE := "\\10.12.24.50\fgt_hal\AHK_log\logas.txt"
+Global EXCEL_PATH := A_ScriptDir "\GD_Gamybos_Ataskaita.xlsx"
 Global READ_KEYS := Map()
 
-if FileExist(CONFIG_FILE) {
-    try {
-        for ch in ["463450", "703669", "802414", "807602"] {
-            READ_KEYS[ch] := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" ch, "")
+LoadConfig() {
+    global SERVER_LOG_FILE, EXCEL_PATH, READ_KEYS
+    if FileExist(CONFIG_FILE) {
+        try {
+            SERVER_LOG_FILE := IniRead(CONFIG_FILE, "Paths", "ServerLog", SERVER_LOG_FILE)
+            EXCEL_PATH := IniRead(CONFIG_FILE, "Paths", "ExcelPath", EXCEL_PATH)
+            for ch in ["463450", "703669", "802414", "807602"] {
+                READ_KEYS[ch] := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" ch, "")
+            }
         }
-    } catch {
-        ; Ignore
     }
 }
+LoadConfig()
 
 Global LINES := [
     {name: "PLXE 1",    channel: "463450", fieldCount: 1, fieldBarcode: 2, color: "C6EFCE", tab: "PLXE"},
@@ -129,7 +132,13 @@ OnExportClick(ctrl, *) {
 }
 BtnExport.OnEvent("Click", OnExportClick)
 
-Global StatusText := MainGui.Add("Text", "x685 y15 w600", "Pasiruošęs")
+BtnSettings := MainGui.Add("Button", "x680 y10 w100", "Nustatymai")
+OnSettingsClick(ctrl, *) {
+    ShowSettings()
+}
+BtnSettings.OnEvent("Click", OnSettingsClick)
+
+Global StatusText := MainGui.Add("Text", "x790 y15 w600", "Pasiruošęs")
 
 Global Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti"])
 
@@ -657,7 +666,7 @@ RefreshDataFromTS(targetDate := "") {
                 ; Parse ThingSpeak ISO 8601 to AHK YYYYMMDDHH24MISS
                 ts := StrReplace(StrReplace(StrReplace(SubStr(lastAct, 1, 19), "-", ""), "T", ""), ":", "")
                 diff := DateDiff(nowFull, ts, "Minutes")
-                if (diff <= 60) {
+                if (diff <= 30) {
                     Controls[l.name].indicator.Opt("BackgroundGreen cGreen")
                 } else {
                     Controls[l.name].indicator.Opt("BackgroundRed cRed")
@@ -666,7 +675,7 @@ RefreshDataFromTS(targetDate := "") {
                 Controls[l.name].indicator.Opt("BackgroundRed cRed")
             }
 
-            Loop (INTERVALS.Length) {
+            Loop INTERVALS.Length {
                 idx := A_Index
                 int_v := INTERVALS[idx]
                 if (tDate == today) {
@@ -728,78 +737,128 @@ SaveAll() {
     SoundBeep(750, 100)
 }
 
+ShowSettings() {
+    global CONFIG_FILE, SERVER_LOG_FILE, EXCEL_PATH, LINES
+    SetGui := Gui("+AlwaysOnTop", "Programos nustatymai")
+    SetGui.SetFont("s9", "Segoe UI")
+
+    SetGui.Add("Text", "xm y+10", "Serverio logas (nuoroda):")
+    servEdit := SetGui.Add("Edit", "w500", SERVER_LOG_FILE)
+    SetGui.Add("Button", "x+5 w30", "...").OnEvent("Click", (*) => (f := FileSelect(3,, "Pasirinkite logas.txt"), f ? servEdit.Value := f : 0))
+
+    SetGui.Add("Text", "xm y+15", "Excel ataskaitos failas:")
+    excelEdit := SetGui.Add("Edit", "w500", EXCEL_PATH)
+    SetGui.Add("Button", "x+5 w30", "...").OnEvent("Click", (*) => (f := FileSelect(3,, "Pasirinkite Excel failą"), f ? excelEdit.Value := f : 0))
+
+    SetGui.Add("GroupBox", "xm y+20 w550 h250", "Excel laukelių kordinatės (Start Row/Col)")
+    SetGui.Add("Text", "xp+10 yp+25", "Kiekvienai linijai nurodykite 'Row' ir 'Col' kur prasideda jos duomenys.")
+
+    ; We'll use a small ListView or just a scrollable area for line mappings
+    LV := SetGui.Add("ListView", "xp yp+30 w530 h180 Grid", ["Linija", "Excel Row", "Excel Col"])
+    for l in LINES {
+        r := IniRead(CONFIG_FILE, "Mapping", l.name "_Row", "2")
+        c := IniRead(CONFIG_FILE, "Mapping", l.name "_Col", "1")
+        LV.Add(, l.name, r, c)
+    }
+    LV.OnEvent("DoubleClick", EditLV)
+    EditLV(ctrl, rowIdx) {
+        if !rowIdx return
+        lineName := LV.GetText(rowIdx, 1)
+        currRow := LV.GetText(rowIdx, 2)
+        currCol := LV.GetText(rowIdx, 3)
+
+        prompt := Gui("+AlwaysOnTop", "Keisti kordinates: " lineName)
+        prompt.Add("Text",, "Row:")
+        eR := prompt.Add("Edit", "w50", currRow)
+        prompt.Add("Text",, "Col:")
+        eC := prompt.Add("Edit", "w50", currCol)
+        prompt.Add("Button", "Default", "OK").OnEvent("Click", (*) => (LV.Modify(rowIdx,, lineName, eR.Value, eC.Value), prompt.Destroy()))
+        prompt.Show()
+    }
+
+    saveBtn := SetGui.Add("Button", "xm y+20 w100", "Išsaugoti")
+    saveBtn.OnEvent("Click", (*) {
+        IniWrite(servEdit.Value, CONFIG_FILE, "Paths", "ServerLog")
+        IniWrite(excelEdit.Value, CONFIG_FILE, "Paths", "ExcelPath")
+        Loop LV.GetCount() {
+            n := LV.GetText(A_Index, 1)
+            r := LV.GetText(A_Index, 2)
+            c := LV.GetText(A_Index, 3)
+            IniWrite(r, CONFIG_FILE, "Mapping", n "_Row")
+            IniWrite(c, CONFIG_FILE, "Mapping", n "_Col")
+        }
+        MsgBox("Nustatymai išsaugoti. Programa persikraus.")
+        Reload()
+    })
+    SetGui.Show()
+}
+
 ExportToExcel() {
-    global Calendar, Controls, INTERVALS, LINES
+    global Calendar, Controls, INTERVALS, LINES, EXCEL_PATH, CONFIG_FILE
     date := FormatTime(Calendar.Value, "yyyy-MM-dd")
+    sheetName := FormatTime(Calendar.Value, "MM.dd")
     StatusText.Value := "Eksportuojama..."
+
+    if !FileExist(EXCEL_PATH) {
+        MsgBox("Excel failas nerastas nurodytoje vietoje: " EXCEL_PATH)
+        return
+    }
+
     try {
         xl := ComObject("Excel.Application")
-        xl.Visible := true
-        wb := xl.Workbooks.Add()
-        ws := wb.ActiveSheet
-        ws.Name := date
-        ws.Cells(1, 1).Value := "Laikas"
-        ws.Cells(1, 1).Font.Bold := true
-        ws.Range(ws.Cells(1, 1), ws.Cells(1, 2)).Merge()
-        Loop (INTERVALS.Length) {
-            c := ws.Cells(1, A_Index + 2)
-            c.Value := INTERVALS[A_Index][1] "-" INTERVALS[A_Index][2]
-            c.Font.Bold := true
-            c.HorizontalAlignment := -4108
+        xl.DisplayAlerts := false
+        wb := xl.Workbooks.Open(EXCEL_PATH)
+
+        ; Find or create sheet
+        ws := 0
+        try ws := wb.Sheets(sheetName)
+        if !ws {
+            ws := wb.Sheets.Add(,, 1)
+            ws.Name := sheetName
         }
-        ws.Cells(1, INTERVALS.Length + 3).Value := "Viso"
-        ws.Cells(1, INTERVALS.Length + 3).Font.Bold := true
-        ws.Cells(1, INTERVALS.Length + 4).Value := "Linijos vnt"
-        ws.Cells(1, INTERVALS.Length + 4).Font.Bold := true
-        ws.Cells(1, INTERVALS.Length + 5).Value := "Vnt/val"
-        ws.Cells(1, INTERVALS.Length + 5).Font.Bold := true
-        row := 2
+
         for l in LINES {
             d := Controls[l.name]
-            ws.Cells(row, 1).Value := l.name
-            ws.Range(ws.Cells(row, 1), ws.Cells(row+3, 1)).Merge()
-            ws.Cells(row, 1).VerticalAlignment := -4108
-            ws.Cells(row, 1).HorizontalAlignment := -4108
-            ws.Cells(row, 1).Font.Bold := true
-            ws.Cells(row, 2).Value := l.name " Planas"
-            ws.Range(ws.Cells(row, 2), ws.Cells(row, INTERVALS.Length+2)).Interior.Color := 0x90EE90
-            Loop (INTERVALS.Length) {
-                ws.Cells(row, A_Index+2).Value := d.intervals[A_Index].Plan.Value
+            startRow := GetNum(IniRead(CONFIG_FILE, "Mapping", l.name "_Row", "2"))
+            startCol := GetNum(IniRead(CONFIG_FILE, "Mapping", l.name "_Col", "1"))
+
+            ; Map:
+            ; Row: Name (Merged 4)
+            ; Row: Planas
+            ; Row+1: Faktas
+            ; Row+2: Gaminys
+            ; Row+3: Komentaras
+
+            ws.Cells(startRow, startCol).Value := l.name
+            ws.Range(ws.Cells(startRow, startCol), ws.Cells(startRow+3, startCol)).Merge()
+            ws.Cells(startRow, startCol).Font.Bold := true
+
+            ws.Cells(startRow, startCol+1).Value := l.name " Planas"
+            Loop INTERVALS.Length {
+                ws.Cells(startRow, startCol+1+A_Index).Value := d.intervals[A_Index].Plan.Value
             }
-            ws.Cells(row, INTERVALS.Length+3).Value := d.planTotal.Value
-            ws.Cells(row, INTERVALS.Length+3).Font.Bold := true
-            ws.Cells(row, INTERVALS.Length+3).Interior.Color := 0x90EE90
-            hex := Integer("0x" l.color)
-            r := (hex>>16)&0xFF
-            g := (hex>>8)&0xFF
-            b := hex&0xFF
-            bgr := (b<<16)|(g<<8)|r
-            ws.Cells(row+1, 2).Value := l.name " Faktas"
-            ws.Range(ws.Cells(row+1, 2), ws.Cells(row+1, INTERVALS.Length+2)).Interior.Color := bgr
-            Loop (INTERVALS.Length) {
-                c := ws.Cells(row+1, A_Index+2)
-                c.Value := d.intervals[A_Index].Fact.Value
-                c.Font.Color := 0x0000FF
+
+            ws.Cells(startRow+1, startCol+1).Value := l.name " Faktas"
+            Loop INTERVALS.Length {
+                ws.Cells(startRow+1, startCol+1+A_Index).Value := d.intervals[A_Index].Fact.Value
+                ws.Cells(startRow+1, startCol+1+A_Index).Font.Color := 0x0000FF
             }
-            ws.Cells(row+1, INTERVALS.Length+3).Value := d.factTotal.Value
-            ws.Cells(row+1, INTERVALS.Length+3).Font.Bold := true
-            ws.Cells(row+1, INTERVALS.Length+3).Interior.Color := bgr
-            ws.Cells(row+1, INTERVALS.Length+4).Value := d.factAvg.Value
-            ws.Cells(row+2, 2).Value := "Gaminys"
-            ws.Range(ws.Cells(row+2, 2), ws.Cells(row+2, INTERVALS.Length+2)).Interior.Color := bgr
-            Loop (INTERVALS.Length) {
-                ws.Cells(row+2, A_Index+2).Value := d.intervals[A_Index].Prod.Value
+
+            ws.Cells(startRow+2, startCol+1).Value := "Gaminys"
+            Loop INTERVALS.Length {
+                ws.Cells(startRow+2, startCol+1+A_Index).Value := d.intervals[A_Index].Prod.Value
             }
-            ws.Cells(row+3, 2).Value := "Komentaras"
-            ws.Range(ws.Cells(row+3, 2), ws.Cells(row+3, INTERVALS.Length+2)).Interior.Color := bgr
-            Loop (INTERVALS.Length) {
-                ws.Cells(row+3, A_Index+2).Value := d.intervals[A_Index].Comm.Value
+
+            ws.Cells(startRow+3, startCol+1).Value := "Komentaras"
+            Loop INTERVALS.Length {
+                ws.Cells(startRow+3, startCol+1+A_Index).Value := d.intervals[A_Index].Comm.Value
             }
-            ws.Range(ws.Cells(row, 1), ws.Cells(row+3, INTERVALS.Length+5)).Borders.LineStyle := 1
-            row += 4
         }
-        ws.Columns.AutoFit()
-        StatusText.Value := "Baigta."
+
+        wb.Save()
+        wb.Close()
+        xl.Quit()
+        StatusText.Value := "Baigta (Excel atnaujintas)."
     } catch Error as e {
         MsgBox("Excel klaida: " e.Message)
         StatusText.Value := "Klaida."
