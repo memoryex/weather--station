@@ -4,7 +4,7 @@
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-Global CURRENT_VERSION := "5.2 (Activity Indicators)"
+Global CURRENT_VERSION := "5.3 (Date Nav & UI Fix)"
 Global LOG_DIR := A_ScriptDir "\logs"
 if !DirExist(LOG_DIR) {
     DirCreate(LOG_DIR)
@@ -81,14 +81,35 @@ Global MainGui := Gui("+Resize", "GD Gamybos Dashboard v" CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 
 MainGui.Add("Text", "x10 y15", "Pasirinkite datą:")
-Global Calendar := MainGui.Add("DateTime", "x110 y10 w150", "yyyy-MM-dd")
+
+; Previous Day Button
+BtnPrev := MainGui.Add("Button", "x110 y10 w30 h24", "<")
+OnPrevClick(*) {
+    currentDate := Calendar.Value
+    newDate := DateAdd(currentDate, -1, "Days")
+    Calendar.Value := newDate
+    LoadDateData()
+}
+BtnPrev.OnEvent("Click", OnPrevClick)
+
+Global Calendar := MainGui.Add("DateTime", "x145 y10 w120", "yyyy-MM-dd")
+
+; Next Day Button
+BtnNext := MainGui.Add("Button", "x270 y10 w30 h24", ">")
+OnNextClick(*) {
+    currentDate := Calendar.Value
+    newDate := DateAdd(currentDate, 1, "Days")
+    Calendar.Value := newDate
+    LoadDateData()
+}
+BtnNext.OnEvent("Click", OnNextClick)
 
 OnCalendarChange(ctrl, *) {
     LoadDateData()
 }
 Calendar.OnEvent("Change", OnCalendarChange)
 
-BtnRefresh := MainGui.Add("Button", "x270 y10 w100", "Atnaujinti")
+BtnRefresh := MainGui.Add("Button", "x310 y10 w100", "Atnaujinti")
 OnRefreshClick(ctrl, *) {
     SyncLocalServer("down")
     LoadDateData(true)
@@ -96,19 +117,19 @@ OnRefreshClick(ctrl, *) {
 }
 BtnRefresh.OnEvent("Click", OnRefreshClick)
 
-BtnSaveAll := MainGui.Add("Button", "x380 y10 w120", "Saugoti viską")
+BtnSaveAll := MainGui.Add("Button", "x420 y10 w120", "Saugoti viską")
 OnSaveAllClick(ctrl, *) {
     SaveAndSync()
 }
 BtnSaveAll.OnEvent("Click", OnSaveAllClick)
 
-BtnExport := MainGui.Add("Button", "x510 y10 w120", "Eksportuoti Excel")
+BtnExport := MainGui.Add("Button", "x550 y10 w120", "Eksportuoti Excel")
 OnExportClick(ctrl, *) {
     ExportToExcel()
 }
 BtnExport.OnEvent("Click", OnExportClick)
 
-Global StatusText := MainGui.Add("Text", "x645 y15 w600", "Pasiruošęs")
+Global StatusText := MainGui.Add("Text", "x685 y15 w600", "Pasiruošęs")
 
 Global Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti"])
 
@@ -142,7 +163,7 @@ AddIntervalHeaders(TargetGui, YPos) {
     X_V := 230 + INTERVALS.Length * 95
     TargetGui.Add("Text", "x" X_V " y" YPos " w90 h20 Center", "Viso")
     X_A := 230 + (INTERVALS.Length + 1) * 95
-    TargetGui.Add("Text", "x" X_A " y" YPos " w90 h20 Center", "Vidurkis")
+    TargetGui.Add("Text", "x" X_A " y" YPos " w120 h20 Center", "Vidurkis per val.")
     TargetGui.SetFont("s9 norm")
 }
 
@@ -645,7 +666,7 @@ RefreshDataFromTS(targetDate := "") {
                 Controls[l.name].indicator.Opt("BackgroundRed cRed")
             }
 
-            Loop INTERVALS.Length {
+            Loop (INTERVALS.Length) {
                 idx := A_Index
                 int_v := INTERVALS[idx]
                 if (tDate == today) {
