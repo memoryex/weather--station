@@ -21,6 +21,8 @@ global CONFIG_FILE := A_ScriptDir . "\config.ini"
 global SERVER_LOG_FILE := "\\10.12.24.50\fgt_hal\AHK_log\logas.txt"
 global EXCEL_PATH := A_ScriptDir . "\GD_Gamybos_Ataskaita.xlsx"
 global READ_KEYS := Map()
+global CONF_WIDTH := 0
+global CONF_HEIGHT := 0
 
 if !DirExist(LOG_DIR) {
     DirCreate(LOG_DIR)
@@ -67,11 +69,13 @@ global CommHwnds := Map()
 ; =======================================================
 
 LoadConfig() {
-    global SERVER_LOG_FILE, EXCEL_PATH, READ_KEYS, CONFIG_FILE
+    global SERVER_LOG_FILE, EXCEL_PATH, READ_KEYS, CONFIG_FILE, CONF_WIDTH, CONF_HEIGHT
     if FileExist(CONFIG_FILE) {
         try {
             SERVER_LOG_FILE := IniRead(CONFIG_FILE, "Paths", "ServerLog", SERVER_LOG_FILE)
             EXCEL_PATH := IniRead(CONFIG_FILE, "Paths", "ExcelPath", EXCEL_PATH)
+            CONF_WIDTH := GetNum(IniRead(CONFIG_FILE, "Resolution", "Width", "0"))
+            CONF_HEIGHT := GetNum(IniRead(CONFIG_FILE, "Resolution", "Height", "0"))
             for ch in ["463450", "703669", "802414", "807602"] {
                 val := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" . ch, "")
                 if (val != "") {
@@ -721,7 +725,7 @@ ExportToExcel(*) {
 }
 
 ShowSettings(*) {
-    global CONFIG_FILE, SERVER_LOG_FILE, EXCEL_PATH, LINES
+    global CONFIG_FILE, SERVER_LOG_FILE, EXCEL_PATH, LINES, CONF_WIDTH, CONF_HEIGHT
     SGui := Gui("+AlwaysOnTop", "Nustatymai")
     SGui.Add("Text", "xm", "Log:")
     eL := SGui.Add("Edit", "w500", SERVER_LOG_FILE)
@@ -768,10 +772,17 @@ ShowSettings(*) {
         p.Show()
     }
 
+    SGui.Add("Text", "xm", "Plotis (W):")
+    eW := SGui.Add("Edit", "w100", String(CONF_WIDTH))
+    SGui.Add("Text", "x+10", "Aukštis (H):")
+    eH := SGui.Add("Edit", "w100", String(CONF_HEIGHT))
+
     SGui.Add("Button", "xm w100", "Išsaugoti").OnEvent("Click", (*) => OnSaveSettings())
     OnSaveSettings() {
         IniWrite(eL.Value, CONFIG_FILE, "Paths", "ServerLog")
         IniWrite(eE.Value, CONFIG_FILE, "Paths", "ExcelPath")
+        IniWrite(eW.Value, CONFIG_FILE, "Resolution", "Width")
+        IniWrite(eH.Value, CONFIG_FILE, "Resolution", "Height")
         Loop LV.GetCount() {
             i := A_Index
             IniWrite(LV.GetText(i, 2), CONFIG_FILE, "Mapping", LV.GetText(i, 1) . "_Row")
@@ -896,11 +907,65 @@ for tName in ["PLXE", "NOBO", "Kiti"] {
     ChildGuis[tName] := cG
 }
 
-MonitorGetWorkArea(, &wL, &wT, &wR, &wB)
-workW := wR - wL
-workH := wB - wT
-showW := Min(1540, workW - 80)
-showH := Min(1040, workH - 120)
+global CONF_WIDTH, CONF_HEIGHT
+showW := CONF_WIDTH
+showH := CONF_HEIGHT
+
+if (showW < 100 || showH < 100) {
+    ; Not configured yet or invalid, show a quick selection dialog
+    RGui := Gui("+AlwaysOnTop -MinimizeBox -MaximizeBox", "Pasirinkite rezoliuciją")
+    RGui.SetFont("s9", "Segoe UI")
+    RGui.Add("Text",, "Pasirinkite ekrano rezoliuciją pirmajam paleidimui:")
+
+    opts := ["1280x720", "1366x768", "1540x1000", "Custom"]
+    rad := []
+    for opt in opts {
+        chk := (A_Index = 2) ? "Checked" : ""
+        rad.Push(RGui.Add("Radio", chk . " y+5", opt))
+    }
+
+    RGui.Add("Text", "y+10", "Arba įrašykite rankiniu būdu (Plotis x Aukštis):")
+    customW := RGui.Add("Edit", "w70", "1366")
+    RGui.Add("Text", "x+5", "x")
+    customH := RGui.Add("Edit", "x+5 w70", "768")
+
+    RGui.Add("Button", "xm y+15 w100 Default", "Išsaugoti").OnEvent("Click", (*) => OnSaveRes())
+    OnSaveRes() {
+        chosenW := 1366
+        chosenH := 768
+        if (rad[1].Value) {
+            chosenW := 1280, chosenH := 720
+        } else if (rad[2].Value) {
+            chosenW := 1366, chosenH := 768
+        } else if (rad[3].Value) {
+            chosenW := 1540, chosenH := 1000
+        } else if (rad[4].Value) {
+            chosenW := GetNum(customW.Value)
+            chosenH := GetNum(customH.Value)
+        }
+        if (chosenW < 400) {
+            chosenW := 1280
+        }
+        if (chosenH < 400) {
+            chosenH := 720
+        }
+        IniWrite(String(chosenW), CONFIG_FILE, "Resolution", "Width")
+        IniWrite(String(chosenH), CONFIG_FILE, "Resolution", "Height")
+        CONF_WIDTH := chosenW
+        CONF_HEIGHT := chosenH
+        RGui.Destroy()
+        Reload()
+    }
+    RGui.Show("Center")
+    ; We hold execution until selection is made or we fall back
+    WinWaitClose(RGui.Hwnd)
+    showW := CONF_WIDTH
+    showH := CONF_HEIGHT
+    if (showW < 100 || showH < 100) {
+        showW := 1366
+        showH := 768
+    }
+}
 
 MainGui.Show("Center w" . showW . " h" . showH)
 HandleTabChange(Tabs)
