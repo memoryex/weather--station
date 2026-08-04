@@ -668,12 +668,15 @@ ExportToExcel(*) {
             try {
                 ws.Unprotect("gd2024")
             } catch {
-                ; ignore if unprotect fails (e.g. not protected)
+                try {
+                    ws.Unprotect()
+                } catch {
+                    ; ignore
+                }
             }
         } catch {
-            sh := wb.Sheets.Add(,, 1)
-            sh.Name := sN
-            ws := sh
+            ws := wb.Sheets.Add()
+            ws.Name := sN
         }
         idx := 1
         for l in LINES {
@@ -689,9 +692,8 @@ ExportToExcel(*) {
             }
 
             ws.Cells(r, c).Value := l.name
-            addr := ws.Cells(r, c).Address . ":" . ws.Cells(r+3, c).Address
             try {
-                ws.Range(addr).Merge()
+                ws.Range(ws.Cells(r, c), ws.Cells(r+3, c)).Merge()
             } catch {
                 ; merge might fail if cell is already merged
             }
@@ -720,7 +722,7 @@ ExportToExcel(*) {
         wb.Save()
         StatusText.Value := "Baigta."
     } catch Error as e {
-        MsgBox("Excel klaida: " . e.Message)
+        MsgBox("Excel klaida: " . e.Message . "`nEilutė: " . e.Line . "`nFunkcija: " . e.What)
     }
 }
 
