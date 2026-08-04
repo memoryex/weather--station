@@ -700,6 +700,9 @@ ExportToExcel(*) {
             cVal := IniRead(CONFIG_FILE, "Mapping", l.name . "_Col", "1")
             r := Integer(GetNum(rVal))
             c := Integer(GetNum(cVal))
+            if (idx > 1 && r <= 2) {
+                r := 2 + (idx - 1) * 4
+            }
             idx++
             if (r < 1) {
                 r := 2
@@ -769,7 +772,14 @@ ShowSettings(*) {
     LV := SGui.Add("ListView", "xm w530 h180 Grid", ["Linija", "Row", "Col"])
     idx := 1
     for l in LINES {
-        LV.Add(, l.name, IniRead(CONFIG_FILE, "Mapping", l.name . "_Row", String(2 + (idx - 1) * 4)), IniRead(CONFIG_FILE, "Mapping", l.name . "_Col", "1"))
+        rVal := IniRead(CONFIG_FILE, "Mapping", l.name . "_Row", String(2 + (idx - 1) * 4))
+        cVal := IniRead(CONFIG_FILE, "Mapping", l.name . "_Col", "1")
+        r := Integer(GetNum(rVal))
+        c := Integer(GetNum(cVal))
+        if (idx > 1 && r <= 2) {
+            r := 2 + (idx - 1) * 4
+        }
+        LV.Add(, l.name, String(r), String(c))
         idx++
     }
 
