@@ -684,6 +684,11 @@ ExportToExcel(*) {
                     ; ignore
                 }
             }
+            if (ws.ProtectContents) {
+                ws.Delete()
+                ws := wb.Sheets.Add()
+                ws.Name := sN
+            }
         } catch {
             ws := wb.Sheets.Add()
             ws.Name := sN
@@ -691,8 +696,10 @@ ExportToExcel(*) {
         idx := 1
         for l in LINES {
             d := Controls[l.name]
-            r := GetNum(IniRead(CONFIG_FILE, "Mapping", l.name . "_Row", String(2 + (idx - 1) * 4)))
-            c := GetNum(IniRead(CONFIG_FILE, "Mapping", l.name . "_Col", "1"))
+            rVal := IniRead(CONFIG_FILE, "Mapping", l.name . "_Row", String(2 + (idx - 1) * 4))
+            cVal := IniRead(CONFIG_FILE, "Mapping", l.name . "_Col", "1")
+            r := Integer(GetNum(rVal))
+            c := Integer(GetNum(cVal))
             idx++
             if (r < 1) {
                 r := 2
