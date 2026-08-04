@@ -899,10 +899,10 @@ for tName in ["PLXE", "NOBO", "Kiti"] {
 MonitorGetWorkArea(, &wL, &wT, &wR, &wB)
 workW := wR - wL
 workH := wB - wT
-showW := Min(1540, workW - 20)
-showH := Min(1040, workH - 40)
+showW := Min(1540, workW - 80)
+showH := Min(1040, workH - 120)
 
-MainGui.Show("w" . showW . " h" . showH)
+MainGui.Show("Center w" . showW . " h" . showH)
 HandleTabChange(Tabs)
 
 OnMessage(0x0115, OnScroll)
