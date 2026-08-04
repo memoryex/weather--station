@@ -105,6 +105,16 @@ GetNum(Value) {
     }
 }
 
+GetColLetter(col) {
+    letter := ""
+    while (col > 0) {
+        modVal := Mod(col - 1, 26)
+        letter := Chr(65 + modVal) . letter
+        col := Integer((col - modVal - 1) / 26)
+    }
+    return letter
+}
+
 ; =======================================================
 ; BUSINESS LOGIC
 ; =======================================================
@@ -692,13 +702,15 @@ ExportToExcel(*) {
             }
 
             ws.Cells(r, c).Value := l.name
+            colLet := GetColLetter(c)
+            rangeStr := colLet . r . ":" . colLet . (r + 3)
             try {
-                ws.Range(ws.Cells(r, c), ws.Cells(r+3, c)).Merge()
+                ws.Range(rangeStr).Merge()
             } catch {
                 ; merge might fail if cell is already merged
             }
-            ws.Cells(r, c).Font.Bold := true
-            ws.Cells(r, c).HorizontalAlignment := -4108
+            ws.Range(rangeStr).Font.Bold := true
+            ws.Range(rangeStr).HorizontalAlignment := -4108
 
             ws.Cells(r, c+1).Value := l.name . " Planas"
             ws.Cells(r+1, c+1).Value := l.name . " Faktas"
