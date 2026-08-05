@@ -43,8 +43,7 @@ global LINES := [
     {name: "NOBO 7",    channel: "802414", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "NOBO"},
     {name: "QRAD 1",    channel: "807602", fieldCount: 3, fieldBarcode: 4, color: "CCFFFF", tab: "Kiti"},
     {name: "XLE 1",     channel: "807602", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "Kiti"},
-    {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"},
-    {name: "UI perrašymas", channel: "807602", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Kiti"}
+    {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"}
 ]
 
 global INTERVALS := [
@@ -714,6 +713,8 @@ ExportToExcel(*) {
         ws.Range("A1:M1").HorizontalAlignment := -4108
 
         idx := 1
+        maxR := 1
+        factCells := ""
         for l in LINES {
             d := Controls[l.name]
             rVal := IniRead(CONFIG_FILE, "Mapping", l.name . "_Row", String(2 + (idx - 1) * 4))
@@ -729,6 +730,9 @@ ExportToExcel(*) {
             }
             if (c < 1) {
                 c := 1
+            }
+            if (r + 3 > maxR) {
+                maxR := r + 3
             }
 
             ws.Cells(r, c).Value := l.name
@@ -768,11 +772,23 @@ ExportToExcel(*) {
             ws.Cells(r+1, 13).Formula := "=SUM(" . GetColLetter(c+2) . (r+1) . ":" . GetColLetter(c+11) . (r+1) . ")"
             ws.Cells(r+1, 13).Font.Bold := true
             ws.Cells(r+1, 13).Font.Color := 0xFF0000
+
+            factCells .= "M" . (r + 1) . ","
         }
 
+        grandRow := maxR + 2
+        factCells := RTrim(factCells, ",")
+        ws.Cells(grandRow, 12).Value := "BENDRA SUMA:"
+        ws.Cells(grandRow, 12).Font.Bold := true
+        ws.Cells(grandRow, 12).HorizontalAlignment := -4108
+        ws.Cells(grandRow, 13).Formula := "=SUM(" . factCells . ")"
+        ws.Cells(grandRow, 13).Font.Bold := true
+        ws.Cells(grandRow, 13).Font.Color := 0xFF0000
+        ws.Cells(grandRow, 13).Font.Size := 14
+
         ; Apply thin continuous borders to the entire table
-        ws.Range("A1:M65").Borders.LineStyle := 1
-        ws.Range("A1:M65").Borders.Weight := 2
+        ws.Range("A1:M" . grandRow).Borders.LineStyle := 1
+        ws.Range("A1:M" . grandRow).Borders.Weight := 2
 
         ; AutoFit column widths
         ws.Columns("A:M").AutoFit()
