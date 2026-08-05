@@ -115,6 +115,16 @@ GetColLetter(col) {
     return letter
 }
 
+HexRGBtoBGR(hexColor) {
+    if (StrLen(hexColor) = 6) {
+        r := SubStr(hexColor, 1, 2)
+        g := SubStr(hexColor, 3, 2)
+        b := SubStr(hexColor, 5, 2)
+        return Integer("0x" . b . g . r)
+    }
+    return 0xFFFFFF
+}
+
 ; =======================================================
 ; BUSINESS LOGIC
 ; =======================================================
@@ -693,6 +703,16 @@ ExportToExcel(*) {
             ws := wb.Sheets.Add()
             ws.Name := sN
         }
+
+        headers := ["Linija", "Laukas", "6:00-7:00", "7:00-8:00", "8:00-9:00", "9:10-10:00", "10:00-11:00", "11:30-12:00", "12:00-13:00", "13:00-14:00", "14:10-15:00", "15:00-16:00", "Viso"]
+        Loop headers.Length {
+            ws.Cells(1, A_Index).Value := headers[A_Index]
+        }
+        ws.Range("A1:M1").Font.Bold := true
+        ws.Range("A1:M1").Font.Color := 0xFFFFFF
+        ws.Range("A1:M1").Interior.Color := 0x333333
+        ws.Range("A1:M1").HorizontalAlignment := -4108
+
         idx := 1
         for l in LINES {
             d := Controls[l.name]
@@ -721,21 +741,42 @@ ExportToExcel(*) {
             }
             ws.Range(rangeStr).Font.Bold := true
             ws.Range(rangeStr).HorizontalAlignment := -4108
+            ws.Range(rangeStr).VerticalAlignment := -4108
+            ws.Range(rangeStr).Orientation := 90
 
             ws.Cells(r, c+1).Value := l.name . " Planas"
             ws.Cells(r+1, c+1).Value := l.name . " Faktas"
             ws.Cells(r+2, c+1).Value := "Gaminys"
             ws.Cells(r+3, c+1).Value := "Komentaras"
 
+            ; Background color for mapping column B
+            bgrCol := HexRGBtoBGR(l.color)
+            ws.Range(GetColLetter(c+1) . r . ":" . GetColLetter(c+1) . (r+3)).Interior.Color := bgrCol
+
             Loop INTERVALS.Length {
                 i := A_Index
                 ws.Cells(r, c+1+i).Value := d.intervals[i].Plan.Value
                 ws.Cells(r+1, c+1+i).Value := d.intervals[i].Fact.Value
-                ws.Cells(r+1, c+1+i).Font.Color := 0x0000FF
+                ws.Cells(r+1, c+1+i).Font.Color := 0xFF0000  ; Blue (BGR 0xFF0000 is Blue)
+                ws.Cells(r+1, c+1+i).Font.Bold := true
                 ws.Cells(r+2, c+1+i).Value := d.intervals[i].Prod.Value
                 ws.Cells(r+3, c+1+i).Value := d.intervals[i].Comm.Value
             }
+
+            ; Sum formulas for Plan and Fact in column M
+            ws.Cells(r, 13).Formula := "=SUM(" . GetColLetter(c+2) . r . ":" . GetColLetter(c+11) . r . ")"
+            ws.Cells(r+1, 13).Formula := "=SUM(" . GetColLetter(c+2) . (r+1) . ":" . GetColLetter(c+11) . (r+1) . ")"
+            ws.Cells(r+1, 13).Font.Bold := true
+            ws.Cells(r+1, 13).Font.Color := 0xFF0000
         }
+
+        ; Apply thin continuous borders to the entire table
+        ws.Range("A1:M65").Borders.LineStyle := 1
+        ws.Range("A1:M65").Borders.Weight := 2
+
+        ; AutoFit column widths
+        ws.Columns("A:M").AutoFit()
+
         try {
             ws.Protect("gd2024")
         } catch {
