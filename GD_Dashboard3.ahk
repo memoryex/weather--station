@@ -15,7 +15,7 @@ GlobalErrorHandler(exc, mode) {
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-global CURRENT_VERSION := "15.3 (Stable)"
+global CURRENT_VERSION := "1.1(beta)"
 global LOG_DIR := A_ScriptDir . "\logs"
 global CONFIG_FILE := A_ScriptDir . "\config.ini"
 global SERVER_LOG_FILE := "\\10.12.24.50\fgt_hal\AHK_log\logas.txt"
