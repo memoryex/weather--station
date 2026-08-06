@@ -506,7 +506,7 @@ GoNextDay(*) {
 }
 
 HandleTabChange(ctrl, *) {
-    global ActiveChild, ChildGuis, MainGui
+    global ActiveChild, ChildGuis, MainGui, Calendar
     if (ActiveChild != "") {
         ChildGuis[ActiveChild].Hide()
     }
@@ -515,6 +515,9 @@ HandleTabChange(ctrl, *) {
         ChildGuis[ctrl.Text].Show("x10 y85 w" . (guiW - 20) . " h" . (guiH - 90))
         ActiveChild := ctrl.Text
         UpdateScrollBars(ChildGuis[ActiveChild], true)
+        if IsObject(Calendar) {
+            Calendar.Focus()
+        }
     }
 }
 
@@ -936,6 +939,7 @@ Tabs.OnEvent("Change", HandleTabChange)
 for tName in ["PLXE", "NOBO", "Kiti"] {
     cG := Gui("-Caption +Parent" . MainGui.Hwnd . " +0x00200000")
     cG.BackColor := "White"
+    cG.Show("Hide w1520 h950")
 
     ; Header labels
     cG.SetFont("s9 bold")
@@ -1074,6 +1078,9 @@ if (showW < 100 || showH < 100) {
 
 MainGui.Show("Center w" . showW . " h" . showH)
 HandleTabChange(Tabs)
+if IsObject(Calendar) {
+    Calendar.Focus()
+}
 
 OnMessage(0x0115, OnScroll)
 OnMessage(0x020A, OnWheel)
