@@ -29,11 +29,11 @@ if !DirExist(LOG_DIR) {
 }
 
 global LINES := [
-    {name: "PLXE 1",    channel: "463450", fieldCount: 1, fieldBarcode: 2, color: "C6EFCE", tab: "PLXE"},
+    {name: "LSTE",    channel: "463450", fieldCount: 1, fieldBarcode: 2, color: "C6EFCE", tab: "PLXE"},
     {name: "PLXE 2",    channel: "463450", fieldCount: 3, fieldBarcode: 4, color: "FFCCFF", tab: "PLXE"},
     {name: "PLXE 3",    channel: "463450", fieldCount: 5, fieldBarcode: 6, color: "FFCCFF", tab: "PLXE"},
-    {name: "PLXE 4",    channel: "463450", fieldCount: 7, fieldBarcode: 8, color: "FFCCFF", tab: "PLXE"},
-    {name: "PLXE 5",    channel: "802414", fieldCount: 7, fieldBarcode: 8, color: "C6EFCE", tab: "PLXE"},
+    {name: "QRAD (PLXE 4)",    channel: "463450", fieldCount: 7, fieldBarcode: 8, color: "FFCCFF", tab: "PLXE"},
+    {name: "QRAD 1",    channel: "807602", fieldCount: 3, fieldBarcode: 4, color: "CCFFFF", tab: "Kiti"},
     {name: "NOBO 1",    channel: "703669", fieldCount: 1, fieldBarcode: 2, color: "E2EFDA", tab: "NOBO"},
     {name: "NOBO 2",    channel: "703669", fieldCount: 3, fieldBarcode: 4, color: "E2EFDA", tab: "NOBO"},
     {name: "NOBO 3",    channel: "703669", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "NOBO"},
@@ -41,14 +41,14 @@ global LINES := [
     {name: "NOBO 5",    channel: "802414", fieldCount: 1, fieldBarcode: 2, color: "E2EFDA", tab: "NOBO"},
     {name: "NOBO 6",    channel: "802414", fieldCount: 3, fieldBarcode: 4, color: "E2EFDA", tab: "NOBO"},
     {name: "NOBO 7",    channel: "802414", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "NOBO"},
-    {name: "QRAD 1",    channel: "807602", fieldCount: 3, fieldBarcode: 4, color: "CCFFFF", tab: "Kiti"},
+    {name: "PLXE 5",    channel: "802414", fieldCount: 7, fieldBarcode: 8, color: "C6EFCE", tab: "PLXE"},
     {name: "XLE 1",     channel: "807602", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "Kiti"},
     {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"}
 ]
 
 global INTERVALS := [
     ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:10", "10:00"],
-    ["10:00", "11:00"], ["11:30", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
+    ["10:00", "11:00"], ["11:00", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
     ["14:10", "15:00"], ["15:00", "16:00"]
 ]
 
@@ -488,7 +488,7 @@ OnMainSize(guiObj, minMax, width, height) {
         Tabs.Move(,, width - 20)
     }
     if (ActiveChild != "" && ChildGuis.Has(ActiveChild)) {
-        ChildGuis[ActiveChild].Show("w" . (width - 20) . " h" . (height - 90))
+        ChildGuis[ActiveChild].Show("x10 y85 w" . (width - 20) . " h" . (height - 90))
         UpdateScrollBars(ChildGuis[ActiveChild])
     }
 }
@@ -514,7 +514,7 @@ HandleTabChange(ctrl, *) {
     if ChildGuis.Has(ctrl.Text) {
         ChildGuis[ctrl.Text].Show("x10 y85 w" . (guiW - 20) . " h" . (guiH - 90))
         ActiveChild := ctrl.Text
-        UpdateScrollBars(ChildGuis[ActiveChild])
+        UpdateScrollBars(ChildGuis[ActiveChild], true)
     }
 }
 
@@ -525,7 +525,7 @@ OnFieldLoseFocus(lName, iIdx, iType, ctrl, *) {
     }
 }
 
-UpdateScrollBars(GuiObj) {
+UpdateScrollBars(GuiObj, reset := false) {
     static SIF_ALL := 0x17
     GuiObj.GetClientPos(,, &guiW, &guiH)
     numLines := 0
@@ -540,6 +540,22 @@ UpdateScrollBars(GuiObj) {
     NumPut("UInt", SIF_ALL, si, 4)
     DllCall("GetScrollInfo", "Ptr", GuiObj.Hwnd, "Int", 1, "Ptr", si)
     currPos := NumGet(si, 20, "Int")
+
+    if (reset) {
+        if (currPos > 0) {
+            DllCall("ScrollWindowEx", "Ptr", GuiObj.Hwnd, "Int", 0, "Int", currPos, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 0x7)
+            currPos := 0
+            DllCall("UpdateWindow", "Ptr", GuiObj.Hwnd)
+        }
+    } else {
+        maxScroll := Max(0, contentH - guiH)
+        if (currPos > maxScroll) {
+            DllCall("ScrollWindowEx", "Ptr", GuiObj.Hwnd, "Int", 0, "Int", currPos - maxScroll, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 0x7)
+            currPos := maxScroll
+            DllCall("UpdateWindow", "Ptr", GuiObj.Hwnd)
+        }
+    }
+
     NumPut("Int", 0, si, 8)
     NumPut("Int", contentH, si, 12)
     NumPut("UInt", guiH, si, 16)
@@ -574,7 +590,8 @@ OnScroll(wp, lp, msg, hwnd) {
     } else {
         return
     }
-    newPos := Max(nMin, Min(newPos, nMax - Integer(nPage)))
+    limit := Max(0, nMax - Integer(nPage))
+    newPos := Max(nMin, Min(newPos, limit))
     if (newPos = nPos) {
         return
     }
@@ -703,7 +720,7 @@ ExportToExcel(*) {
             ws.Name := sN
         }
 
-        headers := ["Linija", "Laukas", "6:00-7:00", "7:00-8:00", "8:00-9:00", "9:10-10:00", "10:00-11:00", "11:30-12:00", "12:00-13:00", "13:00-14:00", "14:10-15:00", "15:00-16:00", "Viso"]
+        headers := ["Linija", "Laukas", "6:00-7:00", "7:00-8:00", "8:00-9:00", "9:10-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00", "14:10-15:00", "15:00-16:00", "Viso"]
         Loop headers.Length {
             ws.Cells(1, A_Index).Value := headers[A_Index]
         }
