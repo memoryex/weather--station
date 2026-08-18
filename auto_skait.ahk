@@ -37,6 +37,7 @@ Global CountdownAction := ""
 Global COM_PORT := "COM3"
 Global COM_BAUD := 9600
 Global Stebimas_Katalogas := A_Desktop
+Global Info_Katalogas := A_Desktop
 Global Selected_Line := "XLE 1"
 
 ; ThingSpeak Globals
@@ -78,6 +79,7 @@ LoadSettings() {
     global
     COM_PORT := IniRead(IniFile, "Settings", "ComPort", "COM3")
     Stebimas_Katalogas := IniRead(IniFile, "Settings", "Folder", A_Desktop)
+    Info_Katalogas := IniRead(IniFile, "Settings", "InfoFolder", A_Desktop)
     Selected_Line := IniRead(IniFile, "Settings", "Line", "XLE 1")
     NewFilesCount := IniRead(IniFile, "State", Selected_Line "_Count", 0)
     LastProcessedTimestamp := IniRead(IniFile, "State", Selected_Line "_LastTS", 0)
@@ -280,7 +282,7 @@ DoDecrement() {
 ; SETTINGS GUI
 ; =======================================================
 ShowSettings(*) {
-    global SettingsGui, COM_PORT, Stebimas_Katalogas, Selected_Line
+    global SettingsGui, COM_PORT, Stebimas_Katalogas, Info_Katalogas, Selected_Line
 
     ; Slaptažodžio užklausa
     PwdGui := Gui("+AlwaysOnTop", "Saugumas")
@@ -304,34 +306,23 @@ ShowSettings(*) {
 }
 
 ShowInfo(*) {
-    global TS_CHANNEL_ID, TS_READ_KEY
-    totalEntries := "Nenustatyta"
-    createdAtFormatted := "Nenustatyta"
-
-    url := "https://api.thingspeak.com/channels/" . TS_CHANNEL_ID . "/feeds.json?api_key=" . TS_READ_KEY . "&results=1"
-    req := ComObject("WinHttp.WinHttpRequest.5.1")
-    try {
-        req.Open("GET", url, false)
-        req.Send()
-        if (req.Status = 200) {
-            json := req.ResponseText
-            if (RegExMatch(json, '"total_entries":\s*(\d+)', &mEntries))
-                totalEntries := mEntries[1]
-            if (RegExMatch(json, '"created_at":\s*"([^"]+)"', &mDate)) {
-                rawDate := mDate[1] ; Pvz., 2021-05-18T12:34:56Z
-                createdAtFormatted := RegExReplace(rawDate, "[TZ]", " ")
-            }
+    global Info_Katalogas
+    total := 0
+    oldest := ""
+    Loop Files, Info_Katalogas "\*.*" {
+        total++
+        try {
+            ctime := FileGetTime(A_LoopFileFullPath, "C")
+            if (oldest == "" || ctime < oldest)
+                oldest := ctime
         }
-    } catch Error as e {
-        MsgBox("Nepavyko gauti informacijos iš ThingSpeak: " . e.Message, "Klaida", "Iconx")
-        return
     }
-
-    MsgBox("Viso taškų ThingSpeak kanalė: " totalEntries "`nKanalas sukurtas: " createdAtFormatted, "Informacija", "Iconi")
+    dateStr := (oldest == "") ? "nėra failų" : FormatTime(oldest, "yyyy-MM-dd HH:MM:ss")
+    MsgBox("Viso gaminiu pagaminta (Info kataloge): " total "`nLinija paleista nuo: " dateStr, "Informacija", "Iconi")
 }
 
 OpenSettings() {
-    global SettingsGui, COM_PORT, Stebimas_Katalogas, Selected_Line, Start_X, Start_Y
+    global SettingsGui, COM_PORT, Stebimas_Katalogas, Info_Katalogas, Selected_Line, Start_X, Start_Y
     SettingsGui := Gui("+AlwaysOnTop", "Nustatymai")
     SettingsGui.Add("Text", , "COM Prievadas:")
     comPorts := GetAvailableComPorts()
@@ -346,10 +337,15 @@ OpenSettings() {
     if comPorts.Length > 0 {
         try comChoice.Choose(selectedIdx)
     }
-    SettingsGui.Add("Text", , "Stebimas katalogas:")
+    SettingsGui.Add("Text", , "Stebimas gamybos katalogas:")
     folderEdit := SettingsGui.Add("Edit", "w300 vFolder", Stebimas_Katalogas)
-    SettingsGui.Add("Button", "x+5 w30", "...").OnEvent("Click", (*) => (f := SelectFolder(), f ? folderEdit.Value := f : 0))
-    SettingsGui.Add("Text", , "Gamybos linija:")
+    SettingsGui.Add("Button", "x+5 w30", "...").OnEvent("Click", (*) => (f := SelectFolder(Stebimas_Katalogas), f ? folderEdit.Value := f : 0))
+
+    SettingsGui.Add("Text", "xm", "Informacijos stebimas katalogas (mygtukui 'i'):")
+    infoFolderEdit := SettingsGui.Add("Edit", "w300 vInfoFolder", Info_Katalogas)
+    SettingsGui.Add("Button", "x+5 w30", "...").OnEvent("Click", (*) => (f := SelectFolder(Info_Katalogas), f ? infoFolderEdit.Value := f : 0))
+
+    SettingsGui.Add("Text", "xm", "Gamybos linija:")
     lineNames := []
     for name, data in LineMap
         lineNames.Push(name)
@@ -370,16 +366,17 @@ OpenSettings() {
     ProcessSave(*) {
         RegExMatch(comChoice.Text, "COM\d+", &match)
         portName := match ? match[0] : "COM3"
-        SaveAndRestart(portName, folderEdit.Value, lineChoice.Text, editX.Value, editY.Value)
+        SaveAndRestart(portName, folderEdit.Value, infoFolderEdit.Value, lineChoice.Text, editX.Value, editY.Value)
     }
     SettingsGui.Show()
 }
-SelectFolder() {
-    return DirSelect(Stebimas_Katalogas, 3, "Pasirinkite stebimą katalogą")
+SelectFolder(defaultDir) {
+    return DirSelect(defaultDir, 3, "Pasirinkite stebimą katalogą")
 }
-SaveAndRestart(c, f, l, x, y) {
+SaveAndRestart(c, f, inf, l, x, y) {
     IniWrite(c, IniFile, "Settings", "ComPort")
     IniWrite(f, IniFile, "Settings", "Folder")
+    IniWrite(inf, IniFile, "Settings", "InfoFolder")
     IniWrite(l, IniFile, "Settings", "Line")
     IniWrite(x, IniFile, "Settings", "PosX")
     IniWrite(y, IniFile, "Settings", "PosY")
