@@ -856,7 +856,7 @@ ApplyTheme() {
     global MainGui, ChildGuis, TextControls, BtnTheme, StatusText, Controls, TabFooters, CURRENT_THEME, INTERVALS
     isDark := (CURRENT_THEME = "Dark")
     if IsObject(BtnTheme) {
-        BtnTheme.Value := "Tema: " . (isDark ? "Tamsi" : "Šviesi")
+        BtnTheme.Text := "Tema: " . (isDark ? "Tamsi" : "Šviesi")
     }
 
     mainBg := isDark ? "1E1E1E" : "F0F0F0"
