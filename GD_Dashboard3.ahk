@@ -50,7 +50,7 @@ global LINES := [
 global INTERVALS := [
     ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:10", "10:00"],
     ["10:00", "11:00"], ["11:00", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
-    ["14:10", "15:00"], ["15:00", "16:00"]
+    ["14:00", "15:00"], ["15:00", "16:00"]
 ]
 
 ; UI Component Holders
@@ -419,13 +419,27 @@ RefreshDataFromTS(target := "") {
             la := GetLastActivityTS(allF, "field" . l.fieldCount)
             if (la != "") {
                 ts := StrReplace(StrReplace(StrReplace(SubStr(la, 1, 19), "-", ""), "T", ""), ":", "")
-                if (DateDiff(nowF, ts, "Minutes") <= 30) {
+                diffMin := DateDiff(nowF, ts, "Minutes")
+                if (diffMin <= 30) {
                     Controls[l.name].indicator.Opt("BackgroundGreen cGreen")
                 } else {
                     Controls[l.name].indicator.Opt("BackgroundRed cRed")
                 }
+                if (diffMin < 0) {
+                    diffMin := 0
+                }
+                hrs := Integer(diffMin / 60)
+                mins := Mod(diffMin, 60)
+                timeStr := (SubStr(ts, 1, 8) = SubStr(nowF, 1, 8)) ? FormatTime(ts, "HH:mm") : FormatTime(ts, "MM-dd HH:mm")
+                elapsedStr := (hrs > 0) ? ("prieš " . hrs . " val. " . mins . " min.") : ("prieš " . mins . " min.")
+                if Controls[l.name].HasOwnProp("lastTest") {
+                    Controls[l.name].lastTest.Value := timeStr . "`r`n(" . elapsedStr . ")"
+                }
             } else {
                 Controls[l.name].indicator.Opt("BackgroundRed cRed")
+                if Controls[l.name].HasOwnProp("lastTest") {
+                    Controls[l.name].lastTest.Value := "-"
+                }
             }
             for idx, iv in INTERVALS {
                 if (tD = today && StrCompare(iv[1], nowT) > 0) {
@@ -739,7 +753,7 @@ ExportToExcel(*) {
             ws.Name := sN
         }
 
-        headers := ["Linija", "Laukas", "6:00-7:00", "7:00-8:00", "8:00-9:00", "9:10-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00", "14:10-15:00", "15:00-16:00", "Viso"]
+        headers := ["Linija", "Laukas", "6:00-7:00", "7:00-8:00", "8:00-9:00", "9:10-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00", "14:00-15:00", "15:00-16:00", "Viso"]
         Loop headers.Length {
             ws.Cells(1, A_Index).Value := headers[A_Index]
         }
@@ -898,6 +912,10 @@ ApplyTheme() {
         data.planAvg.Redraw()
         data.factAvg.Opt(readOnlyBg . " " . txtColor)
         data.factAvg.Redraw()
+        if data.HasOwnProp("lastTest") && IsObject(data.lastTest) {
+            data.lastTest.Opt(readOnlyBg . " " . txtColor)
+            data.lastTest.Redraw()
+        }
     }
 
     for tName, f in TabFooters {
@@ -1056,6 +1074,7 @@ for tName in ["PLXE", "NOBO", "Kiti"] {
     }
     TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y5 w90 h20 Center", "Viso"))
     TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y5 w120 h20 Center", "Vidurkis"))
+    TextControls.Push(cG.Add("Text", "x1380 y5 w130 h20 Center", "Paskutinis testas"))
     cG.SetFont("s9 norm")
 
     curY := 35
@@ -1094,8 +1113,9 @@ for tName in ["PLXE", "NOBO", "Kiti"] {
             XA := XT + 95
             cPA := cG.Add("Edit", "x" . XA . " y" . curY . " w90 h20 Center ReadOnly")
             cFA := cG.Add("Edit", "x" . XA . " y" . curY+23 . " w90 h20 Center ReadOnly")
+            cLT := cG.Add("Edit", "x1380 y" . (curY+18) . " w130 h42 Center +Multi ReadOnly")
             cG.SetFont("s9 norm")
-            Controls[name] := {intervals: lineCtrls, planTotal: cPT, planAvg: cPA, factTotal: cFT, factAvg: cFA, tab: l.tab, indicator: cInd}
+            Controls[name] := {intervals: lineCtrls, planTotal: cPT, planAvg: cPA, factTotal: cFT, factAvg: cFA, lastTest: cLT, tab: l.tab, indicator: cInd}
             curY += 120
         }
     }
