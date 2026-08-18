@@ -6,7 +6,7 @@ CoordMode "ToolTip", "Screen"
 ; GLOBALAI (Super-global)
 ; =======================================================
 Global OverlayGui, CtrlGui, SettingsGui
-Global CURRENT_VERSION := "2.8"
+Global CURRENT_VERSION := "2.82"
 Global RemoteVersion := "laukiama..."
 Global LastHttpStatus := "0"
 Global LastRawResponse := "nieko"
@@ -304,19 +304,30 @@ ShowSettings(*) {
 }
 
 ShowInfo(*) {
-    global Stebimas_Katalogas
-    total := 0
-    oldest := ""
-    Loop Files, Stebimas_Katalogas "\*.*" {
-        total++
-        try {
-            ctime := FileGetTime(A_LoopFileFullPath, "C")
-            if (oldest == "" || ctime < oldest)
-                oldest := ctime
+    global TS_CHANNEL_ID, TS_READ_KEY
+    totalEntries := "Nenustatyta"
+    createdAtFormatted := "Nenustatyta"
+
+    url := "https://api.thingspeak.com/channels/" . TS_CHANNEL_ID . "/feeds.json?api_key=" . TS_READ_KEY . "&results=1"
+    req := ComObject("WinHttp.WinHttpRequest.5.1")
+    try {
+        req.Open("GET", url, false)
+        req.Send()
+        if (req.Status = 200) {
+            json := req.ResponseText
+            if (RegExMatch(json, '"total_entries":\s*(\d+)', &mEntries))
+                totalEntries := mEntries[1]
+            if (RegExMatch(json, '"created_at":\s*"([^"]+)"', &mDate)) {
+                rawDate := mDate[1] ; Pvz., 2021-05-18T12:34:56Z
+                createdAtFormatted := RegExReplace(rawDate, "[TZ]", " ")
+            }
         }
+    } catch Error as e {
+        MsgBox("Nepavyko gauti informacijos iš ThingSpeak: " . e.Message, "Klaida", "Iconx")
+        return
     }
-    dateStr := (oldest == "") ? "nėra failų" : FormatTime(oldest, "yyyy-MM-dd HH:MM:ss")
-    MsgBox("Viso gaminiu pagaminta: " total "`nLinija paleista nuo: " dateStr, "Informacija", "Iconi")
+
+    MsgBox("Viso taškų ThingSpeak kanalė: " totalEntries "`nKanalas sukurtas: " createdAtFormatted, "Informacija", "Iconi")
 }
 
 OpenSettings() {
