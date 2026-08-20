@@ -490,8 +490,12 @@ RestartBluetooth() {
 
         FileAppend(psContent, btPs, "UTF-8")
 
-        Run('*RunAs powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . btPs . '"', , "Hide")
-        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Multi-stage re-enable sweep)")
+        if (A_IsAdmin) {
+            Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . btPs . '"', , "Hide")
+        } else {
+            Run('*RunAs powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . btPs . '"', , "Hide")
+        }
+        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Admin: " . (A_IsAdmin ? "Taip" : "Ne") . ")")
     } catch Error as e {
         LogAppend(FormatTS() " Klaida atliekant Bluetooth reset: " . e.Message)
     }
