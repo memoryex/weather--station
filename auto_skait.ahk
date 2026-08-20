@@ -470,8 +470,15 @@ RestartBluetooth() {
             "    Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force",
             "    pnputil /disable-device `"$($d.InstanceId)`"",
             "}",
-            "Start-Sleep -Seconds 3",
-            "foreach ($d in $btDevs) {",
+            "Start-Sleep -Seconds 2",
+            "$radioDevs = Get-PnpDevice | Where-Object { ($_.Class -eq 'Bluetooth' -or $_.FriendlyName -like '*Bluetooth*') -and ($_.InstanceId -like 'USB*' -or $_.FriendlyName -like '*Intel*' -or $_.FriendlyName -like '*Adapter*') }",
+            "foreach ($d in $radioDevs) {",
+            "    Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force",
+            "    pnputil /enable-device `"$($d.InstanceId)`"",
+            "}",
+            "Start-Sleep -Seconds 2",
+            "$allBt = Get-PnpDevice | Where-Object { $_.Class -eq 'Bluetooth' -or $_.FriendlyName -like '*Bluetooth*' }",
+            "foreach ($d in $allBt) {",
             "    Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force",
             "    pnputil /enable-device `"$($d.InstanceId)`"",
             "}"
@@ -484,12 +491,13 @@ RestartBluetooth() {
         FileAppend(psContent, btPs, "UTF-8")
 
         Run('*RunAs powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . btPs . '"', , "Hide")
-        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Comprehensively targeting Bluetooth Class/FriendlyName devices)")
+        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Multi-stage re-enable sweep)")
     } catch Error as e {
         LogAppend(FormatTS() " Klaida atliekant Bluetooth reset: " . e.Message)
     }
 
-    SetTimer (*) => (btGui.Destroy()), -4500
+    ; Pranešimo langas užgęsta greitai (po 1.5 s), kad neužlaikytų vartotojo
+    SetTimer (*) => (btGui.Destroy()), -1500
 }
 
 Nunulinti() {
