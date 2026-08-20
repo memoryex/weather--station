@@ -1,4 +1,13 @@
 #Requires AutoHotkey v2.0
+
+; Automatiškai užtikriname Administratoriaus teises paleidžiant skaitliuką vieną kartą:
+if (!A_IsAdmin) {
+    try {
+        Run('*RunAs "' . A_ScriptFullPath . '"')
+    }
+    ExitApp()
+}
+
 CoordMode "Mouse", "Screen"
 CoordMode "ToolTip", "Screen"
 
