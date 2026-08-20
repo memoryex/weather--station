@@ -453,11 +453,16 @@ RestartBluetooth() {
     ToolTip "Perkraunamas Bluetooth adapteris..."
     SetTimer (*) => ToolTip(), -4000
     try {
-        ; Naudojame administratoriaus teises per RunAs, nes PnP prietaisų išjungimui reikalingos Privilegijos
-        psInnerCmd := 'Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false; Start-Sleep -Seconds 2; Get-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false'
-        psCmd := Format('powershell.exe -Command "Start-Process powershell -Verb RunAs -ArgumentList ''-Command {1}''"', psInnerCmd)
+        btScript := A_Temp "\reset_bt.ps1"
+        if FileExist(btScript)
+            FileDelete(btScript)
+
+        scriptContent := 'Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false`r`nStart-Sleep -Seconds 2`r`nGet-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false'
+        FileAppend(scriptContent, btScript, "UTF-8")
+
+        psCmd := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb RunAs -ArgumentList ''-NoProfile -ExecutionPolicy Bypass -File ' . btScript . '''"'
         Run(psCmd, , "Hide")
-        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Elevated)")
+        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Elevated PS1)")
     } catch Error as e {
         LogAppend(FormatTS() " Klaida atliekant Bluetooth reset: " . e.Message)
     }
