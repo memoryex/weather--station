@@ -453,16 +453,15 @@ RestartBluetooth() {
     ToolTip "Perkraunamas Bluetooth adapteris..."
     SetTimer (*) => ToolTip(), -4000
     try {
-        btScript := A_Temp "\reset_bt.ps1"
-        if FileExist(btScript)
-            FileDelete(btScript)
+        btBat := A_Temp "\reset_bt.bat"
+        if FileExist(btBat)
+            FileDelete(btBat)
 
-        scriptContent := "$ConfirmPreference = 'None'`r`n$ErrorActionPreference = 'SilentlyContinue'`r`nGet-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false -Force`r`nStart-Sleep -Seconds 2`r`nGet-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false -Force"
-        FileAppend(scriptContent, btScript, "UTF-8")
+        batContent := "@echo off`r`npnputil /restart-device `"*Bluetooth*`"`r`npowershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command `"$ConfirmPreference='None'; $ErrorActionPreference='SilentlyContinue'; Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:`$false -Force; Start-Sleep -Seconds 2; Get-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:`$false -Force`"`r`n"
+        FileAppend(batContent, btBat, "CP0")
 
-        psCmd := Format("powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File {1}'`"", btScript)
-        Run(psCmd, , "Hide")
-        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Elevated PS1)")
+        Run('*RunAs "' . btBat . '"', , "Hide")
+        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (RunAs BAT)")
     } catch Error as e {
         LogAppend(FormatTS() " Klaida atliekant Bluetooth reset: " . e.Message)
     }
