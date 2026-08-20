@@ -457,10 +457,10 @@ RestartBluetooth() {
         if FileExist(btScript)
             FileDelete(btScript)
 
-        scriptContent := 'Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false`r`nStart-Sleep -Seconds 2`r`nGet-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false'
+        scriptContent := "Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false`r`nStart-Sleep -Seconds 2`r`nGet-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false"
         FileAppend(scriptContent, btScript, "UTF-8")
 
-        psCmd := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb RunAs -ArgumentList ''-NoProfile -ExecutionPolicy Bypass -File ' . btScript . '''"'
+        psCmd := Format("powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File {1}'`"", btScript)
         Run(psCmd, , "Hide")
         LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Elevated PS1)")
     } catch Error as e {
