@@ -448,6 +448,16 @@ ResetCountColor() {
     global CountText
     CountText.SetFont("cWhite")
 }
+
+RestartBluetooth() {
+    try {
+        Run('powershell.exe -Command "Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false; Start-Sleep -Seconds 2; Get-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false"', , "Hide")
+        LogAppend(FormatTS() " Atliktas Bluetooth adapterio atstatymas (Reset)")
+    } catch Error as e {
+        LogAppend(FormatTS() " Klaida atliekant Bluetooth reset: " . e.Message)
+    }
+}
+
 Nunulinti() {
     global NewFilesCount, CountText
     NewFilesCount := 0
@@ -455,6 +465,7 @@ Nunulinti() {
     TSQueueCount(0)
     SaveState()
     SoundBeep 700, 150
+    RestartBluetooth()
 }
 CheckExternalUpdate() {
     global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount, TS_PENDING, TS_LAST_SEND_TS
