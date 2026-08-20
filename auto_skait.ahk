@@ -450,21 +450,45 @@ ResetCountColor() {
 }
 
 RestartBluetooth() {
-    ToolTip "Perkraunamas Bluetooth adapteris..."
-    SetTimer (*) => ToolTip(), -4000
+    btGui := Gui("+AlwaysOnTop -Caption +ToolWindow", "Bluetooth Atstatymas")
+    btGui.BackColor := "Red"
+    btGui.SetFont("s16 bold cWhite", "Arial")
+    txtStatus := btGui.Add("Text", "w320 h60 Center", "`nPerkraunamas Bluetooth...")
+    btGui.Show("w320 h60")
+
     try {
-        btBat := A_Temp "\reset_bt.bat"
-        if FileExist(btBat)
-            FileDelete(btBat)
+        btPs := A_Temp "\reset_bt.ps1"
+        if FileExist(btPs)
+            FileDelete(btPs)
 
-        batContent := "@echo off`r`npnputil /restart-device `"*Bluetooth*`"`r`npowershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command `"$ConfirmPreference='None'; $ErrorActionPreference='SilentlyContinue'; Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:`$false -Force; Start-Sleep -Seconds 2; Get-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:`$false -Force`"`r`n"
-        FileAppend(batContent, btBat, "CP0")
+        scriptLines := [
+            "$ConfirmPreference = 'None'",
+            "$ErrorActionPreference = 'SilentlyContinue'",
+            "; Restart-Service bthserv -Force",
+            "; [Windows.Devices.Radios.Radio, Windows.System.Devices, ContentType = WindowsRuntime]",
+            "; $radios = [Windows.Devices.Radios.Radio]::GetRadiosAsync().GetAwaiter().GetResult()",
+            "; foreach ($r in $radios) { if ($r.Kind -eq 'Bluetooth') { $null = $r.SetStateAsync('Off').GetAwaiter().GetResult() } }",
+            "; Start-Sleep -Seconds 3",
+            "; foreach ($r in $radios) { if ($r.Kind -eq 'Bluetooth') { $null = $r.SetStateAsync('On').GetAwaiter().GetResult() } }",
+            "$btDevs = Get-PnpDevice -Class Bluetooth | Where-Object { $_.InstanceId -like 'USB*' -or $_.InstanceId -like 'BTH*' -or $_.FriendlyName -like '*Bluetooth*' }",
+            "foreach ($d in $btDevs) { Disable-PnpDevice -InputObject $d -Confirm:$false -Force }",
+            "Start-Sleep -Seconds 3",
+            "foreach ($d in $btDevs) { Enable-PnpDevice -InputObject $d -Confirm:$false -Force }"
+        ]
 
-        Run('*RunAs "' . btBat . '"', , "Hide")
-        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (RunAs BAT)")
+        psContent := ""
+        for line in scriptLines
+            psContent .= line . "`r`n"
+
+        FileAppend(psContent, btPs, "UTF-8")
+
+        Run('*RunAs powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . btPs . '"', , "Hide")
+        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (bthserv, WinRT & PnP reset)")
     } catch Error as e {
         LogAppend(FormatTS() " Klaida atliekant Bluetooth reset: " . e.Message)
     }
+
+    SetTimer (*) => (btGui.Destroy()), -4000
 }
 
 Nunulinti() {
