@@ -454,7 +454,8 @@ RestartBluetooth() {
     SetTimer (*) => ToolTip(), -4000
     try {
         ; Naudojame administratoriaus teises per RunAs, nes PnP prietaisų išjungimui reikalingos Privilegijos
-        psCmd := 'powershell.exe -Command "Start-Process powershell -Verb RunAs -ArgumentList \'-Command Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:`$false; Start-Sleep -Seconds 2; Get-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:`$false\'"'
+        psInnerCmd := 'Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false; Start-Sleep -Seconds 2; Get-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false'
+        psCmd := 'powershell.exe -Command "Start-Process powershell -Verb RunAs -ArgumentList ''-Command ' . psInnerCmd . '''"'
         Run(psCmd, , "Hide")
         LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Elevated)")
     } catch Error as e {
