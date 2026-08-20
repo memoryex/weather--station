@@ -457,7 +457,7 @@ RestartBluetooth() {
         if FileExist(btScript)
             FileDelete(btScript)
 
-        scriptContent := "Get-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false`r`nStart-Sleep -Seconds 2`r`nGet-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false"
+        scriptContent := "$ConfirmPreference = 'None'`r`n$ErrorActionPreference = 'SilentlyContinue'`r`nGet-PnpDevice -Class Bluetooth | Disable-PnpDevice -Confirm:$false -Force`r`nStart-Sleep -Seconds 2`r`nGet-PnpDevice -Class Bluetooth | Enable-PnpDevice -Confirm:$false -Force"
         FileAppend(scriptContent, btScript, "UTF-8")
 
         psCmd := Format("powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `"Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File {1}'`"", btScript)
