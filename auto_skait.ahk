@@ -465,10 +465,16 @@ RestartBluetooth() {
             "$ConfirmPreference = 'None'",
             "$ErrorActionPreference = 'SilentlyContinue'",
             "Restart-Service bthserv -Force",
-            "$btDevs = Get-PnpDevice -Class Bluetooth",
-            "foreach ($d in $btDevs) { Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force }",
+            "$btDevs = Get-PnpDevice | Where-Object { $_.Class -eq 'Bluetooth' -or $_.FriendlyName -like '*Bluetooth*' }",
+            "foreach ($d in $btDevs) {",
+            "    Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force",
+            "    pnputil /disable-device `"$($d.InstanceId)`"",
+            "}",
             "Start-Sleep -Seconds 3",
-            "foreach ($d in $btDevs) { Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force }"
+            "foreach ($d in $btDevs) {",
+            "    Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force",
+            "    pnputil /enable-device `"$($d.InstanceId)`"",
+            "}"
         ]
 
         psContent := ""
@@ -478,7 +484,7 @@ RestartBluetooth() {
         FileAppend(psContent, btPs, "UTF-8")
 
         Run('*RunAs powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . btPs . '"', , "Hide")
-        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Visų Class Bluetooth įrenginių perjungimas)")
+        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Comprehensively targeting Bluetooth Class/FriendlyName devices)")
     } catch Error as e {
         LogAppend(FormatTS() " Klaida atliekant Bluetooth reset: " . e.Message)
     }
