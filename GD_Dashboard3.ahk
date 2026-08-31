@@ -765,11 +765,13 @@ ExportToExcel(*) {
         ws.Range("S15:AE15").HorizontalAlignment := -4108
 
         idx := 1
+        factRows := []
         for l in LINES {
             d := Controls[l.name]
             dispName := l.HasOwnProp("displayName") ? l.displayName : l.name
             currR := 15 + (idx - 1) * 4 + 1
             idx++
+            factRows.Push(currR + 1)
 
             ws.Cells(currR, 19).Value := dispName
             rangeStr := "S" . currR . ":S" . (currR + 3)
@@ -808,8 +810,38 @@ ExportToExcel(*) {
         }
 
         maxRow := 15 + LINES.Length * 4
+        grandRow := maxRow + 2
+
+        ws.Range("S" . grandRow . ":T" . grandRow).Merge()
+        ws.Cells(grandRow, 19).Value := "BENDRA SUMA:"
+        ws.Cells(grandRow, 19).Font.Bold := true
+        ws.Cells(grandRow, 19).HorizontalAlignment := -4108
+
+        Loop INTERVALS.Length {
+            i := A_Index
+            colLet := GetColLetter(20 + i)
+            colFactStr := ""
+            for rFact in factRows {
+                colFactStr .= colLet . rFact . ","
+            }
+            colFactStr := RTrim(colFactStr, ",")
+            ws.Cells(grandRow, 20 + i).Formula := "=SUM(" . colFactStr . ")"
+            ws.Cells(grandRow, 20 + i).Font.Bold := true
+            ws.Cells(grandRow, 20 + i).Font.Color := 0xFF0000
+        }
+
+        ws.Cells(grandRow, 31).Formula := "=SUM(U" . grandRow . ":AD" . grandRow . ")"
+        ws.Cells(grandRow, 31).Font.Bold := true
+        ws.Cells(grandRow, 31).Font.Color := 0xFF0000
+        ws.Cells(grandRow, 31).Font.Size := 14
+
+        ws.Range("S" . grandRow . ":AE" . grandRow).Interior.Color := 0xE6E6E6
+
         ws.Range("S15:AE" . maxRow).Borders.LineStyle := 1
         ws.Range("S15:AE" . maxRow).Borders.Weight := 2
+        ws.Range("S" . grandRow . ":AE" . grandRow).Borders.LineStyle := 1
+        ws.Range("S" . grandRow . ":AE" . grandRow).Borders.Weight := 2
+
         ws.Columns("S:AE").AutoFit()
 
         try {
