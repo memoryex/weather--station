@@ -755,26 +755,62 @@ ExportToExcel(*) {
             }
         }
 
+        headers := ["Linija", "Laukas", "6:00-7:00", "7:00-8:00", "8:00-9:00", "9:10-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00", "14:00-15:00", "15:00-16:00", "Viso"]
+        Loop headers.Length {
+            ws.Cells(15, 18 + A_Index).Value := headers[A_Index]
+        }
+        ws.Range("S15:AE15").Font.Bold := true
+        ws.Range("S15:AE15").Font.Color := 0xFFFFFF
+        ws.Range("S15:AE15").Interior.Color := 0x333333
+        ws.Range("S15:AE15").HorizontalAlignment := -4108
+
         idx := 1
         for l in LINES {
             d := Controls[l.name]
-            origKey := l.HasOwnProp("origName") ? l.origName : l.name
-            defaultR := 16 + (idx - 1) * 4
-            rVal := IniRead(CONFIG_FILE, "Mapping", origKey . "_Row", String(defaultR))
-            r := Integer(GetNum(rVal))
-            if (r < 14) {
-                r := defaultR
-            }
+            dispName := l.HasOwnProp("displayName") ? l.displayName : l.name
+            currR := 15 + (idx - 1) * 4 + 1
             idx++
+
+            ws.Cells(currR, 19).Value := dispName
+            rangeStr := "S" . currR . ":S" . (currR + 3)
+            try {
+                ws.Range(rangeStr).Merge()
+            } catch {
+                ; ignore if already merged
+            }
+            ws.Range(rangeStr).Font.Bold := true
+            ws.Range(rangeStr).HorizontalAlignment := -4108
+            ws.Range(rangeStr).VerticalAlignment := -4108
+            ws.Range(rangeStr).Orientation := 90
+
+            ws.Cells(currR, 20).Value := dispName . " Planas"
+            ws.Cells(currR+1, 20).Value := dispName . " Faktas"
+            ws.Cells(currR+2, 20).Value := "Gaminys"
+            ws.Cells(currR+3, 20).Value := "Komentaras"
+
+            bgrCol := HexRGBtoBGR(l.color)
+            ws.Range("T" . currR . ":T" . (currR + 3)).Interior.Color := bgrCol
 
             Loop INTERVALS.Length {
                 i := A_Index
-                ws.Cells(r, 2 + i).Value := d.intervals[i].Plan.Value
-                ws.Cells(r+1, 2 + i).Value := d.intervals[i].Fact.Value
-                ws.Cells(r+2, 2 + i).Value := d.intervals[i].Prod.Value
-                ws.Cells(r+3, 2 + i).Value := d.intervals[i].Comm.Value
+                ws.Cells(currR, 20 + i).Value := d.intervals[i].Plan.Value
+                ws.Cells(currR+1, 20 + i).Value := d.intervals[i].Fact.Value
+                ws.Cells(currR+1, 20 + i).Font.Color := 0xFF0000
+                ws.Cells(currR+1, 20 + i).Font.Bold := true
+                ws.Cells(currR+2, 20 + i).Value := d.intervals[i].Prod.Value
+                ws.Cells(currR+3, 20 + i).Value := d.intervals[i].Comm.Value
             }
+
+            ws.Cells(currR, 31).Formula := "=SUM(U" . currR . ":AD" . currR . ")"
+            ws.Cells(currR+1, 31).Formula := "=SUM(U" . (currR+1) . ":AD" . (currR+1) . ")"
+            ws.Cells(currR+1, 31).Font.Bold := true
+            ws.Cells(currR+1, 31).Font.Color := 0xFF0000
         }
+
+        maxRow := 15 + LINES.Length * 4
+        ws.Range("S15:AE" . maxRow).Borders.LineStyle := 1
+        ws.Range("S15:AE" . maxRow).Borders.Weight := 2
+        ws.Columns("S:AE").AutoFit()
 
         try {
             ws.Protect("gd2024")
