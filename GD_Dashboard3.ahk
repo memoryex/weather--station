@@ -756,81 +756,25 @@ ExportToExcel(*) {
         }
 
         idx := 1
-        maxR := 1
-        factCells := ""
         for l in LINES {
             d := Controls[l.name]
             origKey := l.HasOwnProp("origName") ? l.origName : l.name
-            dispName := l.HasOwnProp("displayName") ? l.displayName : l.name
             defaultR := 16 + (idx - 1) * 4
             rVal := IniRead(CONFIG_FILE, "Mapping", origKey . "_Row", String(defaultR))
-            cVal := IniRead(CONFIG_FILE, "Mapping", origKey . "_Col", "1")
             r := Integer(GetNum(rVal))
-            c := Integer(GetNum(cVal))
             if (r < 14) {
                 r := defaultR
             }
             idx++
-            if (c < 1) {
-                c := 1
-            }
-            if (r + 3 > maxR) {
-                maxR := r + 3
-            }
-
-            ws.Cells(r, c).Value := dispName
-            colLet := GetColLetter(c)
-            rangeStr := colLet . r . ":" . colLet . (r + 3)
-            try {
-                ws.Range(rangeStr).Merge()
-            } catch {
-                ; merge might fail if cell is already merged
-            }
-            ws.Range(rangeStr).Font.Bold := true
-            ws.Range(rangeStr).HorizontalAlignment := -4108
-            ws.Range(rangeStr).VerticalAlignment := -4108
-            ws.Range(rangeStr).Orientation := 90
-
-            ws.Cells(r, c+1).Value := dispName . " Planas"
-            ws.Cells(r+1, c+1).Value := dispName . " Faktas"
-            ws.Cells(r+2, c+1).Value := "Gaminys"
-            ws.Cells(r+3, c+1).Value := "Komentaras"
-
-            ; Background color for mapping column B
-            bgrCol := HexRGBtoBGR(l.color)
-            ws.Range(GetColLetter(c+1) . r . ":" . GetColLetter(c+1) . (r+3)).Interior.Color := bgrCol
 
             Loop INTERVALS.Length {
                 i := A_Index
-                ws.Cells(r, c+1+i).Value := d.intervals[i].Plan.Value
-                ws.Cells(r+1, c+1+i).Value := d.intervals[i].Fact.Value
-                ws.Cells(r+1, c+1+i).Font.Color := 0xFF0000  ; Blue (BGR 0xFF0000 is Blue)
-                ws.Cells(r+1, c+1+i).Font.Bold := true
-                ws.Cells(r+2, c+1+i).Value := d.intervals[i].Prod.Value
-                ws.Cells(r+3, c+1+i).Value := d.intervals[i].Comm.Value
+                ws.Cells(r, 2 + i).Value := d.intervals[i].Plan.Value
+                ws.Cells(r+1, 2 + i).Value := d.intervals[i].Fact.Value
+                ws.Cells(r+2, 2 + i).Value := d.intervals[i].Prod.Value
+                ws.Cells(r+3, 2 + i).Value := d.intervals[i].Comm.Value
             }
-
-            ; Sum formulas for Plan and Fact in column M
-            ws.Cells(r, 13).Formula := "=SUM(" . GetColLetter(c+2) . r . ":" . GetColLetter(c+11) . r . ")"
-            ws.Cells(r+1, 13).Formula := "=SUM(" . GetColLetter(c+2) . (r+1) . ":" . GetColLetter(c+11) . (r+1) . ")"
-            ws.Cells(r+1, 13).Font.Bold := true
-            ws.Cells(r+1, 13).Font.Color := 0xFF0000
-
-            factCells .= "M" . (r + 1) . ","
         }
-
-        grandRow := maxR + 2
-        factCells := RTrim(factCells, ",")
-        ws.Cells(grandRow, 12).Value := "BENDRA SUMA:"
-        ws.Cells(grandRow, 12).Font.Bold := true
-        ws.Cells(grandRow, 12).HorizontalAlignment := -4108
-        ws.Cells(grandRow, 13).Formula := "=SUM(" . factCells . ")"
-        ws.Cells(grandRow, 13).Font.Bold := true
-        ws.Cells(grandRow, 13).Font.Color := 0xFF0000
-        ws.Cells(grandRow, 13).Font.Size := 14
-
-        ; AutoFit column widths
-        ws.Columns("A:N").AutoFit()
 
         try {
             ws.Protect("gd2024")
