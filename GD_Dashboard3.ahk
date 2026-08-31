@@ -734,23 +734,25 @@ ExportToExcel(*) {
         ws := ""
         try {
             ws := wb.Sheets(sN)
+        } catch {
             try {
-                ws.Unprotect("gd2024")
+                tmpl := wb.Sheets(1)
+                tmpl.Copy(, wb.Sheets(wb.Sheets.Count))
+                ws := wb.Sheets(wb.Sheets.Count)
+                ws.Name := sN
             } catch {
-                try {
-                    ws.Unprotect()
-                } catch {
-                    ; ignore
-                }
-            }
-            if (ws.ProtectContents) {
-                ws.Delete()
                 ws := wb.Sheets.Add()
                 ws.Name := sN
             }
+        }
+        try {
+            ws.Unprotect("gd2024")
         } catch {
-            ws := wb.Sheets.Add()
-            ws.Name := sN
+            try {
+                ws.Unprotect()
+            } catch {
+                ; ignore
+            }
         }
 
         idx := 1
