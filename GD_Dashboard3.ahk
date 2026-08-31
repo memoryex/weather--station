@@ -753,15 +753,6 @@ ExportToExcel(*) {
             ws.Name := sN
         }
 
-        headers := ["Linija", "Laukas", "6:00-7:00", "7:00-8:00", "8:00-9:00", "9:10-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00", "14:00-15:00", "15:00-16:00", "Viso"]
-        Loop headers.Length {
-            ws.Cells(1, A_Index).Value := headers[A_Index]
-        }
-        ws.Range("A1:M1").Font.Bold := true
-        ws.Range("A1:M1").Font.Color := 0xFFFFFF
-        ws.Range("A1:M1").Interior.Color := 0x333333
-        ws.Range("A1:M1").HorizontalAlignment := -4108
-
         idx := 1
         maxR := 1
         factCells := ""
@@ -769,16 +760,17 @@ ExportToExcel(*) {
             d := Controls[l.name]
             origKey := l.HasOwnProp("origName") ? l.origName : l.name
             dispName := l.HasOwnProp("displayName") ? l.displayName : l.name
-            rVal := IniRead(CONFIG_FILE, "Mapping", origKey . "_Row", String(2 + (idx - 1) * 4))
+            defaultR := 16 + (idx - 1) * 4
+            rVal := IniRead(CONFIG_FILE, "Mapping", origKey . "_Row", String(defaultR))
             cVal := IniRead(CONFIG_FILE, "Mapping", origKey . "_Col", "1")
             r := Integer(GetNum(rVal))
             c := Integer(GetNum(cVal))
-            if (idx > 1 && r <= 2) {
-                r := 2 + (idx - 1) * 4
+            if (r <= 2) {
+                r := defaultR
             }
             idx++
             if (r < 1) {
-                r := 2
+                r := 16
             }
             if (c < 1) {
                 c := 1
@@ -838,12 +830,8 @@ ExportToExcel(*) {
         ws.Cells(grandRow, 13).Font.Color := 0xFF0000
         ws.Cells(grandRow, 13).Font.Size := 14
 
-        ; Apply thin continuous borders to the entire table
-        ws.Range("A1:M" . grandRow).Borders.LineStyle := 1
-        ws.Range("A1:M" . grandRow).Borders.Weight := 2
-
         ; AutoFit column widths
-        ws.Columns("A:M").AutoFit()
+        ws.Columns("A:N").AutoFit()
 
         try {
             ws.Protect("gd2024")
@@ -964,12 +952,13 @@ ShowSettings(*) {
     for l in LINES {
         origN := l.HasOwnProp("origName") ? l.origName : l.name
         dispN := l.HasOwnProp("displayName") ? l.displayName : l.name
-        rVal := IniRead(CONFIG_FILE, "Mapping", origN . "_Row", String(2 + (idx - 1) * 4))
+        defaultR := 16 + (idx - 1) * 4
+        rVal := IniRead(CONFIG_FILE, "Mapping", origN . "_Row", String(defaultR))
         cVal := IniRead(CONFIG_FILE, "Mapping", origN . "_Col", "1")
         r := Integer(GetNum(rVal))
         c := Integer(GetNum(cVal))
-        if (idx > 1 && r <= 2) {
-            r := 2 + (idx - 1) * 4
+        if (r <= 2) {
+            r := defaultR
         }
         LV.Add(, origN, dispN, String(r), String(c))
         idx++
