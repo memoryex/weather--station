@@ -765,13 +765,10 @@ ExportToExcel(*) {
             cVal := IniRead(CONFIG_FILE, "Mapping", origKey . "_Col", "1")
             r := Integer(GetNum(rVal))
             c := Integer(GetNum(cVal))
-            if (r <= 2) {
+            if (r < 14) {
                 r := defaultR
             }
             idx++
-            if (r < 1) {
-                r := 16
-            }
             if (c < 1) {
                 c := 1
             }
@@ -957,7 +954,7 @@ ShowSettings(*) {
         cVal := IniRead(CONFIG_FILE, "Mapping", origN . "_Col", "1")
         r := Integer(GetNum(rVal))
         c := Integer(GetNum(cVal))
-        if (r <= 2) {
+        if (r < 14) {
             r := defaultR
         }
         LV.Add(, origN, dispN, String(r), String(c))
