@@ -221,7 +221,7 @@ DoReset() {
     ResetPending := false
     NewCount := 0
     if IsObject(NewText)
-        NewText.Value := "Nauji: 0"
+        NewText.Value := "Nauji: 0 vnt."
     ResetBtn.Text := "RESET"
 
     SetTimer(UpdateResetCountdown, 0)
@@ -485,15 +485,15 @@ UpdateOverlayValues() {
     if (!IsObject(OverlayGui))
         return
 
-    TotalText.Value := "Viso: " TotalCount
-    NewText.Value := "Nauji: " NewCount
+    TotalText.Value := "Viso: " TotalCount " vnt."
+    NewText.Value := "Nauji: " NewCount " vnt."
 
     for _, item in Root_Katalogai {
         dir := item.path
         if DirTextCtrls.Has(dir) {
             displayName := GetDirDisplayName(item)
             cnt := DirTotals.Has(dir) ? DirTotals[dir] : 0
-            DirTextCtrls[dir].Value := displayName ": " cnt
+            DirTextCtrls[dir].Value := displayName ": " cnt " vnt."
         }
     }
 }
@@ -546,10 +546,10 @@ RebuildOverlayGui() {
 
     yPos := 15
     OverlayGui.SetFont("s22 bold cWhite", "Arial")
-    TotalText := OverlayGui.AddText("x0 y" yPos " w" Lango_Dydis " Center", "Viso: " TotalCount)
+    TotalText := OverlayGui.AddText("x0 y" yPos " w" Lango_Dydis " Center", "Viso: " TotalCount " vnt.")
 
     yPos += 42
-    NewText := OverlayGui.AddText("x0 y" yPos " w" Lango_Dydis " Center", "Nauji: " NewCount)
+    NewText := OverlayGui.AddText("x0 y" yPos " w" Lango_Dydis " Center", "Nauji: " NewCount " vnt.")
 
     yPos += 45
     OverlayGui.SetFont("s9 bold cYellow", "Arial")
@@ -562,7 +562,7 @@ RebuildOverlayGui() {
         displayName := GetDirDisplayName(item)
         cnt := DirTotals.Has(dir) ? DirTotals[dir] : 0
 
-        ctrl := OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Left", displayName ": " cnt)
+        ctrl := OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Left", displayName ": " cnt " vnt.")
         DirTextCtrls[dir] := ctrl
         yPos += 22
     }
