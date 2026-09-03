@@ -6,10 +6,15 @@ CoordMode "Mouse", "Screen"
 ; =======================================================
 ; NUSTATYMAI (Numatytieji)
 ; =======================================================
+global TS_API_KEY      := "O7IB88R7L2ELXR3Q"
+global TS_FIELD_COUNT  := "field1"
+global TS_ENDPOINT     := "https://api.thingspeak.com/update"
+global TS_MIN_INTERVAL := 15000
+
 global Root_Katalogai := [
-    "C:\Users\EoltUI\Desktop\WIFI ALTA 5.0",
-    "C:\Users\EoltUI\Desktop\WIFI ALTA 5.0 FGT",
-    "C:\Users\EoltUI\Desktop\EP4164_XLEEU_OTA_reprogram"
+    { path: "C:\Users\EoltUI\Desktop\WIFI ALTA 5.0", apiKey: TS_API_KEY, field: TS_FIELD_COUNT },
+    { path: "C:\Users\EoltUI\Desktop\WIFI ALTA 5.0 FGT", apiKey: TS_API_KEY, field: TS_FIELD_COUNT },
+    { path: "C:\Users\EoltUI\Desktop\EP4164_XLEEU_OTA_reprogram", apiKey: TS_API_KEY, field: TS_FIELD_COUNT }
 ]
 
 Langas_Skaidrumas := 200
@@ -21,12 +26,6 @@ Start_Y := 800
 
 BtnWidth := 160
 BtnHeight := 38
-
-; -------- THINGSPEAK --------
-TS_API_KEY      := "O7IB88R7L2ELXR3Q"
-TS_FIELD_COUNT  := "field1"
-TS_ENDPOINT     := "https://api.thingspeak.com/update"
-TS_MIN_INTERVAL := 15000
 
 ; =======================================================
 ; GLOBALAI
@@ -41,7 +40,7 @@ global NewCount := 0
 global ScannedLogs := Map()
 global DirTotals := Map()
 global DirTextCtrls := Map()
-global TS_LAST_SEND := 0
+global TS_LAST_SEND := Map()
 
 global ResetPending := false
 global ResetCountdown := 5
@@ -52,7 +51,7 @@ global SettingsBtn := 0
 ; CONFIG VALDYMAS (settings.ini)
 ; =======================================================
 LoadConfig() {
-    global Root_Katalogai
+    global Root_Katalogai, TS_API_KEY, TS_FIELD_COUNT
     iniPath := A_ScriptDir "\settings.ini"
 
     if (!FileExist(iniPath))
@@ -61,7 +60,18 @@ LoadConfig() {
     try {
         val := IniRead(iniPath, "Settings", "Root_Katalogai", "")
         if (val != "") {
-            loaded := StrSplit(val, "|")
+            loaded := []
+            for item in StrSplit(val, "||") {
+                if (item = "")
+                    continue
+                parts := StrSplit(item, "|")
+                p := parts[1]
+                k := (parts.Length >= 2 && parts[2] != "") ? parts[2] : TS_API_KEY
+                f := (parts.Length >= 3 && parts[3] != "") ? parts[3] : TS_FIELD_COUNT
+                if (p != "") {
+                    loaded.Push({ path: p, apiKey: k, field: f })
+                }
+            }
             if (loaded.Length > 0) {
                 Root_Katalogai := loaded
             }
@@ -74,8 +84,8 @@ SaveConfig() {
     iniPath := A_ScriptDir "\settings.ini"
 
     str := ""
-    for i, dir in Root_Katalogai {
-        str .= (i = 1 ? "" : "|") . dir
+    for i, item in Root_Katalogai {
+        str .= (i = 1 ? "" : "||") . item.path . "|" . item.apiKey . "|" . item.field
     }
 
     try {
@@ -108,8 +118,8 @@ GetDirDisplayName(dir) {
         return dir
 
     dupCount := 0
-    for _, d in Root_Katalogai {
-        SplitPath(d, &n)
+    for _, item in Root_Katalogai {
+        SplitPath(item.path, &n)
         if (n = outName)
             dupCount++
     }
@@ -203,44 +213,80 @@ OnSettingsClick(*) {
 }
 
 OpenSettingsGui() {
-    global SettingsGui, Root_Katalogai
+    global SettingsGui, Root_Katalogai, TS_API_KEY, TS_FIELD_COUNT
 
-    SettingsGui := Gui("+AlwaysOnTop +ToolWindow", "Katalogų nustatymai")
-    SettingsGui.SetFont("s10", "Segoe UI")
+    SettingsGui := Gui("+AlwaysOnTop +ToolWindow", "Katalogų / Termostatų nustatymai")
+    SettingsGui.SetFont("s9", "Segoe UI")
 
-    SettingsGui.AddText("x10 y10 w480", "Stebimi katalogai:")
+    SettingsGui.AddText("x10 y10 w580", "Stebimi katalogai (Termostatai) ir ThingSpeak nustatymai:")
 
-    LV := SettingsGui.Add("ListView", "x10 y35 w480 h200 -Multi Grid", ["Katalogas"])
-    for _, dir in Root_Katalogai {
-        LV.Add("", dir)
+    LV := SettingsGui.Add("ListView", "x10 y32 w580 h160 -Multi Grid", ["Katalogas", "API Raktas (Write Key)", "Laukas"])
+    for _, item in Root_Katalogai {
+        LV.Add("", item.path, item.apiKey, item.field)
     }
-    LV.ModifyCol(1, 460)
+    LV.ModifyCol(1, 260)
+    LV.ModifyCol(2, 200)
+    LV.ModifyCol(3, 100)
 
-    BtnAdd := SettingsGui.Add("Button", "x10 y245 w140 h32", "Pridėti katalogą")
-    BtnDel := SettingsGui.Add("Button", "x160 y245 w140 h32", "Pašalinti pasirinktą")
-    BtnSave := SettingsGui.Add("Button", "x310 y245 w85 h32", "Išsaugoti")
-    BtnCancel := SettingsGui.Add("Button", "x405 y245 w85 h32", "Atšaukti")
+    SettingsGui.AddGroupBox("x10 y200 w580 h70", "Pasirinkto įrašo nustatymai")
+    SettingsGui.AddText("x20 y222 w140", "API Raktas (Write Key):")
+    EditKey := SettingsGui.Add("Edit", "x20 y240 w220 h24", TS_API_KEY)
 
-    BtnAdd.OnEvent("Click", (*) => OnAddDir(LV))
+    SettingsGui.AddText("x250 y222 w100", "Laukas:")
+    EditField := SettingsGui.Add("Edit", "x250 y240 w100 h24", TS_FIELD_COUNT)
+
+    BtnUpdateRow := SettingsGui.Add("Button", "x360 y240 w120 h24", "Išsaugoti eilutę")
+
+    BtnAdd := SettingsGui.Add("Button", "x10 y280 w140 h32", "Pridėti katalogą")
+    BtnDel := SettingsGui.Add("Button", "x160 y280 w140 h32", "Pašalinti pasirinktą")
+    BtnSave := SettingsGui.Add("Button", "x380 y280 w90 h32", "Išsaugoti viską")
+    BtnCancel := SettingsGui.Add("Button", "x480 y280 w90 h32", "Atšaukti")
+
+    LV.OnEvent("ItemSelect", (*) => OnLVSelect(LV, EditKey, EditField))
+    BtnUpdateRow.OnEvent("Click", (*) => OnUpdateRow(LV, EditKey, EditField))
+    BtnAdd.OnEvent("Click", (*) => OnAddDir(LV, EditKey, EditField))
     BtnDel.OnEvent("Click", (*) => OnDelDir(LV))
-    BtnSave.OnEvent("Click", (*) => OnSaveSettings(LV))
+    BtnSave.OnEvent("Click", (*) => OnSaveSettings(LV, EditKey, EditField))
     BtnCancel.OnEvent("Click", (*) => SettingsGui.Destroy())
     SettingsGui.OnEvent("Close", (*) => (SettingsGui := 0))
 
-    SettingsGui.Show("w500 h290")
+    SettingsGui.Show("w600 h325")
 }
 
-OnAddDir(LV) {
+OnLVSelect(LV, EditKey, EditField) {
+    row := LV.GetNext(0)
+    if (row > 0) {
+        EditKey.Value := LV.GetText(row, 2)
+        EditField.Value := LV.GetText(row, 3)
+    }
+}
+
+OnUpdateRow(LV, EditKey, EditField) {
+    row := LV.GetNext(0)
+    if (row > 0) {
+        LV.Modify(row, "Col2", EditKey.Value)
+        LV.Modify(row, "Col3", EditField.Value)
+    } else {
+        MsgBox("Pasirinkite lentelės eilutę, kurią norite atnaujinti.", "Informacija", "64")
+    }
+}
+
+OnAddDir(LV, EditKey, EditField) {
+    global TS_API_KEY, TS_FIELD_COUNT
     chosen := DirSelect("", 3, "Pasirinkite stebimą katalogą")
     if (chosen != "") {
         Loop LV.GetCount() {
-            if (StrCompare(LV.GetText(A_Index), chosen, true) = 0) {
+            if (StrCompare(LV.GetText(A_Index, 1), chosen, true) = 0) {
                 MsgBox("Šis katalogas jau yra sąraše!", "Informacija", "64")
                 return
             }
         }
-        LV.Add("", chosen)
-        LV.ModifyCol(1, 460)
+        k := (EditKey.Value != "") ? EditKey.Value : TS_API_KEY
+        f := (EditField.Value != "") ? EditField.Value : TS_FIELD_COUNT
+        LV.Add("", chosen, k, f)
+        LV.ModifyCol(1, 260)
+        LV.ModifyCol(2, 200)
+        LV.ModifyCol(3, 100)
     }
 }
 
@@ -253,14 +299,22 @@ OnDelDir(LV) {
     }
 }
 
-OnSaveSettings(LV) {
+OnSaveSettings(LV, EditKey, EditField) {
     global Root_Katalogai, SettingsGui
+
+    row := LV.GetNext(0)
+    if (row > 0) {
+        LV.Modify(row, "Col2", EditKey.Value)
+        LV.Modify(row, "Col3", EditField.Value)
+    }
 
     newDirs := []
     Loop LV.GetCount() {
-        path := LV.GetText(A_Index)
-        if (path != "") {
-            newDirs.Push(path)
+        p := LV.GetText(A_Index, 1)
+        k := LV.GetText(A_Index, 2)
+        f := LV.GetText(A_Index, 3)
+        if (p != "") {
+            newDirs.Push({ path: p, apiKey: k, field: f })
         }
     }
 
@@ -289,7 +343,8 @@ InitLogCounts() {
     TotalCount := 0
     NewCount := 0
 
-    for _, dir in Root_Katalogai {
+    for _, item in Root_Katalogai {
+        dir := item.path
         DirTotals[dir] := 0
 
         if !DirExist(dir)
@@ -325,7 +380,8 @@ TikrintiKataloga() {
 
     hasNewData := false
 
-    for _, dir in Root_Katalogai {
+    for _, item in Root_Katalogai {
+        dir := item.path
         if !DirTotals.Has(dir)
             DirTotals[dir] := 0
 
@@ -355,6 +411,8 @@ TikrintiKataloga() {
                     DirTotals[dir] += diff
 
                     hasNewData := true
+
+                    TS_Send(diff, item.apiKey, item.field)
                 }
 
                 ScannedLogs[file] := cnt
@@ -363,10 +421,6 @@ TikrintiKataloga() {
     }
 
     UpdateOverlayValues()
-
-    if (hasNewData) {
-        TS_Send(NewCount)
-    }
 }
 
 UpdateOverlayValues() {
@@ -378,7 +432,8 @@ UpdateOverlayValues() {
     TotalText.Value := "Viso: " TotalCount
     NewText.Value := "Nauji: " NewCount
 
-    for _, dir in Root_Katalogai {
+    for _, item in Root_Katalogai {
+        dir := item.path
         if DirTextCtrls.Has(dir) {
             displayName := GetDirDisplayName(dir)
             cnt := DirTotals.Has(dir) ? DirTotals[dir] : 0
@@ -390,13 +445,22 @@ UpdateOverlayValues() {
 ; =======================================================
 ; THINGSPEAK
 ; =======================================================
-TS_Send(value) {
+TS_Send(value, apiKey := "", field := "") {
     global TS_API_KEY, TS_FIELD_COUNT, TS_ENDPOINT, TS_MIN_INTERVAL, TS_LAST_SEND
 
-    if (A_TickCount - TS_LAST_SEND < TS_MIN_INTERVAL)
+    keyToSend := (apiKey != "") ? apiKey : TS_API_KEY
+    fieldToSend := (field != "") ? field : TS_FIELD_COUNT
+
+    if (keyToSend = "")
         return
 
-    body := "api_key=" TS_API_KEY "&" TS_FIELD_COUNT "=" value
+    tsKey := keyToSend "_" fieldToSend
+    lastSend := TS_LAST_SEND.Has(tsKey) ? TS_LAST_SEND[tsKey] : 0
+
+    if (A_TickCount - lastSend < TS_MIN_INTERVAL)
+        return
+
+    body := "api_key=" keyToSend "&" fieldToSend "=" value
 
     try {
         req := ComObject("WinHttp.WinHttpRequest.5.1")
@@ -404,7 +468,7 @@ TS_Send(value) {
         req.SetRequestHeader("Content-Type", "application/x-www-form-urlencoded")
         req.Send(body)
         if (req.Status = 200)
-            TS_LAST_SEND := A_TickCount
+            TS_LAST_SEND[tsKey] := A_TickCount
     }
 }
 
@@ -433,11 +497,12 @@ RebuildOverlayGui() {
 
     yPos += 45
     OverlayGui.SetFont("s9 bold cYellow", "Arial")
-    OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Center", "--- KATALOGAI ---")
+    OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Center", "--- TERMOSTATAI ---")
 
     yPos += 20
     OverlayGui.SetFont("s10 bold cWhite", "Arial")
-    for _, dir in Root_Katalogai {
+    for _, item in Root_Katalogai {
+        dir := item.path
         displayName := GetDirDisplayName(dir)
         cnt := DirTotals.Has(dir) ? DirTotals[dir] : 0
 
