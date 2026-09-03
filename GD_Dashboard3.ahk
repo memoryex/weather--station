@@ -60,7 +60,6 @@ global MainGui := ""
 global Calendar := ""
 global StatusText := ""
 global Tabs := ""
-global HeaderGui := ""
 global HeaderIntervalControls := []
 global ChildGuis := Map()
 global ActiveChild := ""
@@ -521,18 +520,15 @@ LoadDateData(force := false) {
 ; =======================================================
 
 OnMainSize(guiObj, minMax, width, height) {
-    global Tabs, HeaderGui, ActiveChild, ChildGuis
+    global Tabs, ActiveChild, ChildGuis
     if (minMax = -1) {
         return
     }
     if IsObject(Tabs) {
         Tabs.Move(,, width - 20)
     }
-    if IsObject(HeaderGui) {
-        HeaderGui.Show("x10 y85 w" . (width - 20) . " h25")
-    }
     if (ActiveChild != "" && ChildGuis.Has(ActiveChild)) {
-        ChildGuis[ActiveChild].Show("x10 y110 w" . (width - 20) . " h" . (height - 115))
+        ChildGuis[ActiveChild].Show("x10 y75 w" . (width - 20) . " h" . (height - 80))
         UpdateScrollBars(ChildGuis[ActiveChild])
     }
 }
@@ -550,16 +546,13 @@ GoNextDay(*) {
 }
 
 HandleTabChange(ctrl, *) {
-    global ActiveChild, ChildGuis, MainGui, Calendar, HeaderGui
+    global ActiveChild, ChildGuis, MainGui, Calendar
     if (ActiveChild != "") {
         ChildGuis[ActiveChild].Hide()
     }
     MainGui.GetClientPos(,, &guiW, &guiH)
-    if IsObject(HeaderGui) {
-        HeaderGui.Show("x10 y85 w" . (guiW - 20) . " h25")
-    }
     if ChildGuis.Has(ctrl.Text) {
-        ChildGuis[ctrl.Text].Show("x10 y110 w" . (guiW - 20) . " h" . (guiH - 115))
+        ChildGuis[ctrl.Text].Show("x10 y75 w" . (guiW - 20) . " h" . (guiH - 80))
         ActiveChild := ctrl.Text
         UpdateScrollBars(ChildGuis[ActiveChild], true)
         if IsObject(Calendar) {
@@ -584,7 +577,7 @@ UpdateScrollBars(GuiObj, reset := false) {
             numLines++
         }
     }
-    contentH := 5 + (numLines * 120) + 40 + 100 + 50
+    contentH := 15 + (numLines * 120) + 40 + 100 + 50
     si := Buffer(28, 0)
     NumPut("UInt", 28, si, 0)
     NumPut("UInt", SIF_ALL, si, 4)
@@ -888,7 +881,7 @@ ToggleTheme(*) {
 
 
 ApplyTheme() {
-    global MainGui, HeaderGui, ChildGuis, TextControls, BtnTheme, StatusText, Controls, TabFooters, CURRENT_THEME, INTERVALS
+    global MainGui, ChildGuis, TextControls, BtnTheme, StatusText, Controls, TabFooters, CURRENT_THEME, INTERVALS
     isDark := (CURRENT_THEME = "Dark")
     if IsObject(BtnTheme) {
         BtnTheme.Text := "Tema: " . (isDark ? "Tamsi" : "Šviesi")
@@ -902,9 +895,6 @@ ApplyTheme() {
 
     if IsObject(MainGui) {
         MainGui.BackColor := mainBg
-    }
-    if IsObject(HeaderGui) {
-        HeaderGui.BackColor := mainBg
     }
 
     for tName, cG in ChildGuis {
@@ -1097,23 +1087,6 @@ StatusText := MainGui.Add("Text", "x820 y15 w600", "Kraunama...")
 Tabs := MainGui.Add("Tab3", "x10 y45 w1520 h30", ["PLXE", "NOBO", "Kiti", "Perrašymas"])
 Tabs.OnEvent("Change", HandleTabChange)
 
-HeaderGui := Gui("-Caption +Parent" . MainGui.Hwnd)
-HeaderGui.BackColor := "F0F0F0"
-HeaderGui.SetFont("s9 bold")
-
-Loop INTERVALS.Length {
-    idx := A_Index
-    X := 230 + (idx-1) * 95
-    ctrl := HeaderGui.Add("Text", "x" . X . " y2 w90 h20 Center", INTERVALS[idx][1] . "-" . INTERVALS[idx][2])
-    TextControls.Push(ctrl)
-    HeaderIntervalControls.Push(ctrl)
-}
-TextControls.Push(HeaderGui.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y2 w90 h20 Center", "Viso"))
-TextControls.Push(HeaderGui.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y2 w120 h20 Center", "Vidurkis"))
-TextControls.Push(HeaderGui.Add("Text", "x1380 y2 w130 h20 Center", "Paskutinis testas"))
-HeaderGui.SetFont("s9 norm")
-HeaderGui.Show("x10 y80 w1520 h25")
-
 for tName in ["PLXE", "NOBO", "Kiti", "Perrašymas"] {
     cG := Gui("-Caption +Parent" . MainGui.Hwnd . " +0x00200000")
     cG.BackColor := "White"
@@ -1123,16 +1096,16 @@ for tName in ["PLXE", "NOBO", "Kiti", "Perrašymas"] {
     Loop INTERVALS.Length {
         idx := A_Index
         X := 230 + (idx-1) * 95
-        ctrlTab := cG.Add("Text", "x" . X . " y5 w90 h20 Center", INTERVALS[idx][1] . "-" . INTERVALS[idx][2])
+        ctrlTab := cG.Add("Text", "x" . X . " y15 w90 h20 Center", INTERVALS[idx][1] . "-" . INTERVALS[idx][2])
         TextControls.Push(ctrlTab)
         HeaderIntervalControls.Push(ctrlTab)
     }
-    TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y5 w90 h20 Center", "Viso"))
-    TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y5 w120 h20 Center", "Vidurkis"))
-    TextControls.Push(cG.Add("Text", "x1380 y5 w130 h20 Center", "Paskutinis testas"))
+    TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y15 w90 h20 Center", "Viso"))
+    TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y15 w120 h20 Center", "Vidurkis"))
+    TextControls.Push(cG.Add("Text", "x1380 y15 w130 h20 Center", "Paskutinis testas"))
     cG.SetFont("s9 norm")
 
-    curY := 35
+    curY := 45
     for l in LINES {
         if (l.tab = tName) {
             name := l.name
