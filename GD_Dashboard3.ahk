@@ -172,14 +172,19 @@ UpdateCalculations() {
                 lPlanC++
             }
             if (pVal > 0) {
-                clr := (fVal >= pVal) ? "Background90EE90 cBlack" : "BackgroundFF7F7F cBlack"
+                clr := (fVal >= pVal) ? "Background90EE90" : "BackgroundFF7F7F"
                 io.Plan.Opt(clr)
+                io.Plan.SetFont("cBlack")
                 io.Fact.Opt(clr)
+                io.Fact.SetFont("cBlack")
             } else {
-                clrP := (CURRENT_THEME = "Dark") ? "Background333333 cFFFFFF" : "BackgroundWhite cBlack"
-                clrF := (CURRENT_THEME = "Dark") ? "Background2D2D2D cFFFFFF" : "BackgroundWhite cBlack"
+                clrP := (CURRENT_THEME = "Dark") ? "Background333333" : "BackgroundWhite"
+                clrF := (CURRENT_THEME = "Dark") ? "Background2D2D2D" : "BackgroundWhite"
+                txtC := (CURRENT_THEME = "Dark") ? "cFFFFFF" : "cBlack"
                 io.Plan.Opt(clrP)
+                io.Plan.SetFont(txtC)
                 io.Fact.Opt(clrF)
+                io.Fact.SetFont(txtC)
             }
             io.Plan.Redraw()
             io.Fact.Redraw()
@@ -891,32 +896,41 @@ ApplyTheme() {
     }
 
     for ctrl in TextControls {
-        ctrl.Opt(txtColor)
+        ctrl.Opt("+BackgroundTrans")
+        ctrl.SetFont(txtColor)
         ctrl.Redraw()
     }
 
     if IsObject(StatusText) {
-        StatusText.Opt(isDark ? "cE0E0E0" : "cBlack")
+        StatusText.Opt("+BackgroundTrans")
+        StatusText.SetFont(isDark ? "cE0E0E0" : "cBlack")
         StatusText.Redraw()
     }
 
     for name, data in Controls {
         for idx, io in data.intervals {
-            io.Prod.Opt(editBg . " " . txtColor)
+            io.Prod.Opt(editBg)
+            io.Prod.SetFont(txtColor)
             io.Prod.Redraw()
-            io.Comm.Opt(editBg . " " . (isDark ? "cFF6666" : "cRed"))
+            io.Comm.Opt(editBg)
+            io.Comm.SetFont(isDark ? "cFF6666" : "cRed")
             io.Comm.Redraw()
         }
-        data.planTotal.Opt(readOnlyBg . " " . txtColor)
+        data.planTotal.Opt(readOnlyBg)
+        data.planTotal.SetFont(txtColor)
         data.planTotal.Redraw()
-        data.factTotal.Opt(readOnlyBg . " " . txtColor)
+        data.factTotal.Opt(readOnlyBg)
+        data.factTotal.SetFont(txtColor)
         data.factTotal.Redraw()
-        data.planAvg.Opt(readOnlyBg . " " . txtColor)
+        data.planAvg.Opt(readOnlyBg)
+        data.planAvg.SetFont(txtColor)
         data.planAvg.Redraw()
-        data.factAvg.Opt(readOnlyBg . " " . txtColor)
+        data.factAvg.Opt(readOnlyBg)
+        data.factAvg.SetFont(txtColor)
         data.factAvg.Redraw()
         if data.HasOwnProp("lastTest") && IsObject(data.lastTest) {
-            data.lastTest.Opt(readOnlyBg . " " . txtColor)
+            data.lastTest.Opt(readOnlyBg)
+            data.lastTest.SetFont(txtColor)
             data.lastTest.Redraw()
         }
     }
@@ -924,14 +938,18 @@ ApplyTheme() {
     for tName, f in TabFooters {
         Loop INTERVALS.Length {
             i := A_Index
-            f.Fact[i].Opt(readOnlyBg . " " . (isDark ? "cFF6666" : "cRed"))
+            f.Fact[i].Opt(readOnlyBg)
+            f.Fact[i].SetFont(isDark ? "cFF6666" : "cRed")
             f.Fact[i].Redraw()
-            f.Plan[i].Opt(readOnlyBg . " " . txtColor)
+            f.Plan[i].Opt(readOnlyBg)
+            f.Plan[i].SetFont(txtColor)
             f.Plan[i].Redraw()
-            f.Pct[i].Opt(readOnlyBg . " " . txtColor)
+            f.Pct[i].Opt(readOnlyBg)
+            f.Pct[i].SetFont(txtColor)
             f.Pct[i].Redraw()
         }
-        f.Grand.Opt(readOnlyBg . " " . txtColor)
+        f.Grand.Opt(readOnlyBg)
+        f.Grand.SetFont(txtColor)
         f.Grand.Redraw()
     }
 
@@ -1074,11 +1092,11 @@ for tName in ["PLXE", "NOBO", "Kiti", "Perrašymas"] {
     Loop INTERVALS.Length {
         idx := A_Index
         X := 230 + (idx-1) * 95
-        TextControls.Push(cG.Add("Text", "x" . X . " y5 w90 h20 Center", INTERVALS[idx][1] . "-" . INTERVALS[idx][2]))
+        TextControls.Push(cG.Add("Text", "x" . X . " y5 w90 h20 Center +BackgroundTrans", INTERVALS[idx][1] . "-" . INTERVALS[idx][2]))
     }
-    TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y5 w90 h20 Center", "Viso"))
-    TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y5 w120 h20 Center", "Vidurkis"))
-    TextControls.Push(cG.Add("Text", "x1380 y5 w130 h20 Center", "Paskutinis testas"))
+    TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y5 w90 h20 Center +BackgroundTrans", "Viso"))
+    TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y5 w120 h20 Center +BackgroundTrans", "Vidurkis"))
+    TextControls.Push(cG.Add("Text", "x1380 y5 w130 h20 Center +BackgroundTrans", "Paskutinis testas"))
     cG.SetFont("s9 norm")
 
     curY := 35
