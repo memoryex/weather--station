@@ -1122,13 +1122,13 @@ for tName in ["PLXE", "NOBO", "Kiti", "Perrašymas"] {
     Loop INTERVALS.Length {
         idx := A_Index
         X := 230 + (idx-1) * 95
-        ctrlTab := cG.Add("Text", "x" . X . " y5 w90 h20 Center", INTERVALS[idx][1] . "-" . INTERVALS[idx][2])
+        ctrlTab := cG.Add("Text", "x" . X . " y15 w90 h20 Center", INTERVALS[idx][1] . "-" . INTERVALS[idx][2])
         TextControls.Push(ctrlTab)
         HeaderIntervalControls.Push(ctrlTab)
     }
-    TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y5 w90 h20 Center", "Viso"))
-    TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y5 w120 h20 Center", "Vidurkis"))
-    TextControls.Push(cG.Add("Text", "x1380 y5 w130 h20 Center", "Paskutinis testas"))
+    TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y15 w90 h20 Center", "Viso"))
+    TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y15 w120 h20 Center", "Vidurkis"))
+    TextControls.Push(cG.Add("Text", "x1380 y15 w130 h20 Center", "Paskutinis testas"))
     cG.SetFont("s9 norm")
 
     curY := 45
