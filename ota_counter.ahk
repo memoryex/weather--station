@@ -12,9 +12,9 @@ global TS_ENDPOINT     := "https://api.thingspeak.com/update"
 global TS_MIN_INTERVAL := 15000
 
 global Root_Katalogai := [
-    { path: "C:\Users\EoltUI\Desktop\WIFI ALTA 5.0", apiKey: TS_API_KEY, field: TS_FIELD_COUNT },
-    { path: "C:\Users\EoltUI\Desktop\WIFI ALTA 5.0 FGT", apiKey: TS_API_KEY, field: TS_FIELD_COUNT },
-    { path: "C:\Users\EoltUI\Desktop\EP4164_XLEEU_OTA_reprogram", apiKey: TS_API_KEY, field: TS_FIELD_COUNT }
+    { path: "C:\Users\EoltUI\Desktop\WIFI ALTA 5.0", name: "WIFI ALTA 5.0", apiKey: TS_API_KEY, field: TS_FIELD_COUNT },
+    { path: "C:\Users\EoltUI\Desktop\WIFI ALTA 5.0 FGT", name: "WIFI ALTA 5.0 FGT", apiKey: TS_API_KEY, field: TS_FIELD_COUNT },
+    { path: "C:\Users\EoltUI\Desktop\EP4164_XLEEU_OTA_reprogram", name: "EP4164_XLEEU_OTA_reprogram", apiKey: TS_API_KEY, field: TS_FIELD_COUNT }
 ]
 
 Langas_Skaidrumas := 200
@@ -66,10 +66,23 @@ LoadConfig() {
                     continue
                 parts := StrSplit(item, "|")
                 p := parts[1]
-                k := (parts.Length >= 2 && parts[2] != "") ? parts[2] : TS_API_KEY
-                f := (parts.Length >= 3 && parts[3] != "") ? parts[3] : TS_FIELD_COUNT
+                n := ""
+                k := TS_API_KEY
+                f := TS_FIELD_COUNT
+
+                if (parts.Length >= 4) {
+                    n := parts[2]
+                    k := (parts[3] != "") ? parts[3] : TS_API_KEY
+                    f := (parts[4] != "") ? parts[4] : TS_FIELD_COUNT
+                } else if (parts.Length = 3) {
+                    k := (parts[2] != "") ? parts[2] : TS_API_KEY
+                    f := (parts[3] != "") ? parts[3] : TS_FIELD_COUNT
+                } else if (parts.Length = 2) {
+                    n := parts[2]
+                }
+
                 if (p != "") {
-                    loaded.Push({ path: p, apiKey: k, field: f })
+                    loaded.Push({ path: p, name: n, apiKey: k, field: f })
                 }
             }
             if (loaded.Length > 0) {
@@ -85,7 +98,7 @@ SaveConfig() {
 
     str := ""
     for i, item in Root_Katalogai {
-        str .= (i = 1 ? "" : "||") . item.path . "|" . item.apiKey . "|" . item.field
+        str .= (i = 1 ? "" : "||") . item.path . "|" . item.name . "|" . item.apiKey . "|" . item.field
     }
 
     try {
@@ -111,16 +124,24 @@ MakeWindowClickThrough(hwnd) {
     DllCall("SetWindowLongPtr", "ptr", hwnd, "int", -20, "ptr", style | 0x20 | 0x80000)
 }
 
-GetDirDisplayName(dir) {
+GetDirDisplayName(item) {
     global Root_Katalogai
-    SplitPath(dir, &outName, &outDir)
+
+    p := IsObject(item) ? item.path : item
+    n := (IsObject(item) && item.HasOwnProp("name")) ? item.name : ""
+
+    if (n != "")
+        return n
+
+    SplitPath(p, &outName, &outDir)
     if (outName = "")
-        return dir
+        return p
 
     dupCount := 0
-    for _, item in Root_Katalogai {
-        SplitPath(item.path, &n)
-        if (n = outName)
+    for _, it in Root_Katalogai {
+        pathToCheck := IsObject(it) ? it.path : it
+        SplitPath(pathToCheck, &fn)
+        if (fn = outName)
             dupCount++
     }
 
@@ -218,60 +239,67 @@ OpenSettingsGui() {
     SettingsGui := Gui("+AlwaysOnTop +ToolWindow", "Katalogų / Termostatų nustatymai")
     SettingsGui.SetFont("s9", "Segoe UI")
 
-    SettingsGui.AddText("x10 y10 w580", "Stebimi katalogai (Termostatai) ir ThingSpeak nustatymai:")
+    SettingsGui.AddText("x10 y10 w680", "Stebimi katalogai (Termostatai), pavadinimai ir ThingSpeak nustatymai:")
 
-    LV := SettingsGui.Add("ListView", "x10 y32 w580 h160 -Multi Grid", ["Katalogas", "API Raktas (Write Key)", "Laukas"])
+    LV := SettingsGui.Add("ListView", "x10 y32 w680 h160 -Multi Grid", ["Katalogas", "Pavadinimas", "API Raktas (Write Key)", "Laukas"])
     for _, item in Root_Katalogai {
-        LV.Add("", item.path, item.apiKey, item.field)
+        LV.Add("", item.path, item.name, item.apiKey, item.field)
     }
-    LV.ModifyCol(1, 260)
-    LV.ModifyCol(2, 200)
-    LV.ModifyCol(3, 100)
+    LV.ModifyCol(1, 240)
+    LV.ModifyCol(2, 160)
+    LV.ModifyCol(3, 180)
+    LV.ModifyCol(4, 80)
 
-    SettingsGui.AddGroupBox("x10 y200 w580 h70", "Pasirinkto įrašo nustatymai")
-    SettingsGui.AddText("x20 y222 w140", "API Raktas (Write Key):")
-    EditKey := SettingsGui.Add("Edit", "x20 y240 w220 h24", TS_API_KEY)
+    SettingsGui.AddGroupBox("x10 y200 w680 h70", "Pasirinkto įrašo nustatymai")
 
-    SettingsGui.AddText("x250 y222 w100", "Laukas:")
-    EditField := SettingsGui.Add("Edit", "x250 y240 w100 h24", TS_FIELD_COUNT)
+    SettingsGui.AddText("x20 y222 w160", "Pavadinimas (Rodyti kaip):")
+    EditName := SettingsGui.Add("Edit", "x20 y240 w160 h24", "")
 
-    BtnUpdateRow := SettingsGui.Add("Button", "x360 y240 w120 h24", "Išsaugoti eilutę")
+    SettingsGui.AddText("x190 y222 w200", "API Raktas (Write Key):")
+    EditKey := SettingsGui.Add("Edit", "x190 y240 w200 h24", TS_API_KEY)
 
-    BtnAdd := SettingsGui.Add("Button", "x10 y280 w140 h32", "Pridėti katalogą")
-    BtnDel := SettingsGui.Add("Button", "x160 y280 w140 h32", "Pašalinti pasirinktą")
-    BtnSave := SettingsGui.Add("Button", "x380 y280 w90 h32", "Išsaugoti viską")
-    BtnCancel := SettingsGui.Add("Button", "x480 y280 w90 h32", "Atšaukti")
+    SettingsGui.AddText("x400 y222 w100", "Laukas:")
+    EditField := SettingsGui.Add("Edit", "x400 y240 w100 h24", TS_FIELD_COUNT)
 
-    LV.OnEvent("ItemSelect", (*) => OnLVSelect(LV, EditKey, EditField))
-    BtnUpdateRow.OnEvent("Click", (*) => OnUpdateRow(LV, EditKey, EditField))
-    BtnAdd.OnEvent("Click", (*) => OnAddDir(LV, EditKey, EditField))
+    BtnUpdateRow := SettingsGui.Add("Button", "x510 y240 w160 h24", "Išsaugoti eilutę")
+
+    BtnAdd := SettingsGui.Add("Button", "x10 y280 w150 h32", "Pridėti katalogą")
+    BtnDel := SettingsGui.Add("Button", "x170 y280 w150 h32", "Pašalinti pasirinktą")
+    BtnSave := SettingsGui.Add("Button", "x470 y280 w100 h32", "Išsaugoti viską")
+    BtnCancel := SettingsGui.Add("Button", "x580 y280 w100 h32", "Atšaukti")
+
+    LV.OnEvent("ItemSelect", (*) => OnLVSelect(LV, EditName, EditKey, EditField))
+    BtnUpdateRow.OnEvent("Click", (*) => OnUpdateRow(LV, EditName, EditKey, EditField))
+    BtnAdd.OnEvent("Click", (*) => OnAddDir(LV, EditName, EditKey, EditField))
     BtnDel.OnEvent("Click", (*) => OnDelDir(LV))
-    BtnSave.OnEvent("Click", (*) => OnSaveSettings(LV, EditKey, EditField))
+    BtnSave.OnEvent("Click", (*) => OnSaveSettings(LV, EditName, EditKey, EditField))
     BtnCancel.OnEvent("Click", (*) => SettingsGui.Destroy())
     SettingsGui.OnEvent("Close", (*) => (SettingsGui := 0))
 
-    SettingsGui.Show("w600 h325")
+    SettingsGui.Show("w700 h325")
 }
 
-OnLVSelect(LV, EditKey, EditField) {
+OnLVSelect(LV, EditName, EditKey, EditField) {
     row := LV.GetNext(0)
     if (row > 0) {
-        EditKey.Value := LV.GetText(row, 2)
-        EditField.Value := LV.GetText(row, 3)
+        EditName.Value := LV.GetText(row, 2)
+        EditKey.Value := LV.GetText(row, 3)
+        EditField.Value := LV.GetText(row, 4)
     }
 }
 
-OnUpdateRow(LV, EditKey, EditField) {
+OnUpdateRow(LV, EditName, EditKey, EditField) {
     row := LV.GetNext(0)
     if (row > 0) {
-        LV.Modify(row, "Col2", EditKey.Value)
-        LV.Modify(row, "Col3", EditField.Value)
+        LV.Modify(row, "Col2", EditName.Value)
+        LV.Modify(row, "Col3", EditKey.Value)
+        LV.Modify(row, "Col4", EditField.Value)
     } else {
         MsgBox("Pasirinkite lentelės eilutę, kurią norite atnaujinti.", "Informacija", "64")
     }
 }
 
-OnAddDir(LV, EditKey, EditField) {
+OnAddDir(LV, EditName, EditKey, EditField) {
     global TS_API_KEY, TS_FIELD_COUNT
     chosen := DirSelect("", 3, "Pasirinkite stebimą katalogą")
     if (chosen != "") {
@@ -281,12 +309,15 @@ OnAddDir(LV, EditKey, EditField) {
                 return
             }
         }
+        SplitPath(chosen, &folderName)
+        dispName := (EditName.Value != "") ? EditName.Value : folderName
         k := (EditKey.Value != "") ? EditKey.Value : TS_API_KEY
         f := (EditField.Value != "") ? EditField.Value : TS_FIELD_COUNT
-        LV.Add("", chosen, k, f)
-        LV.ModifyCol(1, 260)
-        LV.ModifyCol(2, 200)
-        LV.ModifyCol(3, 100)
+        LV.Add("", chosen, dispName, k, f)
+        LV.ModifyCol(1, 240)
+        LV.ModifyCol(2, 160)
+        LV.ModifyCol(3, 180)
+        LV.ModifyCol(4, 80)
     }
 }
 
@@ -299,22 +330,24 @@ OnDelDir(LV) {
     }
 }
 
-OnSaveSettings(LV, EditKey, EditField) {
+OnSaveSettings(LV, EditName, EditKey, EditField) {
     global Root_Katalogai, SettingsGui
 
     row := LV.GetNext(0)
     if (row > 0) {
-        LV.Modify(row, "Col2", EditKey.Value)
-        LV.Modify(row, "Col3", EditField.Value)
+        LV.Modify(row, "Col2", EditName.Value)
+        LV.Modify(row, "Col3", EditKey.Value)
+        LV.Modify(row, "Col4", EditField.Value)
     }
 
     newDirs := []
     Loop LV.GetCount() {
         p := LV.GetText(A_Index, 1)
-        k := LV.GetText(A_Index, 2)
-        f := LV.GetText(A_Index, 3)
+        n := LV.GetText(A_Index, 2)
+        k := LV.GetText(A_Index, 3)
+        f := LV.GetText(A_Index, 4)
         if (p != "") {
-            newDirs.Push({ path: p, apiKey: k, field: f })
+            newDirs.Push({ path: p, name: n, apiKey: k, field: f })
         }
     }
 
@@ -435,7 +468,7 @@ UpdateOverlayValues() {
     for _, item in Root_Katalogai {
         dir := item.path
         if DirTextCtrls.Has(dir) {
-            displayName := GetDirDisplayName(dir)
+            displayName := GetDirDisplayName(item)
             cnt := DirTotals.Has(dir) ? DirTotals[dir] : 0
             DirTextCtrls[dir].Value := displayName ": " cnt
         }
@@ -503,7 +536,7 @@ RebuildOverlayGui() {
     OverlayGui.SetFont("s10 bold cWhite", "Arial")
     for _, item in Root_Katalogai {
         dir := item.path
-        displayName := GetDirDisplayName(dir)
+        displayName := GetDirDisplayName(item)
         cnt := DirTotals.Has(dir) ? DirTotals[dir] : 0
 
         ctrl := OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Left", displayName ": " cnt)
