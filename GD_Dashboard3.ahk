@@ -15,7 +15,7 @@ GlobalErrorHandler(exc, mode) {
 ; =======================================================
 ; CONFIGURATION & CONSTANTS
 ; =======================================================
-global CURRENT_VERSION := "1.1(beta)"
+global CURRENT_VERSION := "1.3"
 global LOG_DIR := A_ScriptDir . "\logs"
 global CONFIG_FILE := A_ScriptDir . "\config.ini"
 global SERVER_LOG_FILE := "\\10.12.24.50\fgt_hal\AHK_log\logas.txt"
@@ -60,6 +60,7 @@ global MainGui := ""
 global Calendar := ""
 global StatusText := ""
 global Tabs := ""
+global HeaderGui := ""
 global ChildGuis := Map()
 global ActiveChild := ""
 global Controls := Map()
@@ -519,15 +520,18 @@ LoadDateData(force := false) {
 ; =======================================================
 
 OnMainSize(guiObj, minMax, width, height) {
-    global Tabs, ActiveChild, ChildGuis
+    global Tabs, HeaderGui, ActiveChild, ChildGuis
     if (minMax = -1) {
         return
     }
     if IsObject(Tabs) {
         Tabs.Move(,, width - 20)
     }
+    if IsObject(HeaderGui) {
+        HeaderGui.Show("x10 y85 w" . (width - 20) . " h25")
+    }
     if (ActiveChild != "" && ChildGuis.Has(ActiveChild)) {
-        ChildGuis[ActiveChild].Show("x10 y85 w" . (width - 20) . " h" . (height - 90))
+        ChildGuis[ActiveChild].Show("x10 y110 w" . (width - 20) . " h" . (height - 115))
         UpdateScrollBars(ChildGuis[ActiveChild])
     }
 }
@@ -545,13 +549,16 @@ GoNextDay(*) {
 }
 
 HandleTabChange(ctrl, *) {
-    global ActiveChild, ChildGuis, MainGui, Calendar
+    global ActiveChild, ChildGuis, MainGui, Calendar, HeaderGui
     if (ActiveChild != "") {
         ChildGuis[ActiveChild].Hide()
     }
     MainGui.GetClientPos(,, &guiW, &guiH)
+    if IsObject(HeaderGui) {
+        HeaderGui.Show("x10 y85 w" . (guiW - 20) . " h25")
+    }
     if ChildGuis.Has(ctrl.Text) {
-        ChildGuis[ctrl.Text].Show("x10 y85 w" . (guiW - 20) . " h" . (guiH - 90))
+        ChildGuis[ctrl.Text].Show("x10 y110 w" . (guiW - 20) . " h" . (guiH - 115))
         ActiveChild := ctrl.Text
         UpdateScrollBars(ChildGuis[ActiveChild], true)
         if IsObject(Calendar) {
@@ -875,7 +882,7 @@ ToggleTheme(*) {
 }
 
 ApplyTheme() {
-    global MainGui, ChildGuis, TextControls, BtnTheme, StatusText, Controls, TabFooters, CURRENT_THEME, INTERVALS
+    global MainGui, HeaderGui, ChildGuis, TextControls, BtnTheme, StatusText, Controls, TabFooters, CURRENT_THEME, INTERVALS
     isDark := (CURRENT_THEME = "Dark")
     if IsObject(BtnTheme) {
         BtnTheme.Text := "Tema: " . (isDark ? "Tamsi" : "Šviesi")
@@ -890,14 +897,16 @@ ApplyTheme() {
     if IsObject(MainGui) {
         MainGui.BackColor := mainBg
     }
+    if IsObject(HeaderGui) {
+        HeaderGui.BackColor := mainBg
+    }
 
     for tName, cG in ChildGuis {
         cG.BackColor := childBg
     }
 
     for ctrl in TextControls {
-        ctrl.Opt("+BackgroundTrans")
-        ctrl.SetFont(txtColor)
+        ctrl.SetFont("s9 bold " . txtColor)
         ctrl.Redraw()
     }
 
@@ -1050,7 +1059,7 @@ ShowSettings(*) {
 ; =======================================================
 LoadConfig()
 
-MainGui := Gui("+Resize +MinimizeBox", "GD Dashboard v" . CURRENT_VERSION)
+MainGui := Gui("+Resize +MinimizeBox", "GD linijos v" . CURRENT_VERSION)
 MainGui.SetFont("s9", "Segoe UI")
 MainGui.OnEvent("Size", OnMainSize)
 MainGui.OnEvent("Close", OnMainClose)
@@ -1082,24 +1091,27 @@ StatusText := MainGui.Add("Text", "x820 y15 w600", "Kraunama...")
 Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti", "Perrašymas"])
 Tabs.OnEvent("Change", HandleTabChange)
 
+HeaderGui := Gui("-Caption +Parent" . MainGui.Hwnd)
+HeaderGui.BackColor := "F0F0F0"
+HeaderGui.SetFont("s9 bold")
+
+Loop INTERVALS.Length {
+    idx := A_Index
+    X := 230 + (idx-1) * 95
+    TextControls.Push(HeaderGui.Add("Text", "x" . X . " y2 w90 h20 Center", INTERVALS[idx][1] . "-" . INTERVALS[idx][2]))
+}
+TextControls.Push(HeaderGui.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y2 w90 h20 Center", "Viso"))
+TextControls.Push(HeaderGui.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y2 w120 h20 Center", "Vidurkis"))
+TextControls.Push(HeaderGui.Add("Text", "x1380 y2 w130 h20 Center", "Paskutinis testas"))
+HeaderGui.SetFont("s9 norm")
+HeaderGui.Show("x10 y85 w1520 h25")
+
 for tName in ["PLXE", "NOBO", "Kiti", "Perrašymas"] {
     cG := Gui("-Caption +Parent" . MainGui.Hwnd . " +0x00200000")
     cG.BackColor := "White"
-    cG.Show("Hide w1520 h950")
+    cG.Show("Hide w1520 h920")
 
-    ; Header labels
-    cG.SetFont("s9 bold")
-    Loop INTERVALS.Length {
-        idx := A_Index
-        X := 230 + (idx-1) * 95
-        TextControls.Push(cG.Add("Text", "x" . X . " y5 w90 h20 Center +BackgroundTrans", INTERVALS[idx][1] . "-" . INTERVALS[idx][2]))
-    }
-    TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y5 w90 h20 Center +BackgroundTrans", "Viso"))
-    TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y5 w120 h20 Center +BackgroundTrans", "Vidurkis"))
-    TextControls.Push(cG.Add("Text", "x1380 y5 w130 h20 Center +BackgroundTrans", "Paskutinis testas"))
-    cG.SetFont("s9 norm")
-
-    curY := 35
+    curY := 10
     for l in LINES {
         if (l.tab = tName) {
             name := l.name
