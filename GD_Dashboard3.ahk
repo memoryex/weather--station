@@ -45,8 +45,8 @@ global LINES := [
     {name: "PLXE 5",    channel: "802414", fieldCount: 7, fieldBarcode: 8, color: "C6EFCE", tab: "PLXE"},
     {name: "XLE 1",     channel: "807602", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "Kiti"},
     {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"},
-    {name: "Alta WiFi", channel: "2816922", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"},
-    {name: "XLE UI",    channel: "2816922", fieldCount: 2, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"}
+    {name: "Alta WiFi", channel: "807602", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"},
+    {name: "XLE UI",    channel: "807602", fieldCount: 2, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"}
 ]
 
 global INTERVALS := [
@@ -74,7 +74,7 @@ global BtnTheme := ""
 
 LoadConfig() {
     global SERVER_LOG_FILE, EXCEL_PATH, READ_KEYS, CONFIG_FILE, CONF_WIDTH, CONF_HEIGHT, LINES, CURRENT_THEME
-    READ_KEYS["2816922"] := "WUO1DG7GXYNZP6SG"
+    READ_KEYS["807602"] := "WUO1DG7GXYNZP6SG"
     if FileExist(CONFIG_FILE) {
         try {
             SERVER_LOG_FILE := IniRead(CONFIG_FILE, "Paths", "ServerLog", SERVER_LOG_FILE)
@@ -82,8 +82,8 @@ LoadConfig() {
             CONF_WIDTH := GetNum(IniRead(CONFIG_FILE, "Resolution", "Width", "0"))
             CONF_HEIGHT := GetNum(IniRead(CONFIG_FILE, "Resolution", "Height", "0"))
             CURRENT_THEME := IniRead(CONFIG_FILE, "Theme", "Mode", "Light")
-            for ch in ["463450", "703669", "802414", "807602", "2816922"] {
-                defaultKey := (ch = "2816922") ? "WUO1DG7GXYNZP6SG" : ""
+            for ch in ["463450", "703669", "802414", "807602"] {
+                defaultKey := (ch = "807602") ? "WUO1DG7GXYNZP6SG" : ""
                 val := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" . ch, defaultKey)
                 if (val != "") {
                     READ_KEYS[ch] := val
@@ -891,7 +891,7 @@ ApplyTheme() {
     }
 
     for ctrl in TextControls {
-        ctrl.Opt(txtColor)
+        ctrl.SetFont(isDark ? "cFFFFFF" : "cBlack")
         ctrl.Redraw()
     }
 
