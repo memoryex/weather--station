@@ -17,15 +17,15 @@ global Root_Katalogai := [
     { path: "C:\Users\EoltUI\Desktop\EP4164_XLEEU_OTA_reprogram", name: "EP4164_XLEEU_OTA_reprogram", apiKey: TS_API_KEY, field: TS_FIELD_COUNT }
 ]
 
-Langas_Skaidrumas := 200
-Pagrindine_Spalva := 0x0055AA
-Lango_Dydis := 220
+global Langas_Skaidrumas := 200
+global Pagrindine_Spalva := 0x0055AA
+global Lango_Dydis := 220
 
-Start_X := 300
-Start_Y := 800
+global Start_X := 300
+global Start_Y := 800
 
-BtnWidth := 160
-BtnHeight := 38
+global BtnWidth := 160
+global BtnHeight := 38
 
 ; =======================================================
 ; GLOBALAI
@@ -51,7 +51,7 @@ global SettingsBtn := 0
 ; CONFIG VALDYMAS (settings.ini)
 ; =======================================================
 LoadConfig() {
-    global Root_Katalogai, TS_API_KEY, TS_FIELD_COUNT
+    global Root_Katalogai, TS_API_KEY, TS_FIELD_COUNT, Start_X, Start_Y
     iniPath := A_ScriptDir "\settings.ini"
 
     if (!FileExist(iniPath))
@@ -89,11 +89,19 @@ LoadConfig() {
                 Root_Katalogai := loaded
             }
         }
+
+        xVal := IniRead(iniPath, "Settings", "Start_X", "")
+        if (xVal != "" && IsNumber(xVal))
+            Start_X := Integer(xVal)
+
+        yVal := IniRead(iniPath, "Settings", "Start_Y", "")
+        if (yVal != "" && IsNumber(yVal))
+            Start_Y := Integer(yVal)
     }
 }
 
 SaveConfig() {
-    global Root_Katalogai
+    global Root_Katalogai, Start_X, Start_Y
     iniPath := A_ScriptDir "\settings.ini"
 
     str := ""
@@ -103,6 +111,8 @@ SaveConfig() {
 
     try {
         IniWrite(str, iniPath, "Settings", "Root_Katalogai")
+        IniWrite(Start_X, iniPath, "Settings", "Start_X")
+        IniWrite(Start_Y, iniPath, "Settings", "Start_Y")
     }
 }
 
@@ -234,7 +244,7 @@ OnSettingsClick(*) {
 }
 
 OpenSettingsGui() {
-    global SettingsGui, Root_Katalogai, TS_API_KEY, TS_FIELD_COUNT
+    global SettingsGui, Root_Katalogai, TS_API_KEY, TS_FIELD_COUNT, Start_X, Start_Y
 
     SettingsGui := Gui("+AlwaysOnTop +ToolWindow", "Katalogų / Termostatų nustatymai")
     SettingsGui.SetFont("s9", "Segoe UI")
@@ -263,20 +273,27 @@ OpenSettingsGui() {
 
     BtnUpdateRow := SettingsGui.Add("Button", "x510 y240 w160 h24", "Išsaugoti eilutę")
 
-    BtnAdd := SettingsGui.Add("Button", "x10 y280 w150 h32", "Pridėti katalogą")
-    BtnDel := SettingsGui.Add("Button", "x170 y280 w150 h32", "Pašalinti pasirinktą")
-    BtnSave := SettingsGui.Add("Button", "x470 y280 w100 h32", "Išsaugoti viską")
-    BtnCancel := SettingsGui.Add("Button", "x580 y280 w100 h32", "Atšaukti")
+    SettingsGui.AddGroupBox("x10 y280 w680 h55", "Lango pozicija ekrane (Kordinatės)")
+    SettingsGui.AddText("x20 y302 w80", "Pozicija X:")
+    EditX := SettingsGui.Add("Edit", "x100 y300 w80 h24 Number", Start_X)
+
+    SettingsGui.AddText("x200 y302 w80", "Pozicija Y:")
+    EditY := SettingsGui.Add("Edit", "x280 y300 w80 h24 Number", Start_Y)
+
+    BtnAdd := SettingsGui.Add("Button", "x10 y345 w150 h32", "Pridėti katalogą")
+    BtnDel := SettingsGui.Add("Button", "x170 y345 w150 h32", "Pašalinti pasirinktą")
+    BtnSave := SettingsGui.Add("Button", "x470 y345 w100 h32", "Išsaugoti viską")
+    BtnCancel := SettingsGui.Add("Button", "x580 y345 w100 h32", "Atšaukti")
 
     LV.OnEvent("ItemSelect", (*) => OnLVSelect(LV, EditName, EditKey, EditField))
     BtnUpdateRow.OnEvent("Click", (*) => OnUpdateRow(LV, EditName, EditKey, EditField))
     BtnAdd.OnEvent("Click", (*) => OnAddDir(LV, EditName, EditKey, EditField))
     BtnDel.OnEvent("Click", (*) => OnDelDir(LV))
-    BtnSave.OnEvent("Click", (*) => OnSaveSettings(LV, EditName, EditKey, EditField))
+    BtnSave.OnEvent("Click", (*) => OnSaveSettings(LV, EditName, EditKey, EditField, EditX, EditY))
     BtnCancel.OnEvent("Click", (*) => SettingsGui.Destroy())
     SettingsGui.OnEvent("Close", (*) => (SettingsGui := 0))
 
-    SettingsGui.Show("w700 h325")
+    SettingsGui.Show("w700 h390")
 }
 
 OnLVSelect(LV, EditName, EditKey, EditField) {
@@ -330,8 +347,8 @@ OnDelDir(LV) {
     }
 }
 
-OnSaveSettings(LV, EditName, EditKey, EditField) {
-    global Root_Katalogai, SettingsGui
+OnSaveSettings(LV, EditName, EditKey, EditField, EditX, EditY) {
+    global Root_Katalogai, SettingsGui, Start_X, Start_Y
 
     row := LV.GetNext(0)
     if (row > 0) {
@@ -355,6 +372,12 @@ OnSaveSettings(LV, EditName, EditKey, EditField) {
         MsgBox("Būtina pasirinkti bent vieną katalogą!", "Klaida", "48")
         return
     }
+
+    if (EditX.Value != "" && IsNumber(EditX.Value))
+        Start_X := Integer(EditX.Value)
+
+    if (EditY.Value != "" && IsNumber(EditY.Value))
+        Start_Y := Integer(EditY.Value)
 
     Root_Katalogai := newDirs
     SaveConfig()
@@ -544,7 +567,13 @@ RebuildOverlayGui() {
         yPos += 22
     }
 
-    yPos += 15
+    yPos += 10
+    ahkVer := "v" . SubStr(A_AhkVersion, 1, 3)
+    OverlayGui.SetFont("s8 cLightGray norm", "Arial")
+    OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Right", ahkVer)
+    yPos += 18
+
+    yPos += 5
     OverlayGui.Show("x" Start_X " y" Start_Y " w" Lango_Dydis " h" yPos " NoActivate")
     WinSetTransparent Langas_Skaidrumas, "ahk_id " OverlayGui.Hwnd
     MakeWindowClickThrough OverlayGui.Hwnd
@@ -590,6 +619,7 @@ BuildCtrlGui() {
 
 ReinitAll() {
     InitLogCounts()
+    BuildCtrlGui()
     RebuildOverlayGui()
 }
 
