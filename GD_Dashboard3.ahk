@@ -45,8 +45,8 @@ global LINES := [
     {name: "PLXE 5",    channel: "802414", fieldCount: 7, fieldBarcode: 8, color: "C6EFCE", tab: "PLXE"},
     {name: "XLE 1",     channel: "807602", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "Kiti"},
     {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"},
-    {name: "Alta WiFi", channel: "807602", fieldCount: 2, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"},
-    {name: "XLE UI",    channel: "807602", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"}
+    {name: "Alta WiFi", channel: "807602", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"},
+    {name: "XLE UI",    channel: "807602", fieldCount: 2, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"}
 ]
 
 global INTERVALS := [
