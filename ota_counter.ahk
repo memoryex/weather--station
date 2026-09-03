@@ -569,7 +569,7 @@ RebuildOverlayGui() {
 
     yPos += 10
     ahkVer := "v" . SubStr(A_AhkVersion, 1, 3)
-    OverlayGui.SetFont("s8 cLightGray norm", "Arial")
+    OverlayGui.SetFont("s8 cAAAAAA norm", "Arial")
     OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Right", ahkVer)
     yPos += 18
 
