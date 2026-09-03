@@ -1122,7 +1122,7 @@ BtnShift := MainGui.Add("Button", "x820 y10 w100", "Pamaina: 1")
 BtnShift.OnEvent("Click", ToggleShift)
 
 StatusText := MainGui.Add("Text", "x930 y15 w500", "Kraunama...")
-Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti", "Perrašymas"])
+Tabs := MainGui.Add("Tab3", "x10 y45 w1520 h30", ["PLXE", "NOBO", "Kiti", "Perrašymas"])
 Tabs.OnEvent("Change", HandleTabChange)
 
 HeaderGui := Gui("-Caption +Parent" . MainGui.Hwnd)
@@ -1140,14 +1140,27 @@ TextControls.Push(HeaderGui.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " 
 TextControls.Push(HeaderGui.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y2 w120 h20 Center", "Vidurkis"))
 TextControls.Push(HeaderGui.Add("Text", "x1380 y2 w130 h20 Center", "Paskutinis testas"))
 HeaderGui.SetFont("s9 norm")
-HeaderGui.Show("x10 y85 w1520 h25")
+HeaderGui.Show("x10 y80 w1520 h25")
 
 for tName in ["PLXE", "NOBO", "Kiti", "Perrašymas"] {
     cG := Gui("-Caption +Parent" . MainGui.Hwnd . " +0x00200000")
     cG.BackColor := "White"
     cG.Show("Hide w1520 h920")
 
-    curY := 10
+    cG.SetFont("s9 bold")
+    Loop INTERVALS.Length {
+        idx := A_Index
+        X := 230 + (idx-1) * 95
+        ctrlTab := cG.Add("Text", "x" . X . " y5 w90 h20 Center", INTERVALS[idx][1] . "-" . INTERVALS[idx][2])
+        TextControls.Push(ctrlTab)
+        HeaderIntervalControls.Push(ctrlTab)
+    }
+    TextControls.Push(cG.Add("Text", "x" . (230 + INTERVALS.Length * 95) . " y5 w90 h20 Center", "Viso"))
+    TextControls.Push(cG.Add("Text", "x" . (230 + (INTERVALS.Length + 1) * 95) . " y5 w120 h20 Center", "Vidurkis"))
+    TextControls.Push(cG.Add("Text", "x1380 y5 w130 h20 Center", "Paskutinis testas"))
+    cG.SetFont("s9 norm")
+
+    curY := 35
     for l in LINES {
         if (l.tab = tName) {
             name := l.name
