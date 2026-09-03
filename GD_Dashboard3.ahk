@@ -44,7 +44,9 @@ global LINES := [
     {name: "NOBO 7",    channel: "802414", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "NOBO"},
     {name: "PLXE 5",    channel: "802414", fieldCount: 7, fieldBarcode: 8, color: "C6EFCE", tab: "PLXE"},
     {name: "XLE 1",     channel: "807602", fieldCount: 5, fieldBarcode: 6, color: "E2EFDA", tab: "Kiti"},
-    {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"}
+    {name: "XLE ReWork",channel: "807602", fieldCount: 7, fieldBarcode: 8, color: "E2EFDA", tab: "Kiti"},
+    {name: "Alta WiFi", channel: "2816922", fieldCount: 1, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"},
+    {name: "XLE UI",    channel: "2816922", fieldCount: 2, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"}
 ]
 
 global INTERVALS := [
@@ -72,6 +74,7 @@ global BtnTheme := ""
 
 LoadConfig() {
     global SERVER_LOG_FILE, EXCEL_PATH, READ_KEYS, CONFIG_FILE, CONF_WIDTH, CONF_HEIGHT, LINES, CURRENT_THEME
+    READ_KEYS["2816922"] := "WUO1DG7GXYNZP6SG"
     if FileExist(CONFIG_FILE) {
         try {
             SERVER_LOG_FILE := IniRead(CONFIG_FILE, "Paths", "ServerLog", SERVER_LOG_FILE)
@@ -79,8 +82,9 @@ LoadConfig() {
             CONF_WIDTH := GetNum(IniRead(CONFIG_FILE, "Resolution", "Width", "0"))
             CONF_HEIGHT := GetNum(IniRead(CONFIG_FILE, "Resolution", "Height", "0"))
             CURRENT_THEME := IniRead(CONFIG_FILE, "Theme", "Mode", "Light")
-            for ch in ["463450", "703669", "802414", "807602"] {
-                val := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" . ch, "")
+            for ch in ["463450", "703669", "802414", "807602", "2816922"] {
+                defaultKey := (ch = "2816922") ? "WUO1DG7GXYNZP6SG" : ""
+                val := IniRead(CONFIG_FILE, "ThingSpeak", "Key_" . ch, defaultKey)
                 if (val != "") {
                     READ_KEYS[ch] := val
                 }
@@ -145,7 +149,7 @@ HexRGBtoBGR(hexColor) {
 UpdateCalculations() {
     global Controls, TabFooters, INTERVALS
     stats := Map()
-    for tName in ["PLXE", "NOBO", "Kiti"] {
+    for tName in ["PLXE", "NOBO", "Kiti", "Perrašymas"] {
         stats[tName] := {Fact: [0,0,0,0,0,0,0,0,0,0,0], Plan: [0,0,0,0,0,0,0,0,0,0,0], Grand: 0}
     }
 
@@ -1057,10 +1061,10 @@ BtnTheme := MainGui.Add("Button", "x710 y10 w100", "Tema")
 BtnTheme.OnEvent("Click", ToggleTheme)
 
 StatusText := MainGui.Add("Text", "x820 y15 w600", "Kraunama...")
-Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti"])
+Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti", "Perrašymas"])
 Tabs.OnEvent("Change", HandleTabChange)
 
-for tName in ["PLXE", "NOBO", "Kiti"] {
+for tName in ["PLXE", "NOBO", "Kiti", "Perrašymas"] {
     cG := Gui("-Caption +Parent" . MainGui.Hwnd . " +0x00200000")
     cG.BackColor := "White"
     cG.Show("Hide w1520 h950")
