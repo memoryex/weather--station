@@ -51,8 +51,8 @@ global LINES := [
 
 global INTERVALS_1 := [
     ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:00", "10:00"],
-    ["10:00", "11:00"], ["11:00", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
-    ["14:00", "15:00"], ["15:00", "16:00"]
+    ["10:00", "11:00"], ["11:00", "12:00"], ["12:00", "13:00"], ["13:00", "13:30"],
+    ["13:30", "14:00"], ["14:00", "14:30"]
 ]
 
 global INTERVALS_2 := [
@@ -429,7 +429,7 @@ RefreshDataFromTS(target := "") {
     today := FormatTime(A_Now, "yyyy-MM-dd")
     nowT := FormatTime(A_Now, "HH:mm")
     nowF := A_Now
-    endFetchTime := (CURRENT_SHIFT = 2) ? (tD . " 23:00:00") : (tD . " 16:00:00")
+    endFetchTime := (CURRENT_SHIFT = 2) ? (tD . " 23:00:00") : (tD . " 14:30:00")
     for ch, lines in chMap {
         lb := DateAdd(StrReplace(tD, "-", "") . "000000", -3, "Days")
         json := FetchTSData(ch, FormatTime(lb, "yyyy-MM-dd HH:mm:ss"), endFetchTime)

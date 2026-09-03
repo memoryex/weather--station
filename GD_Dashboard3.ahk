@@ -49,20 +49,11 @@ global LINES := [
     {name: "XLE UI",    channel: "807602", fieldCount: 2, fieldBarcode: 0, color: "E2EFDA", tab: "Perrašymas"}
 ]
 
-global INTERVALS_1 := [
+global INTERVALS := [
     ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:00", "10:00"],
     ["10:00", "11:00"], ["11:00", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
     ["14:00", "15:00"], ["15:00", "16:00"]
 ]
-
-global INTERVALS_2 := [
-    ["14:30", "15:30"], ["15:30", "16:30"], ["16:30", "17:30"], ["17:30", "18:30"],
-    ["18:30", "19:30"], ["19:30", "20:30"], ["20:30", "21:30"], ["21:30", "22:00"],
-    ["22:00", "22:30"], ["22:30", "23:00"]
-]
-
-global CURRENT_SHIFT := 1
-global INTERVALS := INTERVALS_1
 
 ; UI Component Holders
 global MainGui := ""
@@ -78,7 +69,6 @@ global TabFooters := Map()
 global CommHwnds := Map()
 global TextControls := []
 global BtnTheme := ""
-global BtnShift := ""
 
 ; =======================================================
 ; HELPERS
@@ -429,10 +419,9 @@ RefreshDataFromTS(target := "") {
     today := FormatTime(A_Now, "yyyy-MM-dd")
     nowT := FormatTime(A_Now, "HH:mm")
     nowF := A_Now
-    endFetchTime := (CURRENT_SHIFT = 2) ? (tD . " 23:00:00") : (tD . " 16:00:00")
     for ch, lines in chMap {
         lb := DateAdd(StrReplace(tD, "-", "") . "000000", -3, "Days")
-        json := FetchTSData(ch, FormatTime(lb, "yyyy-MM-dd HH:mm:ss"), endFetchTime)
+        json := FetchTSData(ch, FormatTime(lb, "yyyy-MM-dd HH:mm:ss"), tD . " 16:00:00")
         if (json = "") {
             continue
         }
@@ -897,21 +886,6 @@ ToggleTheme(*) {
     ApplyTheme()
 }
 
-ToggleShift(*) {
-    global CURRENT_SHIFT, INTERVALS, INTERVALS_1, INTERVALS_2, BtnShift, HeaderIntervalControls
-    CURRENT_SHIFT := (CURRENT_SHIFT = 1) ? 2 : 1
-    INTERVALS := (CURRENT_SHIFT = 1) ? INTERVALS_1 : INTERVALS_2
-    if IsObject(BtnShift) {
-        BtnShift.Text := "Pamaina: " . CURRENT_SHIFT
-    }
-    Loop INTERVALS.Length {
-        idx := A_Index
-        if (idx <= HeaderIntervalControls.Length) {
-            HeaderIntervalControls[idx].Value := INTERVALS[idx][1] . "-" . INTERVALS[idx][2]
-        }
-    }
-    LoadDateData(true)
-}
 
 ApplyTheme() {
     global MainGui, HeaderGui, ChildGuis, TextControls, BtnTheme, StatusText, Controls, TabFooters, CURRENT_THEME, INTERVALS
@@ -1118,10 +1092,8 @@ MainGui.Add("Button", "x490 y10 w100", "Excel").OnEvent("Click", ExportToExcel)
 MainGui.Add("Button", "x600 y10 w100", "Nustatymai").OnEvent("Click", ShowSettings)
 BtnTheme := MainGui.Add("Button", "x710 y10 w100", "Tema")
 BtnTheme.OnEvent("Click", ToggleTheme)
-BtnShift := MainGui.Add("Button", "x820 y10 w100", "Pamaina: 1")
-BtnShift.OnEvent("Click", ToggleShift)
 
-StatusText := MainGui.Add("Text", "x930 y15 w500", "Kraunama...")
+StatusText := MainGui.Add("Text", "x820 y15 w600", "Kraunama...")
 Tabs := MainGui.Add("Tab3", "x10 y50 w1520 h35", ["PLXE", "NOBO", "Kiti", "Perrašymas"])
 Tabs.OnEvent("Change", HandleTabChange)
 
