@@ -39,6 +39,7 @@ global TotalCount := 0
 global NewCount := 0
 global ScannedLogs := Map()
 global DirTotals := Map()
+global DirNewCounts := Map()
 global DirTextCtrls := Map()
 global TS_LAST_SEND := Map()
 
@@ -216,10 +217,13 @@ CancelReset() {
 }
 
 DoReset() {
-    global ResetPending, NewCount, NewText, ResetBtn
+    global ResetPending, NewCount, NewText, ResetBtn, DirNewCounts, Root_Katalogai
 
     ResetPending := false
     NewCount := 0
+    for _, item in Root_Katalogai {
+        DirNewCounts[item.path] := 0
+    }
     if IsObject(NewText)
         NewText.Value := "Nauji: 0 vnt."
     ResetBtn.Text := "RESET"
@@ -392,16 +396,18 @@ OnSaveSettings(LV, EditName, EditKey, EditField, EditX, EditY) {
 ; PRADINIS LOGŲ NUSKAITYMAS (kad Nauji = 0)
 ; =======================================================
 InitLogCounts() {
-    global Root_Katalogai, ScannedLogs, TotalCount, NewCount, DirTotals
+    global Root_Katalogai, ScannedLogs, TotalCount, NewCount, DirTotals, DirNewCounts
 
     ScannedLogs := Map()
     DirTotals := Map()
+    DirNewCounts := Map()
     TotalCount := 0
     NewCount := 0
 
     for _, item in Root_Katalogai {
         dir := item.path
         DirTotals[dir] := 0
+        DirNewCounts[dir] := 0
 
         if !DirExist(dir)
             continue
@@ -432,7 +438,7 @@ InitLogCounts() {
 ; LOGŲ SKENAVIMAS
 ; =======================================================
 TikrintiKataloga() {
-    global Root_Katalogai, TotalCount, NewCount, ScannedLogs, DirTotals
+    global Root_Katalogai, TotalCount, NewCount, ScannedLogs, DirTotals, DirNewCounts
 
     hasNewData := false
 
@@ -440,6 +446,8 @@ TikrintiKataloga() {
         dir := item.path
         if !DirTotals.Has(dir)
             DirTotals[dir] := 0
+        if !DirNewCounts.Has(dir)
+            DirNewCounts[dir] := 0
 
         if !DirExist(dir)
             continue
@@ -465,10 +473,11 @@ TikrintiKataloga() {
                     TotalCount += diff
                     NewCount += diff
                     DirTotals[dir] += diff
+                    DirNewCounts[dir] += diff
 
                     hasNewData := true
 
-                    TS_Send(diff, item.apiKey, item.field)
+                    TS_Send(DirNewCounts[dir], item.apiKey, item.field)
                 }
 
                 ScannedLogs[file] := cnt
