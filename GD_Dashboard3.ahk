@@ -452,7 +452,13 @@ RefreshDataFromTS(target := "") {
                 }
             }
             for idx, iv in INTERVALS {
+                gi := Controls[l.name].intervals[idx]
                 if (tD = today && StrCompare(iv[1], nowT) > 0) {
+                    gi.Fact.Value := 0
+                    gi.Prod.Value := ""
+                    gi.Comm.Value := ""
+                    SaveToCache(tD, l.name, idx, "Fact", 0)
+                    SaveToCache(tD, l.name, idx, "Prod", "")
                     continue
                 }
                 stT := tD . " " . iv[1] . ":00"

@@ -276,8 +276,9 @@ SyncLocalServer(mode) {
 }
 
 SaveToCache(d, l, i, t, v) {
-    global LOG_DIR
-    IniWrite(v, LOG_DIR . "\" . d . ".ini", l, t . "_" . i)
+    global LOG_DIR, CURRENT_SHIFT
+    keyPrefix := "Shift" . CURRENT_SHIFT . "_"
+    IniWrite(v, LOG_DIR . "\" . d . ".ini", l, keyPrefix . t . "_" . i)
 }
 
 SaveManualInput(l, i, t, v) {
@@ -463,7 +464,13 @@ RefreshDataFromTS(target := "") {
                 }
             }
             for idx, iv in INTERVALS {
+                gi := Controls[l.name].intervals[idx]
                 if (tD = today && StrCompare(iv[1], nowT) > 0) {
+                    gi.Fact.Value := 0
+                    gi.Prod.Value := ""
+                    gi.Comm.Value := ""
+                    SaveToCache(tD, l.name, idx, "Fact", 0)
+                    SaveToCache(tD, l.name, idx, "Prod", "")
                     continue
                 }
                 stT := tD . " " . iv[1] . ":00"
@@ -502,17 +509,18 @@ OnRefreshBtn(*) {
 }
 
 LoadDateData(force := false) {
-    global Calendar, LOG_DIR, Controls, INTERVALS
+    global Calendar, LOG_DIR, Controls, INTERVALS, CURRENT_SHIFT
     dStr := FormatTime(Calendar.Value, "yyyy-MM-dd")
     iPath := LOG_DIR . "\" . dStr . ".ini"
+    keyPrefix := "Shift" . CURRENT_SHIFT . "_"
     for name, data in Controls {
         Loop INTERVALS.Length {
             idx := A_Index
             io := data.intervals[idx]
-            io.Plan.Value := IniRead(iPath, name, "Plan_" . idx, "")
-            io.Fact.Value := IniRead(iPath, name, "Fact_" . idx, "")
-            io.Prod.Value := IniRead(iPath, name, "Prod_" . idx, "")
-            io.Comm.Value := IniRead(iPath, name, "Comm_" . idx, "")
+            io.Plan.Value := IniRead(iPath, name, keyPrefix . "Plan_" . idx, "")
+            io.Fact.Value := IniRead(iPath, name, keyPrefix . "Fact_" . idx, "")
+            io.Prod.Value := IniRead(iPath, name, keyPrefix . "Prod_" . idx, "")
+            io.Comm.Value := IniRead(iPath, name, keyPrefix . "Comm_" . idx, "")
             if (io.Prod.Value != "" && (SubStr(io.Prod.Value, 1, 2) = "X-" || io.Prod.Value = "UI v5")) {
                 io.Prod.Opt("+ReadOnly")
             } else {
