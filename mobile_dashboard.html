@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GD linijos v1.3 (Mobilus)</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-color: #212529;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --header-bg: #343a40;
+            --header-text: #ffffff;
+            --accent: #0d6efd;
+            --accent-hover: #0b5ed7;
+            --table-stripe: #f8f9fa;
+            --input-bg: #ffffff;
+            --green: #28a745;
+            --red: #dc3545;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --border-color: #333333;
+            --header-bg: #1f1f1f;
+            --header-text: #ffffff;
+            --accent: #3d8bfd;
+            --accent-hover: #0d6efd;
+            --table-stripe: #252525;
+            --input-bg: #2b2b2b;
+            --green: #20c997;
+            --red: #ff6b6b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding-bottom: 30px;
+        }
+
+        header {
+            background-color: var(--header-bg);
+            color: var(--header-text);
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        header h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .theme-toggle-btn {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .controls-bar {
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .date-picker-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn:active {
+            opacity: 0.85;
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        input[type="date"] {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 7px 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        .status-bar {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            padding: 4px 12px;
+            text-align: right;
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Nav Tabs */
+        .tabs {
+            display: flex;
+            background-color: var(--card-bg);
+            border-bottom: 2px solid var(--border-color);
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 16px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            border: none;
+            background: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* Content Table Container */
+        .tab-content {
+            display: none;
+            padding: 8px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            margin-bottom: 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+            font-size: 0.85rem;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--table-stripe);
+            font-weight: 600;
+            color: var(--text-color);
+            position: sticky;
+            top: 0;
+        }
+
+        .line-header {
+            text-align: left;
+            font-weight: 700;
+            font-size: 0.95rem;
+            padding-left: 10px;
+            background-color: var(--table-stripe);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .indicator.green { background-color: var(--green); }
+        .indicator.red { background-color: var(--red); }
+
+        .row-label {
+            font-weight: 600;
+            text-align: left;
+            padding-left: 10px;
+            width: 90px;
+        }
+
+        .cell-bold { font-weight: 700; }
+        .cell-red { color: var(--red); font-weight: 700; }
+        .cell-green { color: var(--green); font-weight: 700; }
+
+        .last-test-box {
+            font-size: 0.75rem;
+            line-height: 1.2;
+            color: var(--text-muted);
+        }
+
+        .footer-table th, .footer-table td {
+            font-size: 0.9rem;
+        }
+
+        .grand-total-card {
+            background: var(--card-bg);
+            border: 2px solid var(--accent);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .grand-total-card .title {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .grand-total-card .value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        /* Mobile Card View for narrow screen optimization */
+        @media (max-width: 600px) {
+            header h1 { font-size: 1rem; }
+            .btn { padding: 6px 10px; font-size: 0.85rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>GD linijos v1.3</h1>
+        <button class="theme-toggle-btn" id="themeBtn" onclick="toggleTheme()">Tema: Šviesi</button>
+    </header>
+
+    <div class="controls-bar">
+        <div class="date-picker-group">
+            <button class="btn btn-outline" onclick="changeDate(-1)">&lt;</button>
+            <input type="date" id="datePicker" onchange="loadData()">
+            <button class="btn btn-outline" onclick="changeDate(1)">&gt;</button>
+        </div>
+        <button class="btn" onclick="loadData()">Atnaujinti</button>
+    </div>
+
+    <div class="status-bar" id="statusBar">Kraunama...</div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('PLXE', this)">PLXE</button>
+        <button class="tab-btn" onclick="switchTab('NOBO', this)">NOBO</button>
+        <button class="tab-btn" onclick="switchTab('Kiti', this)">Kiti</button>
+        <button class="tab-btn" onclick="switchTab('Perrašymas', this)">Perrašymas</button>
+    </div>
+
+    <main id="mainContainer">
+        <!-- Dynamic Tabs Content rendered by JavaScript -->
+    </main>
+
+    <script>
+        const INTERVALS = [
+            ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:00", "10:00"],
+            ["10:00", "11:00"], ["11:00", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
+            ["14:00", "15:00"], ["15:00", "16:00"]
+        ];
+
+        const LINES = [
+            {name: "LSTE",    channel: "463450", fieldCount: 1, fieldBarcode: 2, tab: "PLXE"},
+            {name: "PLXE 2",  channel: "463450", fieldCount: 3, fieldBarcode: 4, tab: "PLXE"},
+            {name: "PLXE 3",  channel: "463450", fieldCount: 5, fieldBarcode: 6, tab: "PLXE"},
+            {name: "QRAD (PLXE 4)", channel: "463450", fieldCount: 7, fieldBarcode: 8, tab: "PLXE"},
+            {name: "QRAD 1",  channel: "807602", fieldCount: 3, fieldBarcode: 4, tab: "Kiti"},
+            {name: "NOBO 1",  channel: "703669", fieldCount: 1, fieldBarcode: 2, tab: "NOBO"},
+            {name: "NOBO 2",  channel: "703669", fieldCount: 3, fieldBarcode: 4, tab: "NOBO"},
+            {name: "NOBO 3",  channel: "703669", fieldCount: 5, fieldBarcode: 6, tab: "NOBO"},
+            {name: "NOBO 4",  channel: "703669", fieldCount: 7, fieldBarcode: 8, tab: "NOBO"},
+            {name: "NOBO 5",  channel: "802414", fieldCount: 1, fieldBarcode: 2, tab: "NOBO"},
+            {name: "NOBO 6",  channel: "802414", fieldCount: 3, fieldBarcode: 4, tab: "NOBO"},
+            {name: "NOBO 7",  channel: "802414", fieldCount: 5, fieldBarcode: 6, tab: "NOBO"},
+            {name: "PLXE 5",  channel: "802414", fieldCount: 7, fieldBarcode: 8, tab: "PLXE"},
+            {name: "XLE 1",   channel: "807602", fieldCount: 5, fieldBarcode: 6, tab: "Kiti"},
+            {name: "XLE ReWork", channel: "807602", fieldCount: 7, fieldBarcode: 8, tab: "Kiti"},
+            {name: "Alta WiFi",  channel: "807602", fieldCount: 1, fieldBarcode: 0, tab: "Perrašymas"},
+            {name: "XLE UI",     channel: "807602", fieldCount: 2, fieldBarcode: 0, tab: "Perrašymas"}
+        ];
+
+        const READ_KEYS = {
+            "463450": "",
+            "703669": "",
+            "802414": "",
+            "807602": "WUO1DG7GXYNZP6SG"
+        };
+
+        const TABS = ["PLXE", "NOBO", "Kiti", "Perrašymas"];
+        let currentTab = "PLXE";
+        let isDarkTheme = false;
+
+        // Initialize App
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("datePicker").valueAsDate = new Date();
+            renderLayout();
+            loadData();
+        });
+
+        function toggleTheme() {
+            isDarkTheme = !isDarkTheme;
+            document.documentElement.setAttribute("data-theme", isDarkTheme ? "dark" : "light");
+            document.getElementById("themeBtn").innerText = "Tema: " + (isDarkTheme ? "Tamsi" : "Šviesi");
+        }
+
+        function changeDate(days) {
+            const picker = document.getElementById("datePicker");
+            const curDate = new Date(picker.value || new Date());
+            curDate.setDate(curDate.getDate() + days);
+            picker.valueAsDate = curDate;
+            loadData();
+        }
+
+        function switchTab(tabName, btn) {
+            currentTab = tabName;
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+            document.getElementById("tab-" + tabName).classList.add("active");
+        }
+
+        function renderLayout() {
+            const container = document.getElementById("mainContainer");
+            container.innerHTML = "";
+
+            TABS.forEach(tName => {
+                const tabDiv = document.createElement("div");
+                tabDiv.className = `tab-content ${tName === currentTab ? 'active' : ''}`;
+                tabDiv.id = `tab-${tName}`;
+
+                const linesInTab = LINES.filter(l => l.tab === tName);
+
+                let html = `<div class="table-wrapper"><table><thead><tr>
+                    <th>Linija / Laukas</th>`;
+                INTERVALS.forEach(iv => html += `<th>${iv[0]}-${iv[1]}</th>`);
+                html += `<th>Viso</th><th>Vidurkis</th><th>Paskutinis testas</th></tr></thead><tbody>`;
+
+                linesInTab.forEach(l => {
+                    const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
+                    html += `
+                    <tr>
+                        <td rowspan="4" class="line-header">
+                            <span class="indicator red" id="ind_${lId}"></span>
+                            <span>${l.name}</span>
+                        </td>
+                        <td class="row-label">Planas</td>`;
+                    INTERVALS.forEach((_, i) => html += `<td id="plan_${lId}_${i}">0</td>`);
+                    html += `<td class="cell-bold" id="plantot_${lId}">0</td><td id="planavg_${lId}">0</td><td rowspan="4" class="last-test-box" id="lt_${lId}">-</td>
+                    </tr>
+                    <tr>
+                        <td class="row-label">Faktas</td>`;
+                    INTERVALS.forEach((_, i) => html += `<td class="cell-red" id="fact_${lId}_${i}">0</td>`);
+                    html += `<td class="cell-bold cell-red" id="facttot_${lId}">0</td><td id="factavg_${lId}">0</td>
+                    </tr>
+                    <tr>
+                        <td class="row-label">Gaminys</td>`;
+                    INTERVALS.forEach((_, i) => html += `<td id="prod_${lId}_${i}">-</td>`);
+                    html += `<td>-</td><td>-</td>
+                    </tr>
+                    <tr>
+                        <td class="row-label">Komentaras</td>`;
+                    INTERVALS.forEach((_, i) => html += `<td id="comm_${lId}_${i}">-</td>`);
+                    html += `<td>-</td><td>-</td>
+                    </tr>`;
+                });
+
+                // Footer section
+                html += `<tr class="footer-table"><th rowspan="3">Suvestinė</th><th class="row-label">Faktas</th>`;
+                INTERVALS.forEach((_, i) => html += `<th class="cell-red" id="ft_fact_${tName}_${i}">0</th>`);
+                html += `<th rowspan="3" colspan="3" id="ft_grand_${tName}">
+                    <div class="grand-total-card">
+                        <div class="title">Viso per dieną</div>
+                        <div class="value" id="grand_val_${tName}">0</div>
+                    </div>
+                </th></tr>
+                <tr class="footer-table"><th class="row-label">Planas</th>`;
+                INTERVALS.forEach((_, i) => html += `<th id="ft_plan_${tName}_${i}">0</th>`);
+                html += `</tr>
+                <tr class="footer-table"><th class="row-label">Tikslas</th>`;
+                INTERVALS.forEach((_, i) => html += `<th id="ft_pct_${tName}_${i}">0%</th>`);
+                html += `</tr>`;
+
+                html += `</tbody></table></div>`;
+                tabDiv.innerHTML = html;
+                container.appendChild(tabDiv);
+            });
+        }
+
+        async function loadData() {
+            const dateStr = document.getElementById("datePicker").value;
+            if (!dateStr) return;
+
+            document.getElementById("statusBar").innerText = "Kraunama duomenis iš ThingSpeak...";
+
+            const todayStr = new Date().toISOString().split("T")[0];
+            const nowTime = new Date().toTimeString().substring(0, 5);
+
+            // Group lines by channel
+            const chMap = {};
+            LINES.forEach(l => {
+                if (!chMap[l.channel]) chMap[l.channel] = [];
+                chMap[l.channel].push(l);
+            });
+
+            // Summary stats per tab
+            const stats = {};
+            TABS.forEach(t => stats[t] = { Fact: Array(10).fill(0), Plan: Array(10).fill(0), Grand: 0 });
+
+            for (const ch in chMap) {
+                const key = READ_KEYS[ch] || "";
+                const startDate = new Date(dateStr);
+                startDate.setDate(startDate.getDate() - 3);
+                const startStr = startDate.toISOString().split("T")[0] + "%2000:00:00";
+                const endStr = dateStr + "%2016:00:00";
+
+                const url = `https://api.thingspeak.com/channels/${ch}/feeds.json?api_key=${key}&start=${startStr}&end=${endStr}&timezone=Europe/Vilnius`;
+
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    const feeds = data.feeds || [];
+
+                    chMap[ch].forEach(l => {
+                        const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
+
+                        // Last activity check
+                        const la = getLastActivityTS(feeds, "field" + l.fieldCount);
+                        const indEl = document.getElementById(`ind_${lId}`);
+                        const ltEl = document.getElementById(`lt_${lId}`);
+
+                        if (la) {
+                            const laDate = new Date(la);
+                            const diffMin = Math.floor((new Date() - laDate) / 60000);
+                            if (indEl) indEl.className = "indicator " + (diffMin <= 30 ? "green" : "red");
+
+                            const timeStr = la.substring(11, 16);
+                            const hrs = Math.floor(diffMin / 60);
+                            const mins = diffMin % 60;
+                            const elapsedStr = hrs > 0 ? `prieš ${hrs} val. ${mins} min.` : `prieš ${mins} min.`;
+                            if (ltEl) ltEl.innerText = `${timeStr}\n(${elapsedStr})`;
+                        } else {
+                            if (indEl) indEl.className = "indicator red";
+                            if (ltEl) ltEl.innerText = "-";
+                        }
+
+                        let lFactT = 0, lPlanT = 0, lFactC = 0, lPlanC = 0;
+
+                        INTERVALS.forEach((iv, idx) => {
+                            const fEl = document.getElementById(`fact_${lId}_${idx}`);
+                            const pEl = document.getElementById(`prod_${lId}_${idx}`);
+                            if (!fEl) return;
+
+                            if (dateStr === todayStr && iv[0] > nowTime) {
+                                fEl.innerText = "0";
+                                pEl.innerText = "-";
+                                return;
+                            }
+
+                            const stT = dateStr + " " + iv[0] + ":00";
+                            const enT = dateStr + " " + iv[1] + ":00";
+
+                            const intF = filterFeeds(feeds, stT, enT);
+                            const delta = calculateDelta(intF, "field" + l.fieldCount);
+
+                            let barcode = "";
+                            if (l.fieldBarcode > 0) {
+                                const uF = filterFeeds(feeds, startDate.toISOString(), enT);
+                                barcode = getLastVal(uF, "field" + l.fieldBarcode);
+                            }
+                            if (l.name === "UI perrašymas") barcode = "UI v5";
+                            else if (barcode) barcode = "X-" + barcode;
+
+                            fEl.innerText = delta;
+                            pEl.innerText = barcode || "-";
+
+                            lFactT += delta;
+                            if (delta > 0) lFactC++;
+
+                            stats[l.tab].Fact[idx] += delta;
+                        });
+
+                        document.getElementById(`facttot_${lId}`).innerText = lFactT;
+                        document.getElementById(`factavg_${lId}`).innerText = lFactC > 0 ? (lFactT / lFactC).toFixed(1) : "0";
+                        stats[l.tab].Grand += lFactT;
+                    });
+                } catch (e) {
+                    console.error("Feetch error:", e);
+                }
+            }
+
+            // Update footer suvestine
+            TABS.forEach(tName => {
+                const d = stats[tName];
+                INTERVALS.forEach((_, i) => {
+                    const fv = d.Fact[i];
+                    const pv = d.Plan[i];
+                    const pct = pv > 0 ? Math.round((fv/pv - 1) * 100) : 0;
+
+                    const fFt = document.getElementById(`ft_fact_${tName}_${i}`);
+                    const fPt = document.getElementById(`ft_pct_${tName}_${i}`);
+                    if (fFt) fFt.innerText = fv;
+                    if (fPt) fPt.innerText = (pct > 0 ? "+" : "") + pct + "%";
+                });
+                const gEl = document.getElementById(`grand_val_${tName}`);
+                if (gEl) gEl.innerText = d.Grand;
+            });
+
+            const now = new Date();
+            document.getElementById("statusBar").innerText = "Atnaujinta: " + now.toTimeString().substring(0, 8);
+        }
+
+        function filterFeeds(feeds, sT, eT) {
+            const s = sT.replace(/[- :]/g, "");
+            const e = eT.replace(/[- :]/g, "");
+            return feeds.filter(f => {
+                const ft = f.created_at.substring(0, 19).replace(/[-T:]/g, "");
+                return ft >= s && ft <= e;
+            });
+        }
+
+        function calculateDelta(feeds, field) {
+            const vals = feeds.map(f => parseFloat(f[field])).filter(v => !isNaN(v));
+            if (vals.length < 2) return 0;
+            let total = 0;
+            for (let i = 0; i < vals.length - 1; i++) {
+                const diff = vals[i+1] - vals[i];
+                if (diff > 0) total += diff;
+            }
+            return Math.round(total);
+        }
+
+        function getLastVal(feeds, field) {
+            for (let i = feeds.length - 1; i >= 0; i--) {
+                const val = feeds[i][field];
+                if (val !== undefined && val !== null && val !== "" && val !== "null") {
+                    return val;
+                }
+            }
+            return "";
+        }
+
+        function getLastActivityTS(feeds, field) {
+            for (let i = feeds.length - 1; i > 0; i--) {
+                const cv = parseFloat(feeds[i][field]) || 0;
+                const pv = parseFloat(feeds[i-1][field]) || 0;
+                if (cv > pv && cv > 0) {
+                    return feeds[i].created_at;
+                }
+            }
+            return "";
+        }
+    </script>
+</body>
+</html>
