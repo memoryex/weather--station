@@ -1,308 +1,488 @@
 <!DOCTYPE html>
-<html lang="lt">
+<html lang="lt" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GD linijos v1.3 (Mobilus)</title>
+    <title>GD Linijos - Mobilus Dashboard</title>
+    <!-- Chart.js for Infographics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #f4f6f9;
-            --card-bg: #ffffff;
-            --text-color: #212529;
-            --text-muted: #6c757d;
-            --border-color: #dee2e6;
-            --header-bg: #343a40;
-            --header-text: #ffffff;
-            --accent: #0d6efd;
-            --accent-hover: #0b5ed7;
-            --table-stripe: #f8f9fa;
-            --input-bg: #ffffff;
-            --green: #28a745;
-            --red: #dc3545;
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: rgba(226, 232, 240, 0.8);
+            --accent-primary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            --green: #10b981;
+            --red: #ef4444;
+            --gauge-bg: #e2e8f0;
+            --table-header: #f8fafc;
         }
 
         [data-theme="dark"] {
-            --bg-color: #121212;
-            --card-bg: #1e1e1e;
-            --text-color: #e0e0e0;
-            --text-muted: #a0a0a0;
-            --border-color: #333333;
-            --header-bg: #1f1f1f;
-            --header-text: #ffffff;
-            --accent: #3d8bfd;
-            --accent-hover: #0d6efd;
-            --table-stripe: #252525;
-            --input-bg: #2b2b2b;
-            --green: #20c997;
-            --red: #ff6b6b;
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            --card-bg: rgba(30, 41, 59, 0.85);
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(51, 65, 85, 0.6);
+            --accent-primary: #60a5fa;
+            --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            --green: #34d399;
+            --red: #f87171;
+            --gauge-bg: #334155;
+            --table-header: #1e293b;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            padding-bottom: 30px;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            padding-bottom: 40px;
         }
 
         header {
-            background-color: var(--header-bg);
-            color: var(--header-text);
-            padding: 12px 16px;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 18px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: sticky;
             top: 0;
-            z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 100;
         }
 
-        header h1 {
-            font-size: 1.1rem;
-            font-weight: 600;
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        .theme-toggle-btn {
-            background: rgba(255,255,255,0.15);
+        .brand-logo {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-gradient);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: white;
+            font-weight: 800;
+            font-size: 1rem;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .brand-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .theme-btn {
+            background: var(--border-color);
             border: none;
-            padding: 6px 12px;
+            color: var(--text-main);
+            padding: 8px 14px;
             border-radius: 20px;
             font-size: 0.85rem;
+            font-weight: 600;
             cursor: pointer;
+            transition: all 0.2s;
         }
 
-        .controls-bar {
-            background-color: var(--card-bg);
-            border-bottom: 1px solid var(--border-color);
-            padding: 10px 12px;
+        .controls-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            margin: 12px;
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
             display: flex;
             flex-wrap: wrap;
-            align-items: center;
             justify-content: space-between;
-            gap: 8px;
+            align-items: center;
+            gap: 10px;
         }
 
-        .date-picker-group {
+        .date-control {
             display: flex;
             align-items: center;
             gap: 6px;
         }
 
         .btn {
-            background-color: var(--accent);
+            background: var(--accent-gradient);
             color: white;
             border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            font-weight: 500;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 0.88rem;
+            font-weight: 600;
             cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.25);
+            transition: transform 0.1s, opacity 0.2s;
         }
 
         .btn:active {
-            opacity: 0.85;
+            transform: scale(0.97);
         }
 
-        .btn-outline {
-            background-color: transparent;
-            color: var(--text-color);
+        .btn-icon {
+            background: var(--card-bg);
+            color: var(--text-main);
             border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            box-shadow: none;
         }
 
         input[type="date"] {
-            background-color: var(--input-bg);
-            color: var(--text-color);
+            background: var(--card-bg);
+            color: var(--text-main);
             border: 1px solid var(--border-color);
-            padding: 7px 10px;
-            border-radius: 6px;
+            padding: 8px 12px;
+            border-radius: 10px;
             font-size: 0.9rem;
+            font-weight: 600;
             outline: none;
         }
 
-        .status-bar {
-            font-size: 0.8rem;
+        .status-text {
+            font-size: 0.78rem;
             color: var(--text-muted);
-            padding: 4px 12px;
             text-align: right;
-            background-color: var(--card-bg);
-            border-bottom: 1px solid var(--border-color);
+            width: 100%;
+            margin-top: -4px;
         }
 
-        /* Nav Tabs */
-        .tabs {
+        /* KPI Hero Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 0 12px 14px 12px;
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            padding: 14px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
             display: flex;
-            background-color: var(--card-bg);
-            border-bottom: 2px solid var(--border-color);
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .kpi-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .kpi-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--accent-primary);
+        }
+
+        .kpi-sub {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        /* Nav Pills */
+        .nav-pills {
+            display: flex;
+            gap: 8px;
+            padding: 0 12px 12px 12px;
             overflow-x: auto;
             white-space: nowrap;
             -webkit-overflow-scrolling: touch;
         }
 
-        .tab-btn {
+        .pill-btn {
             flex: 1;
-            padding: 12px 16px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 0.95rem;
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
             color: var(--text-muted);
-            border: none;
-            background: none;
-            border-bottom: 3px solid transparent;
+            font-weight: 700;
+            font-size: 0.88rem;
             cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
         }
 
-        .tab-btn.active {
-            color: var(--accent);
-            border-bottom-color: var(--accent);
+        .pill-btn.active {
+            background: var(--accent-gradient);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
         }
 
-        /* Content Table Container */
-        .tab-content {
+        /* Chart Section */
+        .chart-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            margin: 0 12px 16px 12px;
+            padding: 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+        }
+
+        .chart-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 180px;
+            width: 100%;
+        }
+
+        /* Line Cards Layout */
+        .tab-panel {
             display: none;
-            padding: 8px;
+            padding: 0 12px;
         }
 
-        .tab-content.active {
+        .tab-panel.active {
             display: block;
         }
 
-        .table-wrapper {
-            overflow-x: auto;
-            background-color: var(--card-bg);
-            border-radius: 8px;
+        .line-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
             border: 1px solid var(--border-color);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-            margin-bottom: 12px;
-            -webkit-overflow-scrolling: touch;
+            box-shadow: var(--card-shadow);
+            padding: 16px;
+            margin-bottom: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 900px;
-            font-size: 0.85rem;
+        .line-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        th, td {
-            padding: 8px;
-            text-align: center;
-            border: 1px solid var(--border-color);
-        }
-
-        th {
-            background-color: var(--table-stripe);
-            font-weight: 600;
-            color: var(--text-color);
-            position: sticky;
-            top: 0;
-        }
-
-        .line-header {
-            text-align: left;
-            font-weight: 700;
-            font-size: 0.95rem;
-            padding-left: 10px;
-            background-color: var(--table-stripe);
+        .line-title-group {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
 
-        .indicator {
-            width: 10px;
-            height: 10px;
+        .status-badge {
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            display: inline-block;
+            box-shadow: 0 0 8px currentColor;
         }
 
-        .indicator.green { background-color: var(--green); }
-        .indicator.red { background-color: var(--red); }
+        .status-badge.green { color: var(--green); background: var(--green); }
+        .status-badge.red { color: var(--red); background: var(--red); }
 
-        .row-label {
-            font-weight: 600;
-            text-align: left;
-            padding-left: 10px;
-            width: 90px;
-        }
-
-        .cell-bold { font-weight: 700; }
-        .cell-red { color: var(--red); font-weight: 700; }
-
-        .last-test-box {
-            font-size: 0.75rem;
-            line-height: 1.2;
-            color: var(--text-muted);
-        }
-
-        .footer-table th, .footer-table td {
-            font-size: 0.9rem;
-        }
-
-        .grand-total-card {
-            background: var(--card-bg);
-            border: 2px solid var(--accent);
-            border-radius: 8px;
-            padding: 10px 16px;
-            text-align: center;
-        }
-
-        .grand-total-card .title {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .grand-total-card .value {
-            font-size: 2rem;
+        .line-name {
+            font-size: 1.1rem;
             font-weight: 800;
-            color: var(--accent);
         }
 
-        @media (max-width: 600px) {
-            header h1 { font-size: 1rem; }
-            .btn { padding: 6px 10px; font-size: 0.85rem; }
+        .product-badge {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-primary);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        /* Visual Infographic Gauge */
+        .gauge-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(0,0,0,0.02);
+            padding: 12px;
+            border-radius: 14px;
+        }
+
+        .gauge-circle {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            flex-shrink: 0;
+        }
+
+        .gauge-circle svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .gauge-bg-ring {
+            fill: none;
+            stroke: var(--gauge-bg);
+            stroke-width: 6;
+        }
+
+        .gauge-fill-ring {
+            fill: none;
+            stroke: var(--accent-primary);
+            stroke-width: 6;
+            stroke-dasharray: 163;
+            stroke-dashoffset: 163;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.8s ease-in-out;
+        }
+
+        .gauge-val-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.95rem;
+            font-weight: 800;
+        }
+
+        .gauge-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .gauge-meta-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .gauge-meta-total {
+            font-size: 1.2rem;
+            font-weight: 800;
+        }
+
+        .gauge-meta-last {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        /* Mini Hourly Breakdown Table */
+        .hourly-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .mini-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+            min-width: 520px;
+        }
+
+        .mini-table th, .mini-table td {
+            padding: 6px 8px;
+            text-align: center;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .mini-table th {
+            background: var(--table-header);
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .val-num {
+            font-weight: 800;
+            color: var(--accent-primary);
         }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>GD linijos v1.3</h1>
-        <button class="theme-toggle-btn" id="themeBtn" onclick="toggleTheme()">Tema: Šviesi</button>
+        <div class="brand">
+            <div class="brand-logo">GD</div>
+            <div class="brand-title">GD Linijos v1.3</div>
+        </div>
+        <button class="theme-btn" id="themeToggleBtn" onclick="toggleTheme()">🌙 Tamsi</button>
     </header>
 
-    <div class="controls-bar">
-        <div class="date-picker-group">
-            <button class="btn btn-outline" onclick="changeDate(-1)">&lt;</button>
+    <div class="controls-card">
+        <div class="date-control">
+            <button class="btn btn-icon" onclick="changeDate(-1)">&lt;</button>
             <input type="date" id="datePicker" onchange="loadData()">
-            <button class="btn btn-outline" onclick="changeDate(1)">&gt;</button>
+            <button class="btn btn-icon" onclick="changeDate(1)">&gt;</button>
         </div>
-        <button class="btn" onclick="loadData()">Atnaujinti</button>
+        <button class="btn" onclick="loadData()">🔄 Atnaujinti</button>
+        <div class="status-text" id="statusText">Kraunama...</div>
     </div>
 
-    <div class="status-bar" id="statusBar">Kraunama...</div>
-
-    <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('PLXE', this)">PLXE</button>
-        <button class="tab-btn" onclick="switchTab('NOBO', this)">NOBO</button>
-        <button class="tab-btn" onclick="switchTab('Kiti', this)">Kiti</button>
-        <button class="tab-btn" onclick="switchTab('Perrašymas', this)">Perrašymas</button>
+    <!-- KPI Hero Summary -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Dienos Faktas</div>
+            <div class="kpi-value" id="kpiTotalFact">0</div>
+            <div class="kpi-sub" id="kpiTabLabel">Kategorijoje</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Aktyvios Linijos</div>
+            <div class="kpi-value" id="kpiActiveLines">0/0</div>
+            <div class="kpi-sub">Veikia šiuo metu</div>
+        </div>
     </div>
 
-    <main id="mainContainer">
-        <!-- Dynamic Tabs Content rendered by JavaScript -->
+    <!-- Hourly Trend Chart -->
+    <div class="chart-card">
+        <div class="chart-title">
+            <span>📊 Valandinis Gamybos Grafikas</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="hourlyChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Navigation Pills -->
+    <div class="nav-pills">
+        <button class="pill-btn active" onclick="switchTab('PLXE', this)">PLXE</button>
+        <button class="pill-btn" onclick="switchTab('NOBO', this)">NOBO</button>
+        <button class="pill-btn" onclick="switchTab('Kiti', this)">Kiti</button>
+        <button class="pill-btn" onclick="switchTab('Perrašymas', this)">Perrašymas</button>
+    </div>
+
+    <!-- Tab Panels Container -->
+    <main id="tabPanelsContainer">
+        <!-- Rendered via JS -->
     </main>
 
     <script>
@@ -342,17 +522,25 @@
         const TABS = ["PLXE", "NOBO", "Kiti", "Perrašymas"];
         let currentTab = "PLXE";
         let isDarkTheme = false;
+        let chartInstance = null;
+        let tabDataStore = {};
 
         document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("datePicker").valueAsDate = new Date();
-            renderLayout();
+            renderTabPanels();
+            initChart();
             loadData();
         });
 
         function toggleTheme() {
             isDarkTheme = !isDarkTheme;
             document.documentElement.setAttribute("data-theme", isDarkTheme ? "dark" : "light");
-            document.getElementById("themeBtn").innerText = "Tema: " + (isDarkTheme ? "Tamsi" : "Šviesi");
+            document.getElementById("themeToggleBtn").innerText = isDarkTheme ? "☀️ Šviesi" : "🌙 Tamsi";
+            if (chartInstance) {
+                chartInstance.options.scales.x.ticks.color = isDarkTheme ? "#94a3b8" : "#64748b";
+                chartInstance.options.scales.y.ticks.color = isDarkTheme ? "#94a3b8" : "#64748b";
+                chartInstance.update();
+            }
         }
 
         function changeDate(days) {
@@ -365,60 +553,102 @@
 
         function switchTab(tabName, btn) {
             currentTab = tabName;
-            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".pill-btn").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-            document.getElementById("tab-" + tabName).classList.add("active");
+            document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+            document.getElementById("panel-" + tabName).classList.add("active");
+            updateChartAndKPIs();
         }
 
-        function renderLayout() {
-            const container = document.getElementById("mainContainer");
+        function renderTabPanels() {
+            const container = document.getElementById("tabPanelsContainer");
             container.innerHTML = "";
 
             TABS.forEach(tName => {
-                const tabDiv = document.createElement("div");
-                tabDiv.className = `tab-content ${tName === currentTab ? 'active' : ''}`;
-                tabDiv.id = `tab-${tName}`;
+                const panel = document.createElement("div");
+                panel.className = `tab-panel ${tName === currentTab ? 'active' : ''}`;
+                panel.id = `panel-${tName}`;
 
                 const linesInTab = LINES.filter(l => l.tab === tName);
 
-                let html = `<div class="table-wrapper"><table><thead><tr>
-                    <th>Linija / Laukas</th>`;
-                INTERVALS.forEach(iv => html += `<th>${iv[0]}-${iv[1]}</th>`);
-                html += `<th>Viso</th><th>Vidurkis</th><th>Paskutinis testas</th></tr></thead><tbody>`;
-
                 linesInTab.forEach(l => {
                     const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
-                    html += `
-                    <tr>
-                        <td rowspan="2" class="line-header">
-                            <span class="indicator red" id="ind_${lId}"></span>
-                            <span>${l.name}</span>
-                        </td>
-                        <td class="row-label">Faktas</td>`;
-                    INTERVALS.forEach((_, i) => html += `<td class="cell-red" id="fact_${lId}_${i}">0</td>`);
-                    html += `<td class="cell-bold cell-red" id="facttot_${lId}">0</td><td id="factavg_${lId}">0</td><td rowspan="2" class="last-test-box" id="lt_${lId}">-</td>
-                    </tr>
-                    <tr>
-                        <td class="row-label">Gaminys</td>`;
-                    INTERVALS.forEach((_, i) => html += `<td id="prod_${lId}_${i}">-</td>`);
-                    html += `<td>-</td><td>-</td>
-                    </tr>`;
+                    const card = document.createElement("div");
+                    card.className = "line-card";
+                    card.innerHTML = `
+                        <div class="line-card-header">
+                            <div class="line-title-group">
+                                <div class="status-badge red" id="badge_${lId}"></div>
+                                <div class="line-name">${l.name}</div>
+                            </div>
+                            <div class="product-badge" id="prod_tag_${lId}">Gaminys: -</div>
+                        </div>
+
+                        <!-- Gauge Infographic -->
+                        <div class="gauge-section">
+                            <div class="gauge-circle">
+                                <svg viewBox="0 0 60 60">
+                                    <circle class="gauge-bg-ring" cx="30" cy="30" r="26"></circle>
+                                    <circle class="gauge-fill-ring" id="gauge_ring_${lId}" cx="30" cy="30" r="26"></circle>
+                                </svg>
+                                <div class="gauge-val-text" id="gauge_pct_${lId}">0%</div>
+                            </div>
+                            <div class="gauge-meta">
+                                <div class="gauge-meta-title">VISO PAGAMINTA</div>
+                                <div class="gauge-meta-total" id="tot_val_${lId}">0 vnt.</div>
+                                <div class="gauge-meta-last" id="last_time_${lId}">Paskutinis testas: -</div>
+                            </div>
+                        </div>
+
+                        <!-- Mini Breakdown Scrollable -->
+                        <div class="hourly-scroll">
+                            <table class="mini-table">
+                                <thead>
+                                    <tr>
+                                        ${INTERVALS.map(iv => `<th>${iv[0]}-${iv[1]}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        ${INTERVALS.map((_, i) => `<td class="val-num" id="f_${lId}_${i}">0</td>`).join('')}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    panel.appendChild(card);
                 });
 
-                // Footer section
-                html += `<tr class="footer-table"><th rowspan="1">Suvestinė</th><th class="row-label">Faktas</th>`;
-                INTERVALS.forEach((_, i) => html += `<th class="cell-red" id="ft_fact_${tName}_${i}">0</th>`);
-                html += `<th rowspan="1" colspan="3" id="ft_grand_${tName}">
-                    <div class="grand-total-card">
-                        <div class="title">Viso per dieną</div>
-                        <div class="value" id="grand_val_${tName}">0</div>
-                    </div>
-                </th></tr>`;
+                container.appendChild(panel);
+            });
+        }
 
-                html += `</tbody></table></div>`;
-                tabDiv.innerHTML = html;
-                container.appendChild(tabDiv);
+        function initChart() {
+            const ctx = document.getElementById("hourlyChart").getContext("2d");
+            chartInstance = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: INTERVALS.map(iv => iv[0]),
+                    datasets: [{
+                        label: "Faktas (vnt.)",
+                        data: Array(10).fill(0),
+                        backgroundColor: "rgba(59, 130, 246, 0.75)",
+                        borderColor: "#3b82f6",
+                        borderWidth: 2,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 10 }, color: "#64748b" } },
+                        y: { grid: { color: "rgba(148, 163, 184, 0.15)" }, ticks: { font: { size: 10 }, color: "#64748b" } }
+                    }
+                }
             });
         }
 
@@ -426,7 +656,7 @@
             const dateStr = document.getElementById("datePicker").value;
             if (!dateStr) return;
 
-            document.getElementById("statusBar").innerText = "Kraunama duomenis iš ThingSpeak...";
+            document.getElementById("statusText").innerText = "Kraunami duomenys iš ThingSpeak...";
 
             const todayStr = new Date().toISOString().split("T")[0];
             const nowTime = new Date().toTimeString().substring(0, 5);
@@ -437,8 +667,15 @@
                 chMap[l.channel].push(l);
             });
 
-            const stats = {};
-            TABS.forEach(t => stats[t] = { Fact: Array(10).fill(0), Grand: 0 });
+            // Initialize data store
+            TABS.forEach(t => {
+                tabDataStore[t] = {
+                    totalFact: 0,
+                    activeCount: 0,
+                    totalLines: LINES.filter(l => l.tab === t).length,
+                    hourlyTotals: Array(10).fill(0)
+                };
+            });
 
             for (const ch in chMap) {
                 const key = READ_KEYS[ch] || "";
@@ -458,35 +695,39 @@
                     chMap[ch].forEach(l => {
                         const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
 
+                        // Status badge & last test time
                         const la = getLastActivityTS(feeds, "field" + l.fieldCount);
-                        const indEl = document.getElementById(`ind_${lId}`);
-                        const ltEl = document.getElementById(`lt_${lId}`);
+                        const badgeEl = document.getElementById(`badge_${lId}`);
+                        const lastTimeEl = document.getElementById(`last_time_${lId}`);
 
+                        let isActive = false;
                         if (la) {
                             const laDate = new Date(la);
                             const diffMin = Math.floor((new Date() - laDate) / 60000);
-                            if (indEl) indEl.className = "indicator " + (diffMin <= 30 ? "green" : "red");
+                            isActive = (diffMin <= 30);
+                            if (badgeEl) badgeEl.className = "status-badge " + (isActive ? "green" : "red");
 
                             const timeStr = la.substring(11, 16);
                             const hrs = Math.floor(diffMin / 60);
                             const mins = diffMin % 60;
                             const elapsedStr = hrs > 0 ? `prieš ${hrs} val. ${mins} min.` : `prieš ${mins} min.`;
-                            if (ltEl) ltEl.innerText = `${timeStr}\n(${elapsedStr})`;
+                            if (lastTimeEl) lastTimeEl.innerText = `Paskutinis testas: ${timeStr} (${elapsedStr})`;
                         } else {
-                            if (indEl) indEl.className = "indicator red";
-                            if (ltEl) ltEl.innerText = "-";
+                            if (badgeEl) badgeEl.className = "status-badge red";
+                            if (lastTimeEl) lastTimeEl.innerText = "Paskutinis testas: -";
                         }
 
-                        let lFactT = 0, lFactC = 0;
+                        if (isActive) tabDataStore[l.tab].activeCount++;
+
+                        let lineTotal = 0;
+                        let lastProduct = "";
 
                         INTERVALS.forEach((iv, idx) => {
-                            const fEl = document.getElementById(`fact_${lId}_${idx}`);
-                            const pEl = document.getElementById(`prod_${lId}_${idx}`);
-                            if (!fEl) return;
+                            const fCell = document.getElementById(`f_${lId}_${idx}`);
+                            if (!fCell) return;
 
                             if (dateStr === todayStr && iv[0] > nowTime) {
-                                fEl.innerText = "0";
-                                pEl.innerText = "-";
+                                fCell.innerText = "0";
                                 return;
                             }
 
@@ -496,45 +737,63 @@
                             const intF = filterFeeds(feeds, stT, enT);
                             const delta = calculateDelta(intF, "field" + l.fieldCount);
 
-                            let barcode = "";
+                            fCell.innerText = delta;
+                            lineTotal += delta;
+                            tabDataStore[l.tab].hourlyTotals[idx] += delta;
+
                             if (l.fieldBarcode > 0) {
                                 const uF = filterFeeds(feeds, startDate.toISOString(), enT);
-                                barcode = getLastVal(uF, "field" + l.fieldBarcode);
+                                const bc = getLastVal(uF, "field" + l.fieldBarcode);
+                                if (bc) lastProduct = "X-" + bc;
                             }
-                            if (l.name === "UI perrašymas") barcode = "UI v5";
-                            else if (barcode) barcode = "X-" + barcode;
-
-                            fEl.innerText = delta;
-                            pEl.innerText = barcode || "-";
-
-                            lFactT += delta;
-                            if (delta > 0) lFactC++;
-
-                            stats[l.tab].Fact[idx] += delta;
                         });
 
-                        document.getElementById(`facttot_${lId}`).innerText = lFactT;
-                        document.getElementById(`factavg_${lId}`).innerText = lFactC > 0 ? (lFactT / lFactC).toFixed(1) : "0";
-                        stats[l.tab].Grand += lFactT;
+                        if (l.name === "UI perrašymas") lastProduct = "UI v5";
+
+                        tabDataStore[l.tab].totalFact += lineTotal;
+
+                        // Update Total Text
+                        const totValEl = document.getElementById(`tot_val_${lId}`);
+                        if (totValEl) totValEl.innerText = lineTotal + " vnt.";
+
+                        // Update Product Badge
+                        const prodTagEl = document.getElementById(`prod_tag_${lId}`);
+                        if (prodTagEl) prodTagEl.innerText = "Gaminys: " + (lastProduct || "-");
+
+                        // Update Gauge Ring Infographic (Target benchmark ~150 vnt)
+                        const benchmark = 150;
+                        const pct = Math.min(100, Math.round((lineTotal / benchmark) * 100));
+                        const ringEl = document.getElementById(`gauge_ring_${lId}`);
+                        const pctTxtEl = document.getElementById(`gauge_pct_${lId}`);
+
+                        if (ringEl) {
+                            const circumference = 163;
+                            const offset = circumference - (pct / 100) * circumference;
+                            ringEl.style.strokeDashoffset = offset;
+                        }
+                        if (pctTxtEl) pctTxtEl.innerText = pct + "%";
                     });
                 } catch (e) {
                     console.error("Fetch error:", e);
                 }
             }
 
-            TABS.forEach(tName => {
-                const d = stats[tName];
-                INTERVALS.forEach((_, i) => {
-                    const fv = d.Fact[i];
-                    const fFt = document.getElementById(`ft_fact_${tName}_${i}`);
-                    if (fFt) fFt.innerText = fv;
-                });
-                const gEl = document.getElementById(`grand_val_${tName}`);
-                if (gEl) gEl.innerText = d.Grand;
-            });
-
+            updateChartAndKPIs();
             const now = new Date();
-            document.getElementById("statusBar").innerText = "Atnaujinta: " + now.toTimeString().substring(0, 8);
+            document.getElementById("statusText").innerText = "Atnaujinta: " + now.toTimeString().substring(0, 8);
+        }
+
+        function updateChartAndKPIs() {
+            const store = tabDataStore[currentTab] || { totalFact: 0, activeCount: 0, totalLines: 0, hourlyTotals: Array(10).fill(0) };
+
+            document.getElementById("kpiTotalFact").innerText = store.totalFact + " vnt.";
+            document.getElementById("kpiTabLabel").innerText = currentTab + " kategorijoje";
+            document.getElementById("kpiActiveLines").innerText = `${store.activeCount}/${store.totalLines}`;
+
+            if (chartInstance) {
+                chartInstance.data.datasets[0].data = store.hourlyTotals;
+                chartInstance.update();
+            }
         }
 
         function filterFeeds(feeds, sT, eT) {
