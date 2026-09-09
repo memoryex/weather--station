@@ -407,13 +407,14 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 0.75rem;
-            min-width: 520px;
+            min-width: 580px;
         }
 
         .mini-table th, .mini-table td {
             padding: 6px 8px;
             text-align: center;
             border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
         }
 
         .mini-table th {
@@ -422,9 +423,26 @@
             color: var(--text-muted);
         }
 
+        .row-head {
+            font-weight: 700;
+            text-align: left;
+            padding-left: 8px;
+            background: var(--table-header);
+            width: 70px;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+        }
+
         .val-num {
             font-weight: 800;
             color: var(--accent-primary);
+        }
+
+        .prod-num {
+            font-weight: 600;
+            font-size: 0.7rem;
+            color: var(--text-muted);
         }
     </style>
 </head>
@@ -575,13 +593,16 @@
                     const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
                     const card = document.createElement("div");
                     card.className = "line-card";
+
+                    const isPerrasymas = (tName === "Perrašymas");
+
                     card.innerHTML = `
                         <div class="line-card-header">
                             <div class="line-title-group">
                                 <div class="status-badge red" id="badge_${lId}"></div>
                                 <div class="line-name">${l.name}</div>
                             </div>
-                            <div class="product-badge" id="prod_tag_${lId}">Gaminys: -</div>
+                            <div class="product-badge" id="prod_tag_${lId}">Gaminys: ${isPerrasymas ? l.name : '-'}</div>
                         </div>
 
                         <!-- Gauge Infographic -->
@@ -605,13 +626,20 @@
                             <table class="mini-table">
                                 <thead>
                                     <tr>
+                                        <th class="row-head">Laukas</th>
                                         ${INTERVALS.map(iv => `<th>${iv[0]}-${iv[1]}</th>`).join('')}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
+                                        <td class="row-head">Faktas</td>
                                         ${INTERVALS.map((_, i) => `<td class="val-num" id="f_${lId}_${i}">0</td>`).join('')}
                                     </tr>
+                                    ${!isPerrasymas ? `
+                                    <tr>
+                                        <td class="row-head">Gaminys</td>
+                                        ${INTERVALS.map((_, i) => `<td class="prod-num" id="p_${lId}_${i}">-</td>`).join('')}
+                                    </tr>` : ''}
                                 </tbody>
                             </table>
                         </div>
@@ -667,7 +695,6 @@
                 chMap[l.channel].push(l);
             });
 
-            // Initialize data store
             TABS.forEach(t => {
                 tabDataStore[t] = {
                     totalFact: 0,
@@ -695,7 +722,6 @@
                     chMap[ch].forEach(l => {
                         const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
 
-                        // Status badge & last test time
                         const la = getLastActivityTS(feeds, "field" + l.fieldCount);
                         const badgeEl = document.getElementById(`badge_${lId}`);
                         const lastTimeEl = document.getElementById(`last_time_${lId}`);
@@ -724,10 +750,12 @@
 
                         INTERVALS.forEach((iv, idx) => {
                             const fCell = document.getElementById(`f_${lId}_${idx}`);
+                            const pCell = document.getElementById(`p_${lId}_${idx}`);
                             if (!fCell) return;
 
                             if (dateStr === todayStr && iv[0] > nowTime) {
                                 fCell.innerText = "0";
+                                if (pCell) pCell.innerText = "-";
                                 return;
                             }
 
@@ -741,26 +769,31 @@
                             lineTotal += delta;
                             tabDataStore[l.tab].hourlyTotals[idx] += delta;
 
+                            let hourlyBarcode = "";
                             if (l.fieldBarcode > 0) {
                                 const uF = filterFeeds(feeds, startDate.toISOString(), enT);
                                 const bc = getLastVal(uF, "field" + l.fieldBarcode);
-                                if (bc) lastProduct = "X-" + bc;
+                                if (bc) {
+                                    hourlyBarcode = "X-" + bc;
+                                    lastProduct = hourlyBarcode;
+                                }
                             }
+
+                            if (pCell) pCell.innerText = hourlyBarcode || "-";
                         });
 
-                        if (l.name === "UI perrašymas") lastProduct = "UI v5";
+                        if (l.tab === "Perrašymas") {
+                            lastProduct = (l.name === "Alta WiFi") ? "Alta WiFi" : "XLE UI";
+                        }
 
                         tabDataStore[l.tab].totalFact += lineTotal;
 
-                        // Update Total Text
                         const totValEl = document.getElementById(`tot_val_${lId}`);
                         if (totValEl) totValEl.innerText = lineTotal + " vnt.";
 
-                        // Update Product Badge
                         const prodTagEl = document.getElementById(`prod_tag_${lId}`);
                         if (prodTagEl) prodTagEl.innerText = "Gaminys: " + (lastProduct || "-");
 
-                        // Update Gauge Ring Infographic (Target benchmark ~150 vnt)
                         const benchmark = 150;
                         const pct = Math.min(100, Math.round((lineTotal / benchmark) * 100));
                         const ringEl = document.getElementById(`gauge_ring_${lId}`);
