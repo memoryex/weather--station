@@ -238,7 +238,6 @@
 
         .cell-bold { font-weight: 700; }
         .cell-red { color: var(--red); font-weight: 700; }
-        .cell-green { color: var(--green); font-weight: 700; }
 
         .last-test-box {
             font-size: 0.75rem;
@@ -254,25 +253,23 @@
             background: var(--card-bg);
             border: 2px solid var(--accent);
             border-radius: 8px;
-            padding: 12px;
+            padding: 10px 16px;
             text-align: center;
-            margin-top: 10px;
         }
 
         .grand-total-card .title {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-muted);
             text-transform: uppercase;
             font-weight: 600;
         }
 
         .grand-total-card .value {
-            font-size: 2.2rem;
+            font-size: 2rem;
             font-weight: 800;
             color: var(--accent);
         }
 
-        /* Mobile Card View for narrow screen optimization */
         @media (max-width: 600px) {
             header h1 { font-size: 1rem; }
             .btn { padding: 6px 10px; font-size: 0.85rem; }
@@ -346,7 +343,6 @@
         let currentTab = "PLXE";
         let isDarkTheme = false;
 
-        // Initialize App
         document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("datePicker").valueAsDate = new Date();
             renderLayout();
@@ -395,46 +391,30 @@
                     const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
                     html += `
                     <tr>
-                        <td rowspan="4" class="line-header">
+                        <td rowspan="2" class="line-header">
                             <span class="indicator red" id="ind_${lId}"></span>
                             <span>${l.name}</span>
                         </td>
-                        <td class="row-label">Planas</td>`;
-                    INTERVALS.forEach((_, i) => html += `<td id="plan_${lId}_${i}">0</td>`);
-                    html += `<td class="cell-bold" id="plantot_${lId}">0</td><td id="planavg_${lId}">0</td><td rowspan="4" class="last-test-box" id="lt_${lId}">-</td>
-                    </tr>
-                    <tr>
                         <td class="row-label">Faktas</td>`;
                     INTERVALS.forEach((_, i) => html += `<td class="cell-red" id="fact_${lId}_${i}">0</td>`);
-                    html += `<td class="cell-bold cell-red" id="facttot_${lId}">0</td><td id="factavg_${lId}">0</td>
+                    html += `<td class="cell-bold cell-red" id="facttot_${lId}">0</td><td id="factavg_${lId}">0</td><td rowspan="2" class="last-test-box" id="lt_${lId}">-</td>
                     </tr>
                     <tr>
                         <td class="row-label">Gaminys</td>`;
                     INTERVALS.forEach((_, i) => html += `<td id="prod_${lId}_${i}">-</td>`);
                     html += `<td>-</td><td>-</td>
-                    </tr>
-                    <tr>
-                        <td class="row-label">Komentaras</td>`;
-                    INTERVALS.forEach((_, i) => html += `<td id="comm_${lId}_${i}">-</td>`);
-                    html += `<td>-</td><td>-</td>
                     </tr>`;
                 });
 
                 // Footer section
-                html += `<tr class="footer-table"><th rowspan="3">Suvestinė</th><th class="row-label">Faktas</th>`;
+                html += `<tr class="footer-table"><th rowspan="1">Suvestinė</th><th class="row-label">Faktas</th>`;
                 INTERVALS.forEach((_, i) => html += `<th class="cell-red" id="ft_fact_${tName}_${i}">0</th>`);
-                html += `<th rowspan="3" colspan="3" id="ft_grand_${tName}">
+                html += `<th rowspan="1" colspan="3" id="ft_grand_${tName}">
                     <div class="grand-total-card">
                         <div class="title">Viso per dieną</div>
                         <div class="value" id="grand_val_${tName}">0</div>
                     </div>
-                </th></tr>
-                <tr class="footer-table"><th class="row-label">Planas</th>`;
-                INTERVALS.forEach((_, i) => html += `<th id="ft_plan_${tName}_${i}">0</th>`);
-                html += `</tr>
-                <tr class="footer-table"><th class="row-label">Tikslas</th>`;
-                INTERVALS.forEach((_, i) => html += `<th id="ft_pct_${tName}_${i}">0%</th>`);
-                html += `</tr>`;
+                </th></tr>`;
 
                 html += `</tbody></table></div>`;
                 tabDiv.innerHTML = html;
@@ -451,16 +431,14 @@
             const todayStr = new Date().toISOString().split("T")[0];
             const nowTime = new Date().toTimeString().substring(0, 5);
 
-            // Group lines by channel
             const chMap = {};
             LINES.forEach(l => {
                 if (!chMap[l.channel]) chMap[l.channel] = [];
                 chMap[l.channel].push(l);
             });
 
-            // Summary stats per tab
             const stats = {};
-            TABS.forEach(t => stats[t] = { Fact: Array(10).fill(0), Plan: Array(10).fill(0), Grand: 0 });
+            TABS.forEach(t => stats[t] = { Fact: Array(10).fill(0), Grand: 0 });
 
             for (const ch in chMap) {
                 const key = READ_KEYS[ch] || "";
@@ -480,7 +458,6 @@
                     chMap[ch].forEach(l => {
                         const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
 
-                        // Last activity check
                         const la = getLastActivityTS(feeds, "field" + l.fieldCount);
                         const indEl = document.getElementById(`ind_${lId}`);
                         const ltEl = document.getElementById(`lt_${lId}`);
@@ -500,7 +477,7 @@
                             if (ltEl) ltEl.innerText = "-";
                         }
 
-                        let lFactT = 0, lPlanT = 0, lFactC = 0, lPlanC = 0;
+                        let lFactT = 0, lFactC = 0;
 
                         INTERVALS.forEach((iv, idx) => {
                             const fEl = document.getElementById(`fact_${lId}_${idx}`);
@@ -541,22 +518,16 @@
                         stats[l.tab].Grand += lFactT;
                     });
                 } catch (e) {
-                    console.error("Feetch error:", e);
+                    console.error("Fetch error:", e);
                 }
             }
 
-            // Update footer suvestine
             TABS.forEach(tName => {
                 const d = stats[tName];
                 INTERVALS.forEach((_, i) => {
                     const fv = d.Fact[i];
-                    const pv = d.Plan[i];
-                    const pct = pv > 0 ? Math.round((fv/pv - 1) * 100) : 0;
-
                     const fFt = document.getElementById(`ft_fact_${tName}_${i}`);
-                    const fPt = document.getElementById(`ft_pct_${tName}_${i}`);
                     if (fFt) fFt.innerText = fv;
-                    if (fPt) fPt.innerText = (pct > 0 ? "+" : "") + pct + "%";
                 });
                 const gEl = document.getElementById(`grand_val_${tName}`);
                 if (gEl) gEl.innerText = d.Grand;
