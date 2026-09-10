@@ -466,7 +466,7 @@
         }
 
         .gauge-meta-avg {
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             font-weight: 700;
             color: var(--accent-primary);
         }
@@ -557,7 +557,7 @@
         <div class="kpi-card">
             <div class="kpi-title">Vidurkis / Val.</div>
             <div class="kpi-value" id="kpiHourlyAvg">0</div>
-            <div class="kpi-sub">vnt./val.</div>
+            <div class="kpi-sub">Bendra kategorijoje</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Aktyvios Linijos</div>
@@ -844,8 +844,8 @@
                 tabDataStore[t] = {
                     totalFact: 0,
                     activeCount: 0,
-                    activeHoursCount: 0,
-                    totalLines: LINES.filter(l => l.tab === t).length,
+                    sumLineAvgs: 0,
+                    lineCount: LINES.filter(l => l.tab === t).length,
                     hourlyTotals: Array(10).fill(0)
                 };
             });
@@ -936,17 +936,15 @@
                         }
 
                         tabDataStore[l.tab].totalFact += lineTotal;
-                        if (lineActiveHours > tabDataStore[l.tab].activeHoursCount) {
-                            tabDataStore[l.tab].activeHoursCount = lineActiveHours;
-                        }
 
-                        const lineAvg = lineActiveHours > 0 ? (lineTotal / lineActiveHours).toFixed(1) : "0";
+                        const lineAvg = lineActiveHours > 0 ? (lineTotal / lineActiveHours) : 0;
+                        tabDataStore[l.tab].sumLineAvgs += lineAvg;
 
                         const totValEl = document.getElementById(`tot_val_${lId}`);
                         if (totValEl) totValEl.innerText = lineTotal + " vnt.";
 
                         const avgValEl = document.getElementById(`avg_val_${lId}`);
-                        if (avgValEl) avgValEl.innerText = `Vidurkis: ${lineAvg} vnt./val.`;
+                        if (avgValEl) avgValEl.innerText = `Vidurkis: ${lineAvg.toFixed(1)} vnt./val.`;
 
                         const prodTagEl = document.getElementById(`prod_tag_${lId}`);
                         if (prodTagEl) prodTagEl.innerText = "Gaminys: " + (lastProduct || "-");
@@ -1035,15 +1033,15 @@
         }
 
         function updateChartAndKPIs() {
-            const store = tabDataStore[currentTab] || { totalFact: 0, activeCount: 0, activeHoursCount: 0, totalLines: 0, hourlyTotals: Array(10).fill(0) };
+            const store = tabDataStore[currentTab] || { totalFact: 0, activeCount: 0, sumLineAvgs: 0, lineCount: 0, hourlyTotals: Array(10).fill(0) };
 
             document.getElementById("kpiTotalFact").innerText = store.totalFact + " vnt.";
             document.getElementById("kpiTabLabel").innerText = currentTab + " kategorijoje";
 
-            const hourlyAvg = store.activeHoursCount > 0 ? (store.totalFact / store.activeHoursCount).toFixed(1) : "0";
-            document.getElementById("kpiHourlyAvg").innerText = hourlyAvg;
+            const overallHourlyAvg = (store.sumLineAvgs).toFixed(1);
+            document.getElementById("kpiHourlyAvg").innerText = overallHourlyAvg;
 
-            document.getElementById("kpiActiveLines").innerText = `${store.activeCount}/${store.totalLines}`;
+            document.getElementById("kpiActiveLines").innerText = `${store.activeCount}/${store.lineCount}`;
 
             if (chartInstance) {
                 chartInstance.data.datasets[0].data = store.hourlyTotals;
