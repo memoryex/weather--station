@@ -150,7 +150,7 @@
             box-shadow: none;
         }
 
-        input[type="date"] {
+        input[type="date"], select {
             background: var(--card-bg);
             color: var(--text-main);
             border: 1px solid var(--border-color);
@@ -172,15 +172,15 @@
         /* KPI Hero Cards */
         .kpi-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
             margin: 0 12px 14px 12px;
         }
 
         .kpi-card {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
-            padding: 14px;
+            padding: 12px 10px;
             border-radius: 16px;
             border: 1px solid var(--border-color);
             box-shadow: var(--card-shadow);
@@ -190,22 +190,97 @@
         }
 
         .kpi-title {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.03em;
         }
 
         .kpi-value {
-            font-size: 1.6rem;
+            font-size: 1.35rem;
             font-weight: 800;
             color: var(--accent-primary);
         }
 
         .kpi-sub {
-            font-size: 0.72rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
+        }
+
+        /* Period Report Tool Section */
+        .report-section {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            margin: 0 12px 16px 12px;
+            padding: 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .report-title {
+            font-size: 1rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .report-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .form-group label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .report-result-card {
+            background: rgba(59, 130, 246, 0.08);
+            border: 1.5px solid var(--accent-primary);
+            border-radius: 14px;
+            padding: 12px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .report-result-card.active {
+            display: flex;
+        }
+
+        .report-hero-val {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--accent-primary);
+            text-align: center;
+        }
+
+        .report-hero-sub {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: center;
+            font-weight: 600;
         }
 
         /* Nav Pills */
@@ -380,7 +455,7 @@
         }
 
         .gauge-meta-title {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             color: var(--text-muted);
             font-weight: 600;
         }
@@ -388,6 +463,12 @@
         .gauge-meta-total {
             font-size: 1.2rem;
             font-weight: 800;
+        }
+
+        .gauge-meta-avg {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--accent-primary);
         }
 
         .gauge-meta-last {
@@ -474,9 +555,57 @@
             <div class="kpi-sub" id="kpiTabLabel">Kategorijoje</div>
         </div>
         <div class="kpi-card">
+            <div class="kpi-title">Vidurkis / Val.</div>
+            <div class="kpi-value" id="kpiHourlyAvg">0</div>
+            <div class="kpi-sub">vnt./val.</div>
+        </div>
+        <div class="kpi-card">
             <div class="kpi-title">Aktyvios Linijos</div>
             <div class="kpi-value" id="kpiActiveLines">0/0</div>
-            <div class="kpi-sub">Veikia šiuo metu</div>
+            <div class="kpi-sub">Šiuo metu</div>
+        </div>
+    </div>
+
+    <!-- Period Report Tool Card -->
+    <div class="report-section">
+        <div class="report-title">
+            <span>📅 Periodo & Linijos Ataskaita</span>
+        </div>
+        <div class="report-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Data nuo:</label>
+                    <input type="date" id="reportStart">
+                </div>
+                <div class="form-group">
+                    <label>Data iki:</label>
+                    <input type="date" id="reportEnd">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Pasirinkti liniją:</label>
+                <select id="reportLineSelect">
+                    <option value="ALL">-- Visos linijos --</option>
+                </select>
+            </div>
+            <button class="btn" onclick="generatePeriodReport()">⚡ Generuoti Ataskaitą</button>
+        </div>
+
+        <div class="report-result-card" id="reportResultCard">
+            <div class="report-hero-val" id="reportTotalVal">0 vnt.</div>
+            <div class="report-hero-sub" id="reportSummarySub">Suma per pasirinktą laikotarpį</div>
+            <div class="hourly-scroll" style="margin-top: 6px;">
+                <table class="mini-table" id="reportDetailTable">
+                    <thead>
+                        <tr>
+                            <th class="row-head">Data / Linija</th>
+                            <th>Viso vnt.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportDetailBody">
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -544,11 +673,26 @@
         let tabDataStore = {};
 
         document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("datePicker").valueAsDate = new Date();
+            const today = new Date();
+            document.getElementById("datePicker").valueAsDate = today;
+            document.getElementById("reportStart").valueAsDate = today;
+            document.getElementById("reportEnd").valueAsDate = today;
+
+            populateLineDropdown();
             renderTabPanels();
             initChart();
             loadData();
         });
+
+        function populateLineDropdown() {
+            const select = document.getElementById("reportLineSelect");
+            LINES.forEach(l => {
+                const opt = document.createElement("option");
+                opt.value = l.name;
+                opt.textContent = `${l.name} (${l.tab})`;
+                select.appendChild(opt);
+            });
+        }
 
         function toggleTheme() {
             isDarkTheme = !isDarkTheme;
@@ -617,6 +761,7 @@
                             <div class="gauge-meta">
                                 <div class="gauge-meta-title">VISO PAGAMINTA</div>
                                 <div class="gauge-meta-total" id="tot_val_${lId}">0 vnt.</div>
+                                <div class="gauge-meta-avg" id="avg_val_${lId}">Vidurkis: 0 vnt./val.</div>
                                 <div class="gauge-meta-last" id="last_time_${lId}">Paskutinis testas: -</div>
                             </div>
                         </div>
@@ -699,6 +844,7 @@
                 tabDataStore[t] = {
                     totalFact: 0,
                     activeCount: 0,
+                    activeHoursCount: 0,
                     totalLines: LINES.filter(l => l.tab === t).length,
                     hourlyTotals: Array(10).fill(0)
                 };
@@ -746,6 +892,7 @@
                         if (isActive) tabDataStore[l.tab].activeCount++;
 
                         let lineTotal = 0;
+                        let lineActiveHours = 0;
                         let lastProduct = "";
 
                         INTERVALS.forEach((iv, idx) => {
@@ -769,6 +916,8 @@
                             lineTotal += delta;
                             tabDataStore[l.tab].hourlyTotals[idx] += delta;
 
+                            if (delta > 0) lineActiveHours++;
+
                             let hourlyBarcode = "";
                             if (l.fieldBarcode > 0) {
                                 const uF = filterFeeds(feeds, startDate.toISOString(), enT);
@@ -787,9 +936,17 @@
                         }
 
                         tabDataStore[l.tab].totalFact += lineTotal;
+                        if (lineActiveHours > tabDataStore[l.tab].activeHoursCount) {
+                            tabDataStore[l.tab].activeHoursCount = lineActiveHours;
+                        }
+
+                        const lineAvg = lineActiveHours > 0 ? (lineTotal / lineActiveHours).toFixed(1) : "0";
 
                         const totValEl = document.getElementById(`tot_val_${lId}`);
                         if (totValEl) totValEl.innerText = lineTotal + " vnt.";
+
+                        const avgValEl = document.getElementById(`avg_val_${lId}`);
+                        if (avgValEl) avgValEl.innerText = `Vidurkis: ${lineAvg} vnt./val.`;
 
                         const prodTagEl = document.getElementById(`prod_tag_${lId}`);
                         if (prodTagEl) prodTagEl.innerText = "Gaminys: " + (lastProduct || "-");
@@ -816,11 +973,76 @@
             document.getElementById("statusText").innerText = "Atnaujinta: " + now.toTimeString().substring(0, 8);
         }
 
+        async function generatePeriodReport() {
+            const startStr = document.getElementById("reportStart").value;
+            const endStr = document.getElementById("reportEnd").value;
+            const lineVal = document.getElementById("reportLineSelect").value;
+
+            if (!startStr || !endStr) {
+                alert("Pasirinkite pradžios ir pabaigos datas.");
+                return;
+            }
+
+            document.getElementById("statusText").innerText = "Generuojama ataskaita...";
+
+            const targetLines = (lineVal === "ALL") ? LINES : LINES.filter(l => l.name === lineVal);
+
+            const chMap = {};
+            targetLines.forEach(l => {
+                if (!chMap[l.channel]) chMap[l.channel] = [];
+                chMap[l.channel].push(l);
+            });
+
+            let grandTotal = 0;
+            const lineTotals = {};
+
+            for (const ch in chMap) {
+                const key = READ_KEYS[ch] || "";
+                const url = `https://api.thingspeak.com/channels/${ch}/feeds.json?api_key=${key}&start=${startStr}%2000:00:00&end=${endStr}%2016:00:00&timezone=Europe/Vilnius`;
+
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    const feeds = data.feeds || [];
+
+                    chMap[ch].forEach(l => {
+                        const totalDelta = calculateDelta(feeds, "field" + l.fieldCount);
+                        lineTotals[l.name] = totalDelta;
+                        grandTotal += totalDelta;
+                    });
+                } catch (e) {
+                    console.error("Report fetch error:", e);
+                }
+            }
+
+            const resultCard = document.getElementById("reportResultCard");
+            resultCard.classList.add("active");
+
+            document.getElementById("reportTotalVal").innerText = grandTotal + " vnt.";
+            document.getElementById("reportSummarySub").innerText = `Nuo ${startStr} iki ${endStr} (${lineVal === "ALL" ? "Visos linijos" : lineVal})`;
+
+            const tbody = document.getElementById("reportDetailBody");
+            tbody.innerHTML = "";
+
+            for (const lName in lineTotals) {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `<td class="row-head">${lName}</td><td class="val-num">${lineTotals[lName]} vnt.</td>`;
+                tbody.appendChild(tr);
+            }
+
+            document.getElementById("statusText").innerText = "Ataskaita sugeneruota!";
+        }
+
         function updateChartAndKPIs() {
-            const store = tabDataStore[currentTab] || { totalFact: 0, activeCount: 0, totalLines: 0, hourlyTotals: Array(10).fill(0) };
+            const store = tabDataStore[currentTab] || { totalFact: 0, activeCount: 0, activeHoursCount: 0, totalLines: 0, hourlyTotals: Array(10).fill(0) };
 
             document.getElementById("kpiTotalFact").innerText = store.totalFact + " vnt.";
             document.getElementById("kpiTabLabel").innerText = currentTab + " kategorijoje";
+
+            const hourlyAvg = store.activeHoursCount > 0 ? (store.totalFact / store.activeHoursCount).toFixed(1) : "0";
+            document.getElementById("kpiHourlyAvg").innerText = hourlyAvg;
+
             document.getElementById("kpiActiveLines").innerText = `${store.activeCount}/${store.totalLines}`;
 
             if (chartInstance) {
