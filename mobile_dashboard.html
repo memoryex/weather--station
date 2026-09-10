@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="lt" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GD Linijos - Mobilus Dashboard</title>
+    <!-- Chart.js for Infographics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: rgba(226, 232, 240, 0.8);
+            --accent-primary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            --green: #10b981;
+            --red: #ef4444;
+            --gauge-bg: #e2e8f0;
+            --table-header: #f8fafc;
+        }
+
+        [data-theme="dark"] {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            --card-bg: rgba(30, 41, 59, 0.85);
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(51, 65, 85, 0.6);
+            --accent-primary: #60a5fa;
+            --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            --green: #34d399;
+            --red: #f87171;
+            --gauge-bg: #334155;
+            --table-header: #1e293b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            padding-bottom: 40px;
+        }
+
+        header {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-logo {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-gradient);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 800;
+            font-size: 1rem;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .brand-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .theme-btn {
+            background: var(--border-color);
+            border: none;
+            color: var(--text-main);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .controls-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            margin: 12px;
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .date-control {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn {
+            background: var(--accent-gradient);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.25);
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-icon {
+            background: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            box-shadow: none;
+        }
+
+        input[type="date"], select {
+            background: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            outline: none;
+        }
+
+        .status-text {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-align: right;
+            width: 100%;
+            margin-top: -4px;
+        }
+
+        /* KPI Hero Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin: 0 12px 14px 12px;
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            padding: 12px 10px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .kpi-title {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .kpi-value {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--accent-primary);
+        }
+
+        .kpi-sub {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Period Report Tool Section */
+        .report-section {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            margin: 0 12px 16px 12px;
+            padding: 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .report-title {
+            font-size: 1rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .report-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .form-group label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .report-result-card {
+            background: rgba(59, 130, 246, 0.08);
+            border: 1.5px solid var(--accent-primary);
+            border-radius: 14px;
+            padding: 12px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .report-result-card.active {
+            display: flex;
+        }
+
+        .report-hero-val {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--accent-primary);
+            text-align: center;
+        }
+
+        .report-hero-sub {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* Nav Pills */
+        .nav-pills {
+            display: flex;
+            gap: 8px;
+            padding: 0 12px 12px 12px;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .pill-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-muted);
+            font-weight: 700;
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .pill-btn.active {
+            background: var(--accent-gradient);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Chart Section */
+        .chart-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            margin: 0 12px 16px 12px;
+            padding: 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+        }
+
+        .chart-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 180px;
+            width: 100%;
+        }
+
+        /* Line Cards Layout */
+        .tab-panel {
+            display: none;
+            padding: 0 12px;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .line-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            padding: 16px;
+            margin-bottom: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .line-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .line-title-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        .status-badge.green { color: var(--green); background: var(--green); }
+        .status-badge.red { color: var(--red); background: var(--red); }
+
+        .line-name {
+            font-size: 1.1rem;
+            font-weight: 800;
+        }
+
+        .product-badge {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-primary);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        /* Visual Infographic Gauge */
+        .gauge-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(0,0,0,0.02);
+            padding: 12px;
+            border-radius: 14px;
+        }
+
+        .gauge-circle {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            flex-shrink: 0;
+        }
+
+        .gauge-circle svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .gauge-bg-ring {
+            fill: none;
+            stroke: var(--gauge-bg);
+            stroke-width: 6;
+        }
+
+        .gauge-fill-ring {
+            fill: none;
+            stroke: var(--accent-primary);
+            stroke-width: 6;
+            stroke-dasharray: 163;
+            stroke-dashoffset: 163;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.8s ease-in-out;
+        }
+
+        .gauge-val-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.95rem;
+            font-weight: 800;
+        }
+
+        .gauge-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .gauge-meta-title {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .gauge-meta-total {
+            font-size: 1.2rem;
+            font-weight: 800;
+        }
+
+        .gauge-meta-avg {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .gauge-meta-last {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        /* Mini Hourly Breakdown Table */
+        .hourly-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .mini-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+            min-width: 580px;
+        }
+
+        .mini-table th, .mini-table td {
+            padding: 6px 8px;
+            text-align: center;
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .mini-table th {
+            background: var(--table-header);
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .row-head {
+            font-weight: 700;
+            text-align: left;
+            padding-left: 8px;
+            background: var(--table-header);
+            width: 70px;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+        }
+
+        .val-num {
+            font-weight: 800;
+            color: var(--accent-primary);
+        }
+
+        .prod-num {
+            font-weight: 600;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <div class="brand-logo">GD</div>
+            <div class="brand-title">GD Linijos v1.3</div>
+        </div>
+        <button class="theme-btn" id="themeToggleBtn" onclick="toggleTheme()">🌙 Tamsi</button>
+    </header>
+
+    <div class="controls-card">
+        <div class="date-control">
+            <button class="btn btn-icon" onclick="changeDate(-1)">&lt;</button>
+            <input type="date" id="datePicker" onchange="loadData()">
+            <button class="btn btn-icon" onclick="changeDate(1)">&gt;</button>
+        </div>
+        <button class="btn" onclick="loadData()">🔄 Atnaujinti</button>
+        <div class="status-text" id="statusText">Kraunama...</div>
+    </div>
+
+    <!-- KPI Hero Summary -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Dienos Faktas</div>
+            <div class="kpi-value" id="kpiTotalFact">0</div>
+            <div class="kpi-sub" id="kpiTabLabel">Kategorijoje</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Vidurkis / Val.</div>
+            <div class="kpi-value" id="kpiHourlyAvg">0</div>
+            <div class="kpi-sub">Bendra kategorijoje</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Aktyvios Linijos</div>
+            <div class="kpi-value" id="kpiActiveLines">0/0</div>
+            <div class="kpi-sub">Šiuo metu</div>
+        </div>
+    </div>
+
+    <!-- Period Report Tool Card -->
+    <div class="report-section">
+        <div class="report-title">
+            <span>📅 Periodo & Linijos Ataskaita</span>
+        </div>
+        <div class="report-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Data nuo:</label>
+                    <input type="date" id="reportStart">
+                </div>
+                <div class="form-group">
+                    <label>Data iki:</label>
+                    <input type="date" id="reportEnd">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Pasirinkti liniją:</label>
+                <select id="reportLineSelect">
+                    <option value="ALL">-- Visos linijos --</option>
+                </select>
+            </div>
+            <button class="btn" onclick="generatePeriodReport()">⚡ Generuoti Ataskaitą</button>
+        </div>
+
+        <div class="report-result-card" id="reportResultCard">
+            <div class="report-hero-val" id="reportTotalVal">0 vnt.</div>
+            <div class="report-hero-sub" id="reportSummarySub">Suma per pasirinktą laikotarpį</div>
+            <div class="hourly-scroll" style="margin-top: 6px;">
+                <table class="mini-table" id="reportDetailTable">
+                    <thead>
+                        <tr>
+                            <th class="row-head">Data / Linija</th>
+                            <th>Viso vnt.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportDetailBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hourly Trend Chart -->
+    <div class="chart-card">
+        <div class="chart-title">
+            <span>📊 Valandinis Gamybos Grafikas</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="hourlyChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Navigation Pills -->
+    <div class="nav-pills">
+        <button class="pill-btn active" onclick="switchTab('PLXE', this)">PLXE</button>
+        <button class="pill-btn" onclick="switchTab('NOBO', this)">NOBO</button>
+        <button class="pill-btn" onclick="switchTab('Kiti', this)">Kiti</button>
+        <button class="pill-btn" onclick="switchTab('Perrašymas', this)">Perrašymas</button>
+    </div>
+
+    <!-- Tab Panels Container -->
+    <main id="tabPanelsContainer">
+        <!-- Rendered via JS -->
+    </main>
+
+    <script>
+        const INTERVALS = [
+            ["06:00", "07:00"], ["07:00", "08:00"], ["08:00", "09:00"], ["09:00", "10:00"],
+            ["10:00", "11:00"], ["11:00", "12:00"], ["12:00", "13:00"], ["13:00", "14:00"],
+            ["14:00", "15:00"], ["15:00", "16:00"]
+        ];
+
+        const LINES = [
+            {name: "LSTE",    channel: "463450", fieldCount: 1, fieldBarcode: 2, tab: "PLXE"},
+            {name: "PLXE 2",  channel: "463450", fieldCount: 3, fieldBarcode: 4, tab: "PLXE"},
+            {name: "PLXE 3",  channel: "463450", fieldCount: 5, fieldBarcode: 6, tab: "PLXE"},
+            {name: "QRAD (PLXE 4)", channel: "463450", fieldCount: 7, fieldBarcode: 8, tab: "PLXE"},
+            {name: "QRAD 1",  channel: "807602", fieldCount: 3, fieldBarcode: 4, tab: "Kiti"},
+            {name: "NOBO 1",  channel: "703669", fieldCount: 1, fieldBarcode: 2, tab: "NOBO"},
+            {name: "NOBO 2",  channel: "703669", fieldCount: 3, fieldBarcode: 4, tab: "NOBO"},
+            {name: "NOBO 3",  channel: "703669", fieldCount: 5, fieldBarcode: 6, tab: "NOBO"},
+            {name: "NOBO 4",  channel: "703669", fieldCount: 7, fieldBarcode: 8, tab: "NOBO"},
+            {name: "NOBO 5",  channel: "802414", fieldCount: 1, fieldBarcode: 2, tab: "NOBO"},
+            {name: "NOBO 6",  channel: "802414", fieldCount: 3, fieldBarcode: 4, tab: "NOBO"},
+            {name: "NOBO 7",  channel: "802414", fieldCount: 5, fieldBarcode: 6, tab: "NOBO"},
+            {name: "PLXE 5",  channel: "802414", fieldCount: 7, fieldBarcode: 8, tab: "PLXE"},
+            {name: "XLE 1",   channel: "807602", fieldCount: 5, fieldBarcode: 6, tab: "Kiti"},
+            {name: "XLE ReWork", channel: "807602", fieldCount: 7, fieldBarcode: 8, tab: "Kiti"},
+            {name: "Alta WiFi",  channel: "807602", fieldCount: 1, fieldBarcode: 0, tab: "Perrašymas"},
+            {name: "XLE UI",     channel: "807602", fieldCount: 2, fieldBarcode: 0, tab: "Perrašymas"}
+        ];
+
+        const READ_KEYS = {
+            "463450": "",
+            "703669": "",
+            "802414": "",
+            "807602": "WUO1DG7GXYNZP6SG"
+        };
+
+        const TABS = ["PLXE", "NOBO", "Kiti", "Perrašymas"];
+        let currentTab = "PLXE";
+        let isDarkTheme = false;
+        let chartInstance = null;
+        let tabDataStore = {};
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const today = new Date();
+            document.getElementById("datePicker").valueAsDate = today;
+            document.getElementById("reportStart").valueAsDate = today;
+            document.getElementById("reportEnd").valueAsDate = today;
+
+            populateLineDropdown();
+            renderTabPanels();
+            initChart();
+            loadData();
+        });
+
+        function populateLineDropdown() {
+            const select = document.getElementById("reportLineSelect");
+            LINES.forEach(l => {
+                const opt = document.createElement("option");
+                opt.value = l.name;
+                opt.textContent = `${l.name} (${l.tab})`;
+                select.appendChild(opt);
+            });
+        }
+
+        function toggleTheme() {
+            isDarkTheme = !isDarkTheme;
+            document.documentElement.setAttribute("data-theme", isDarkTheme ? "dark" : "light");
+            document.getElementById("themeToggleBtn").innerText = isDarkTheme ? "☀️ Šviesi" : "🌙 Tamsi";
+            if (chartInstance) {
+                chartInstance.options.scales.x.ticks.color = isDarkTheme ? "#94a3b8" : "#64748b";
+                chartInstance.options.scales.y.ticks.color = isDarkTheme ? "#94a3b8" : "#64748b";
+                chartInstance.update();
+            }
+        }
+
+        function changeDate(days) {
+            const picker = document.getElementById("datePicker");
+            const curDate = new Date(picker.value || new Date());
+            curDate.setDate(curDate.getDate() + days);
+            picker.valueAsDate = curDate;
+            loadData();
+        }
+
+        function switchTab(tabName, btn) {
+            currentTab = tabName;
+            document.querySelectorAll(".pill-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+            document.getElementById("panel-" + tabName).classList.add("active");
+            updateChartAndKPIs();
+        }
+
+        function renderTabPanels() {
+            const container = document.getElementById("tabPanelsContainer");
+            container.innerHTML = "";
+
+            TABS.forEach(tName => {
+                const panel = document.createElement("div");
+                panel.className = `tab-panel ${tName === currentTab ? 'active' : ''}`;
+                panel.id = `panel-${tName}`;
+
+                const linesInTab = LINES.filter(l => l.tab === tName);
+
+                linesInTab.forEach(l => {
+                    const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
+                    const card = document.createElement("div");
+                    card.className = "line-card";
+
+                    const isPerrasymas = (tName === "Perrašymas");
+
+                    card.innerHTML = `
+                        <div class="line-card-header">
+                            <div class="line-title-group">
+                                <div class="status-badge red" id="badge_${lId}"></div>
+                                <div class="line-name">${l.name}</div>
+                            </div>
+                            <div class="product-badge" id="prod_tag_${lId}">Gaminys: ${isPerrasymas ? l.name : '-'}</div>
+                        </div>
+
+                        <!-- Gauge Infographic -->
+                        <div class="gauge-section">
+                            <div class="gauge-circle">
+                                <svg viewBox="0 0 60 60">
+                                    <circle class="gauge-bg-ring" cx="30" cy="30" r="26"></circle>
+                                    <circle class="gauge-fill-ring" id="gauge_ring_${lId}" cx="30" cy="30" r="26"></circle>
+                                </svg>
+                                <div class="gauge-val-text" id="gauge_pct_${lId}">0%</div>
+                            </div>
+                            <div class="gauge-meta">
+                                <div class="gauge-meta-title">VISO PAGAMINTA</div>
+                                <div class="gauge-meta-total" id="tot_val_${lId}">0 vnt.</div>
+                                <div class="gauge-meta-avg" id="avg_val_${lId}">Vidurkis: 0 vnt./val.</div>
+                                <div class="gauge-meta-last" id="last_time_${lId}">Paskutinis testas: -</div>
+                            </div>
+                        </div>
+
+                        <!-- Mini Breakdown Scrollable -->
+                        <div class="hourly-scroll">
+                            <table class="mini-table">
+                                <thead>
+                                    <tr>
+                                        <th class="row-head">Laukas</th>
+                                        ${INTERVALS.map(iv => `<th>${iv[0]}-${iv[1]}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="row-head">Faktas</td>
+                                        ${INTERVALS.map((_, i) => `<td class="val-num" id="f_${lId}_${i}">0</td>`).join('')}
+                                    </tr>
+                                    ${!isPerrasymas ? `
+                                    <tr>
+                                        <td class="row-head">Gaminys</td>
+                                        ${INTERVALS.map((_, i) => `<td class="prod-num" id="p_${lId}_${i}">-</td>`).join('')}
+                                    </tr>` : ''}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    panel.appendChild(card);
+                });
+
+                container.appendChild(panel);
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById("hourlyChart").getContext("2d");
+            chartInstance = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: INTERVALS.map(iv => iv[0]),
+                    datasets: [{
+                        label: "Faktas (vnt.)",
+                        data: Array(10).fill(0),
+                        backgroundColor: "rgba(59, 130, 246, 0.75)",
+                        borderColor: "#3b82f6",
+                        borderWidth: 2,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 10 }, color: "#64748b" } },
+                        y: { grid: { color: "rgba(148, 163, 184, 0.15)" }, ticks: { font: { size: 10 }, color: "#64748b" } }
+                    }
+                }
+            });
+        }
+
+        async function loadData() {
+            const dateStr = document.getElementById("datePicker").value;
+            if (!dateStr) return;
+
+            document.getElementById("statusText").innerText = "Kraunami duomenys iš ThingSpeak...";
+
+            const todayStr = new Date().toISOString().split("T")[0];
+            const nowTime = new Date().toTimeString().substring(0, 5);
+
+            const chMap = {};
+            LINES.forEach(l => {
+                if (!chMap[l.channel]) chMap[l.channel] = [];
+                chMap[l.channel].push(l);
+            });
+
+            TABS.forEach(t => {
+                tabDataStore[t] = {
+                    totalFact: 0,
+                    activeCount: 0,
+                    sumLineAvgs: 0,
+                    lineCount: LINES.filter(l => l.tab === t).length,
+                    hourlyTotals: Array(10).fill(0)
+                };
+            });
+
+            for (const ch in chMap) {
+                const key = READ_KEYS[ch] || "";
+                const startDate = new Date(dateStr);
+                startDate.setDate(startDate.getDate() - 3);
+                const startStr = startDate.toISOString().split("T")[0] + "%2000:00:00";
+                const endStr = dateStr + "%2016:00:00";
+
+                const url = `https://api.thingspeak.com/channels/${ch}/feeds.json?api_key=${key}&start=${startStr}&end=${endStr}&timezone=Europe/Vilnius`;
+
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    const feeds = data.feeds || [];
+
+                    chMap[ch].forEach(l => {
+                        const lId = l.name.replace(/[^a-zA-Z0-9]/g, "_");
+
+                        const la = getLastActivityTS(feeds, "field" + l.fieldCount);
+                        const badgeEl = document.getElementById(`badge_${lId}`);
+                        const lastTimeEl = document.getElementById(`last_time_${lId}`);
+
+                        let isActive = false;
+                        if (la) {
+                            const laDate = new Date(la);
+                            const diffMin = Math.floor((new Date() - laDate) / 60000);
+                            isActive = (diffMin <= 30);
+                            if (badgeEl) badgeEl.className = "status-badge " + (isActive ? "green" : "red");
+
+                            const timeStr = la.substring(11, 16);
+                            const hrs = Math.floor(diffMin / 60);
+                            const mins = diffMin % 60;
+                            const elapsedStr = hrs > 0 ? `prieš ${hrs} val. ${mins} min.` : `prieš ${mins} min.`;
+                            if (lastTimeEl) lastTimeEl.innerText = `Paskutinis testas: ${timeStr} (${elapsedStr})`;
+                        } else {
+                            if (badgeEl) badgeEl.className = "status-badge red";
+                            if (lastTimeEl) lastTimeEl.innerText = "Paskutinis testas: -";
+                        }
+
+                        if (isActive) tabDataStore[l.tab].activeCount++;
+
+                        let lineTotal = 0;
+                        let lineActiveHours = 0;
+                        let lastProduct = "";
+
+                        INTERVALS.forEach((iv, idx) => {
+                            const fCell = document.getElementById(`f_${lId}_${idx}`);
+                            const pCell = document.getElementById(`p_${lId}_${idx}`);
+                            if (!fCell) return;
+
+                            if (dateStr === todayStr && iv[0] > nowTime) {
+                                fCell.innerText = "0";
+                                if (pCell) pCell.innerText = "-";
+                                return;
+                            }
+
+                            const stT = dateStr + " " + iv[0] + ":00";
+                            const enT = dateStr + " " + iv[1] + ":00";
+
+                            const intF = filterFeeds(feeds, stT, enT);
+                            const delta = calculateDelta(intF, "field" + l.fieldCount);
+
+                            fCell.innerText = delta;
+                            lineTotal += delta;
+                            tabDataStore[l.tab].hourlyTotals[idx] += delta;
+
+                            if (delta > 0) lineActiveHours++;
+
+                            let hourlyBarcode = "";
+                            if (l.fieldBarcode > 0) {
+                                const uF = filterFeeds(feeds, startDate.toISOString(), enT);
+                                const bc = getLastVal(uF, "field" + l.fieldBarcode);
+                                if (bc) {
+                                    hourlyBarcode = "X-" + bc;
+                                    lastProduct = hourlyBarcode;
+                                }
+                            }
+
+                            if (pCell) pCell.innerText = hourlyBarcode || "-";
+                        });
+
+                        if (l.tab === "Perrašymas") {
+                            lastProduct = (l.name === "Alta WiFi") ? "Alta WiFi" : "XLE UI";
+                        }
+
+                        tabDataStore[l.tab].totalFact += lineTotal;
+
+                        const lineAvg = lineActiveHours > 0 ? (lineTotal / lineActiveHours) : 0;
+                        tabDataStore[l.tab].sumLineAvgs += lineAvg;
+
+                        const totValEl = document.getElementById(`tot_val_${lId}`);
+                        if (totValEl) totValEl.innerText = lineTotal + " vnt.";
+
+                        const avgValEl = document.getElementById(`avg_val_${lId}`);
+                        if (avgValEl) avgValEl.innerText = `Vidurkis: ${lineAvg.toFixed(1)} vnt./val.`;
+
+                        const prodTagEl = document.getElementById(`prod_tag_${lId}`);
+                        if (prodTagEl) prodTagEl.innerText = "Gaminys: " + (lastProduct || "-");
+
+                        const benchmark = 150;
+                        const pct = Math.min(100, Math.round((lineTotal / benchmark) * 100));
+                        const ringEl = document.getElementById(`gauge_ring_${lId}`);
+                        const pctTxtEl = document.getElementById(`gauge_pct_${lId}`);
+
+                        if (ringEl) {
+                            const circumference = 163;
+                            const offset = circumference - (pct / 100) * circumference;
+                            ringEl.style.strokeDashoffset = offset;
+                        }
+                        if (pctTxtEl) pctTxtEl.innerText = pct + "%";
+                    });
+                } catch (e) {
+                    console.error("Fetch error:", e);
+                }
+            }
+
+            updateChartAndKPIs();
+            const now = new Date();
+            document.getElementById("statusText").innerText = "Atnaujinta: " + now.toTimeString().substring(0, 8);
+        }
+
+        async function generatePeriodReport() {
+            const startStr = document.getElementById("reportStart").value;
+            const endStr = document.getElementById("reportEnd").value;
+            const lineVal = document.getElementById("reportLineSelect").value;
+
+            if (!startStr || !endStr) {
+                alert("Pasirinkite pradžios ir pabaigos datas.");
+                return;
+            }
+
+            document.getElementById("statusText").innerText = "Generuojama ataskaita...";
+
+            const targetLines = (lineVal === "ALL") ? LINES : LINES.filter(l => l.name === lineVal);
+
+            const chMap = {};
+            targetLines.forEach(l => {
+                if (!chMap[l.channel]) chMap[l.channel] = [];
+                chMap[l.channel].push(l);
+            });
+
+            let grandTotal = 0;
+            const lineTotals = {};
+
+            for (const ch in chMap) {
+                const key = READ_KEYS[ch] || "";
+                const url = `https://api.thingspeak.com/channels/${ch}/feeds.json?api_key=${key}&start=${startStr}%2000:00:00&end=${endStr}%2016:00:00&timezone=Europe/Vilnius`;
+
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    const feeds = data.feeds || [];
+
+                    chMap[ch].forEach(l => {
+                        const totalDelta = calculateDelta(feeds, "field" + l.fieldCount);
+                        lineTotals[l.name] = totalDelta;
+                        grandTotal += totalDelta;
+                    });
+                } catch (e) {
+                    console.error("Report fetch error:", e);
+                }
+            }
+
+            const resultCard = document.getElementById("reportResultCard");
+            resultCard.classList.add("active");
+
+            document.getElementById("reportTotalVal").innerText = grandTotal + " vnt.";
+            document.getElementById("reportSummarySub").innerText = `Nuo ${startStr} iki ${endStr} (${lineVal === "ALL" ? "Visos linijos" : lineVal})`;
+
+            const tbody = document.getElementById("reportDetailBody");
+            tbody.innerHTML = "";
+
+            for (const lName in lineTotals) {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `<td class="row-head">${lName}</td><td class="val-num">${lineTotals[lName]} vnt.</td>`;
+                tbody.appendChild(tr);
+            }
+
+            document.getElementById("statusText").innerText = "Ataskaita sugeneruota!";
+        }
+
+        function updateChartAndKPIs() {
+            const store = tabDataStore[currentTab] || { totalFact: 0, activeCount: 0, sumLineAvgs: 0, lineCount: 0, hourlyTotals: Array(10).fill(0) };
+
+            document.getElementById("kpiTotalFact").innerText = store.totalFact + " vnt.";
+            document.getElementById("kpiTabLabel").innerText = currentTab + " kategorijoje";
+
+            const overallHourlyAvg = (store.sumLineAvgs).toFixed(1);
+            document.getElementById("kpiHourlyAvg").innerText = overallHourlyAvg;
+
+            document.getElementById("kpiActiveLines").innerText = `${store.activeCount}/${store.lineCount}`;
+
+            if (chartInstance) {
+                chartInstance.data.datasets[0].data = store.hourlyTotals;
+                chartInstance.update();
+            }
+        }
+
+        function filterFeeds(feeds, sT, eT) {
+            const s = sT.replace(/[- :]/g, "");
+            const e = eT.replace(/[- :]/g, "");
+            return feeds.filter(f => {
+                const ft = f.created_at.substring(0, 19).replace(/[-T:]/g, "");
+                return ft >= s && ft <= e;
+            });
+        }
+
+        function calculateDelta(feeds, field) {
+            const vals = feeds.map(f => parseFloat(f[field])).filter(v => !isNaN(v));
+            if (vals.length < 2) return 0;
+            let total = 0;
+            for (let i = 0; i < vals.length - 1; i++) {
+                const diff = vals[i+1] - vals[i];
+                if (diff > 0) total += diff;
+            }
+            return Math.round(total);
+        }
+
+        function getLastVal(feeds, field) {
+            for (let i = feeds.length - 1; i >= 0; i--) {
+                const val = feeds[i][field];
+                if (val !== undefined && val !== null && val !== "" && val !== "null") {
+                    return val;
+                }
+            }
+            return "";
+        }
+
+        function getLastActivityTS(feeds, field) {
+            for (let i = feeds.length - 1; i > 0; i--) {
+                const cv = parseFloat(feeds[i][field]) || 0;
+                const pv = parseFloat(feeds[i-1][field]) || 0;
+                if (cv > pv && cv > 0) {
+                    return feeds[i].created_at;
+                }
+            }
+            return "";
+        }
+    </script>
+</body>
+</html>
