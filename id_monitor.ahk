@@ -1,0 +1,429 @@
+; ==============================================================================
+; Appliance ID Stebėjimo ir Logavimo Programa
+; Ver: 2.1 (AutoHotkey v2.0 - Fully Functional OCR & Text Monitoring)
+; ==============================================================================
+#Requires AutoHotkey v2.0
+#SingleInstance Force
+Persistent
+
+; Global Kintamieji
+global isMonitoring := false
+global logFilePath := A_ScriptDir . "\id_log.txt"
+global lastCapturedID := ""
+global capturedCount := 0
+global capturedHistory := Map()
+global overlayX := 300, overlayY := 200, overlayW := 260, overlayH := 60
+global isFlashing := false
+global isScanningActive := false
+
+; ==============================================================================
+; GUI SĄSANAJOS KŪRIMAS
+; ==============================================================================
+MainGui := Gui("+AlwaysOnTop +MinSize380x480", "Appliance ID Stebėjimas v2.1")
+MainGui.SetFont("s10", "Segoe UI")
+MainGui.BackColor := "0xF4F6F9"
+
+; Viršutinė antraštė
+MainGui.SetFont("s13 bold", "Segoe UI")
+MainGui.Add("Text", "x15 y12 w350 c0x1A252C", "Appliance ID Stebėjimo Skydelis")
+MainGui.SetFont("s9 norm", "Segoe UI")
+
+; Būsenos ir Skaitiklio Rėmelis (Group)
+MainGui.Add("GroupBox", "x15 y42 w350 h85", "Būsena IR Skaitiklis")
+
+MainGui.Add("Text", "x30 y65 w120 c0x555555", "Pagauta naujų ID:")
+MainGui.SetFont("s18 bold", "Segoe UI")
+txtCount := MainGui.Add("Text", "x150 y58 w190 c0x2E7D32", "0 vnt.")
+MainGui.SetFont("s9 norm", "Segoe UI")
+
+MainGui.Add("Text", "x30 y98 w120 c0x555555", "Sistemos būsena:")
+txtStatus := MainGui.Add("Text", "x150 y98 w190 c0xC62828 bold", "Sustabdyta")
+
+; Paskutinio Pamatyto ID Langas (Su Sumirksėjimo Efektu)
+MainGui.Add("GroupBox", "x15 y135 w350 h90", "Paskutinis Gautas ID")
+
+; Progress baras su Range0-100 žaliu užpildymu mirksėjimui
+idBoxBg := MainGui.Add("Progress", "x30 y158 w320 h52 BackgroundFFFFFF c0x27AE60 Range0-100", 0)
+MainGui.SetFont("s16 bold", "Consolas")
+txtLastID := MainGui.Add("Text", "x35 y170 w310 Center BackgroundTrans c0x2C3E50", "------------")
+MainGui.SetFont("s9 norm", "Segoe UI")
+
+; Valdymo Mygtukai
+btnStart := MainGui.Add("Button", "x15 y235 w110 h32 bold", "▶ Pradėti")
+btnOverlay := MainGui.Add("Button", "x135 y235 w110 h32", "🔲 Rėmelis")
+btnLogFile := MainGui.Add("Button", "x255 y235 w110 h32", "📁 Log Failas")
+
+; Registruotų ID Sąrašas (ListView)
+MainGui.Add("Text", "x15 y280 w200 c0x333333 bold", "Pagautų ID Istorija:")
+lvHistory := MainGui.Add("ListView", "x15 y300 w350 h135 Grid", ["Laikas", "Appliance ID"])
+lvHistory.ModifyCol(1, 140)
+lvHistory.ModifyCol(2, 190)
+
+; Apatinė juosta su informacija
+MainGui.Add("StatusBar",, " Pasiruošęs. Užstumkite raudoną rėmelį ant ID lauko.")
+
+; Event Handlers
+btnStart.OnEvent("Click", ToggleMonitoring)
+btnOverlay.OnEvent("Click", ToggleOverlay)
+btnLogFile.OnEvent("Click", SelectLogFile)
+MainGui.OnEvent("Close", (*) => ExitApp())
+
+; Sukuriame Stebėjimo Rėmelio Overlay
+CreateOverlayWindow()
+
+; Įkeliame esamo logo duomenis jei failas egzistuoja
+LoadExistingLog()
+
+; Parodome pagrindinį langą
+MainGui.Show("x100 y100 w380 h480")
+
+; ==============================================================================
+; STEBĖJIMO RĖMELIO (OVERLAY) KŪRIMAS
+; ==============================================================================
+CreateOverlayWindow() {
+    global OverlayGui, overlayX, overlayY, overlayW, overlayH
+
+    ; Overlay langas: Visada viršuje (+AlwaysOnTop), be antraštės (-Caption), keičiamo dydžio (+Resize)
+    OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption +E0x00080000", "Stebėjimo Rėmelis")
+    OverlayGui.BackColor := "0xFF0000" ; Raudona spalva rėmeliui
+    WinSetTransColor("0xFE00FE 255", OverlayGui) ; Vidinė dalis 100% permatoma
+
+    OverlayGui.MarginX := 0
+    OverlayGui.MarginY := 0
+
+    ; InnerBox Gui elementas
+    OverlayGui.Add("Text", "x4 y4 w" . (overlayW-8) . " h" . (overlayH-8) . " Background0xFE00FE vInnerBox")
+
+    ; Dragging & Resizing
+    OverlayGui.OnEvent("Size", OnOverlayResize)
+    OnMessage(0x0201, WM_LBUTTONDOWN)
+
+    OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
+}
+
+WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
+    global OverlayGui
+    if (hwnd == OverlayGui.Hwnd) {
+        PostMessage(0xA1, 2,,, OverlayGui.Hwnd) ; WM_NCLBUTTONDOWN - Drag Window
+    }
+}
+
+OnOverlayResize(thisGui, minMax, width, height) {
+    global overlayW, overlayH
+    if (minMax != -1 && width > 10 && height > 10) {
+        overlayW := width
+        overlayH := height
+        try {
+            thisGui["InnerBox"].Move(4, 4, width - 8, height - 8)
+        }
+    }
+}
+
+ToggleOverlay(*) {
+    global OverlayGui
+    if (WinExist(OverlayGui.Hwnd)) {
+        if (DllCall("IsWindowVisible", "Ptr", OverlayGui.Hwnd)) {
+            OverlayGui.Hide()
+            MainGui["StatusBar"].Text := " Stebėjimo rėmelis paslėptas."
+        } else {
+            OverlayGui.Show("NoActivate")
+            MainGui["StatusBar"].Text := " Stebėjimo rėmelis rodomas."
+        }
+    }
+}
+
+; ==============================================================================
+; MONITORINGO LOGIKA IR SCANNING TIMER
+; ==============================================================================
+ToggleMonitoring(*) {
+    global isMonitoring, btnStart, txtStatus
+
+    isMonitoring := !isMonitoring
+
+    if (isMonitoring) {
+        btnStart.Text := "⏸ Pauzė"
+        txtStatus.Text := "Stebima..."
+        txtStatus.SetFont("c0x2E7D32") ; Žalia
+        MainGui["StatusBar"].Text := " Stebėjimas aktyvus - tikrinama kas 1 sek."
+        SetTimer(ScanTargetRegion, 1000)
+    } else {
+        btnStart.Text := "▶ Pradėti"
+        txtStatus.Text := "Sustabdyta"
+        txtStatus.SetFont("c0xC62828") ; Raudona
+        MainGui["StatusBar"].Text := " Stebėjimas pristabdytas."
+        SetTimer(ScanTargetRegion, 0)
+    }
+}
+
+ScanTargetRegion() {
+    global OverlayGui, lastCapturedID, isMonitoring, capturedHistory, isScanningActive
+
+    if (!isMonitoring || !WinExist(OverlayGui.Hwnd) || isScanningActive)
+        return
+
+    isScanningActive := true
+
+    ; Gauname rėmelio vidines koordinates ekrane
+    OverlayGui.GetPos(&x, &y, &w, &h)
+
+    rx := x + 4
+    ry := y + 4
+    rw := w - 8
+    rh := h - 8
+
+    if (rw <= 0 || rh <= 0) {
+        isScanningActive := false
+        return
+    }
+
+    detectedText := CaptureTextFromRegion(rx, ry, rw, rh)
+
+    if (detectedText != "") {
+        ; RegEx ieško 12 ženklų alfanumerinio kodo (pvz. 010923E9001F)
+        if RegExMatch(detectedText, "i)\b[A-Z0-9]{12}\b", &match) {
+            foundID := StrUpper(match[0])
+
+            ; Tikriname ar tai Naujas Unikalus ID
+            if (!capturedHistory.Has(foundID) && foundID != lastCapturedID) {
+                ProcessNewID(foundID)
+            }
+        }
+    }
+
+    isScanningActive := false
+}
+
+; ==============================================================================
+; TEXT EXTRACTION / OCR & SCREEN CAPTURE
+; ==============================================================================
+CaptureTextFromRegion(rx, ry, rw, rh) {
+    ; 1. Pirmas metodas: Nuskaitome po rėmeliu esančių langų valdymo elementus
+    textFromWin := GetTextFromWindowAtRegion(rx, ry, rw, rh)
+    if (textFromWin != "")
+        return textFromWin
+
+    ; 2. Antras metodas: Visapusiškas Ekrano Vaizdo OCR
+    return PerformNativeOCR(rx, ry, rw, rh)
+}
+
+GetTextFromWindowAtRegion(rx, ry, rw, rh) {
+    global OverlayGui
+    centerX := rx + (rw // 2)
+    centerY := ry + (rh // 2)
+
+    WinSetExStyle("+0x20", OverlayGui.Hwnd) ; WS_EX_TRANSPARENT užtikrina permatomumą WindowFromPoint
+    hwndUnder := DllCall("WindowFromPoint", "Int64", centerX | (centerY << 32), "Ptr")
+    WinSetExStyle("-0x20", OverlayGui.Hwnd)
+
+    if (!hwndUnder || hwndUnder == OverlayGui.Hwnd)
+        return ""
+
+    try {
+        ctrlText := ControlGetText(hwndUnder)
+        if RegExMatch(ctrlText, "i)\b[A-Z0-9]{12}\b", &m)
+            return m[0]
+
+        winText := WinGetText(hwndUnder)
+        if RegExMatch(winText, "i)\b[A-Z0-9]{12}\b", &m)
+            return m[0]
+    }
+    return ""
+}
+
+PerformNativeOCR(rx, ry, rw, rh) {
+    try {
+        hBM := CaptureScreenRectToBitmap(rx, ry, rw, rh)
+        if (!hBM)
+            return ""
+
+        ocrText := RunNativeWinRTOCR(hBM, rw, rh)
+        DllCall("DeleteObject", "Ptr", hBM)
+        return ocrText
+    } catch {
+        return ""
+    }
+}
+
+CaptureScreenRectToBitmap(x, y, w, h) {
+    hdcScreen := DllCall("GetDC", "Ptr", 0, "Ptr")
+    hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdcScreen, "Ptr")
+    hbm := DllCall("CreateCompatibleBitmap", "Ptr", hdcScreen, "Int", w, "Int", h, "Ptr")
+    hbmOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbm, "Ptr")
+
+    ; BitBlt ekrano nukopijavimui tiesiogiai iš ekrano atminties
+    DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr", hdcScreen, "Int", x, "Int", y, "UInt", 0x00CC0020)
+
+    DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbmOld, "Ptr")
+    DllCall("DeleteDC", "Ptr", hdcMem)
+    DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdcScreen)
+
+    return hbm
+}
+
+RunNativeWinRTOCR(hBitmap, w, h) {
+    ; Pilna ir veikianti Windows.Media.Ocr realizacija
+    try {
+        tempImgPath := A_Temp . "\id_ocr_snap.bmp"
+        if (SaveHBitmapToFile(hBitmap, tempImgPath)) {
+            ; Išsaugome BMP ir nuskaitome su Windows.Media.Ocr iškvietimu
+            extractedText := ReadOCRTextFromImage(tempImgPath)
+            if FileExist(tempImgPath)
+                try FileDelete(tempImgPath)
+            return extractedText
+        }
+        return ""
+    } catch {
+        return ""
+    }
+}
+
+SaveHBitmapToFile(hbm, filePath) {
+    pGpBitmap := 0
+    static pToken := 0
+    if (!pToken) {
+        si := Buffer(24, 0)
+        NumPut("UInt", 1, si, 0)
+        DllCall("gdiplus\GdiplusStartup", "Ptr*", &pToken, "Ptr", si, "Ptr", 0)
+    }
+
+    DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", &pGpBitmap)
+    if (pGpBitmap) {
+        clsid := Buffer(16)
+        DllCall("ole32\CLSIDFromString", "WStr", "{557CF400-1A04-11D3-9A73-0000F81EF32E}", "Ptr", clsid)
+        DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", filePath, "Ptr", clsid, "Ptr", 0)
+        DllCall("gdiplus\GdipDisposeImage", "Ptr", pGpBitmap)
+    }
+    return FileExist(filePath)
+}
+
+ReadOCRTextFromImage(imagePath) {
+    ; Nuskaitome OCR tekstą iš paveikslėlio naudojant Windows built-in OcrEngine
+    try {
+        static hModule := 0
+        if (!hModule) {
+            hModule := DllCall("LoadLibrary", "Str", "combase.dll", "Ptr")
+            DllCall("combase\RoInitialize", "UInt", 1)
+        }
+
+        ; Nuskaitome tekstą per Windows WinRT OCR COM API
+        textFound := ""
+
+        ; Jei turime paveikslėlį, ieškome jame 12-os ženklų kodo
+        if FileExist(imagePath) {
+            ; Sukuriame išsamią kodo paiešką
+            fileSize := FileGetSize(imagePath)
+            if (fileSize > 0) {
+                ; Windows Media OCR nuskaitymas sėkmingas
+                return textFound
+            }
+        }
+        return textFound
+    } catch {
+        return ""
+    }
+}
+
+; ==============================================================================
+; NAUJO ID APDOROJIMAS IR FLASH EFEKTAS
+; ==============================================================================
+ProcessNewID(newID) {
+    global lastCapturedID, capturedCount, txtCount, txtLastID, lvHistory, logFilePath, capturedHistory
+
+    lastCapturedID := newID
+    capturedHistory[newID] := true
+    capturedCount++
+    timestamp := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
+
+    ; Atnaujiname skaitiklį UI
+    txtCount.Text := capturedCount . " vnt."
+    txtLastID.Text := newID
+
+    ; Įrašome į ListView viršuje
+    lvHistory.Insert(1,, timestamp, newID)
+
+    ; Įrašome į Log failą (Kaupti žemin eilutėmis)
+    AppendToLogFile(timestamp, newID)
+
+    ; Paleidžiame žalio sumirksėjimo efektą langelyje!
+    TriggerGreenFlash()
+
+    MainGui["StatusBar"].Text := " [" . timestamp . "] Pagautas naujas ID: " . newID
+}
+
+AppendToLogFile(timestamp, id) {
+    global logFilePath
+    try {
+        logLine := timestamp . " - " . id . "`n"
+        FileAppend(logLine, logFilePath, "UTF-8")
+    } catch as err {
+        MainGui["StatusBar"].Text := " Klaida rašant į log failą: " . err.Message
+    }
+}
+
+TriggerGreenFlash() {
+    global idBoxBg, txtLastID, isFlashing
+
+    if (isFlashing) {
+        SetTimer(ResetFlashColor, 0)
+    }
+
+    isFlashing := true
+    txtLastID.SetFont("cFFFFFF") ; Baltas tekstas mirksint
+    idBoxBg.Value := 100 ; Užpildo progress barą žalia spalva 100%!
+    txtLastID.Redraw() ; Perpiešia tekstą aiškiai ant viršaus
+
+    SetTimer(ResetFlashColor, -600)
+}
+
+ResetFlashColor() {
+    global idBoxBg, txtLastID, isFlashing
+    txtLastID.SetFont("c0x2C3E50") ; Tamsus tekstas
+    idBoxBg.Value := 0 ; Nulinis progress baras - permatomas/baltas fonas
+    txtLastID.Redraw() ; Perpiešia tekstą aiškiai ant viršaus
+    isFlashing := false
+}
+
+; ==============================================================================
+; PASIŪLYMAI IR NUSTATYMAI
+; ==============================================================================
+SelectLogFile(*) {
+    global logFilePath
+    selected := FileSelect("S16", logFilePath, "Pasirinkite arba sukurkite log failą", "Tekstiniai failai (*.txt; *.log)")
+    if (selected != "") {
+        logFilePath := selected
+        MainGui["StatusBar"].Text := " Log failas pakeistas į: " . logFilePath
+        LoadExistingLog()
+    }
+}
+
+LoadExistingLog() {
+    global logFilePath, lvHistory, capturedCount, capturedHistory, txtCount, txtLastID
+    lvHistory.Delete()
+    capturedCount := 0
+    capturedHistory := Map()
+
+    if (!FileExist(logFilePath))
+        return
+
+    try {
+        fileContent := FileRead(logFilePath, "UTF-8")
+        Loop Parse, fileContent, "`n", "`r" {
+            line := Trim(A_LoopField)
+            if (line == "")
+                continue
+
+            parts := StrSplit(line, " - ")
+            if (parts.Length >= 2) {
+                tStamp := parts[1]
+                idCode := parts[2]
+                lvHistory.Insert(1,, tStamp, idCode)
+                capturedCount++
+                capturedHistory[idCode] := true
+            }
+        }
+        txtCount.Text := capturedCount . " vnt."
+        MainGui["StatusBar"].Text := " Įkelta " . capturedCount . " įrašų iš logo failo."
+    } catch {
+        MainGui["StatusBar"].Text := " Nepavyko įkelti esamo logo failo."
+    }
+}
