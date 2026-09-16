@@ -313,7 +313,7 @@ ReadOCRTextFromImage(imagePath) {
         if FileExist(outPath)
             try FileDelete(outPath)
 
-        psCommand := "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command """ . psScript . " | Out-File -FilePath '" . outPath . "' -Encoding utf8"""
+        psCommand := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "' . psScript . ' | Out-File -FilePath "' . outPath . '" -Encoding utf8"'
         RunWait(psCommand, , "Hide")
 
         if FileExist(outPath) {
