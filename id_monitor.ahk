@@ -1,6 +1,6 @@
 ; ==============================================================================
 ; Appliance ID Stebėjimo ir Logavimo Programa
-; Ver: 2.2 (AutoHotkey v2.0 - Hidden Background OCR & Fixed Controls)
+; Ver: 2.4 (AutoHotkey v2.0 - Fully Stable OCR & Clean Mouse Interaction)
 ; ==============================================================================
 #Requires AutoHotkey v2.0
 #SingleInstance Force
@@ -8,7 +8,8 @@ Persistent
 
 ; Global Kintamieji
 global isMonitoring := false
-global logFilePath := A_ScriptDir . "\id_log.txt"
+global configFile := A_ScriptDir . "\config.ini"
+global logFilePath := ""
 global lastCapturedID := ""
 global capturedCount := 0
 global capturedHistory := Map()
@@ -20,7 +21,7 @@ global sbStatus := 0
 ; ==============================================================================
 ; GUI SĄSANAJOS KŪRIMAS
 ; ==============================================================================
-MainGui := Gui("+AlwaysOnTop +MinSize380x480", "Appliance ID Stebėjimas v2.2")
+MainGui := Gui("+AlwaysOnTop +MinSize380x480", "Appliance ID Stebėjimas v2.4")
 MainGui.SetFont("s10", "Segoe UI")
 MainGui.BackColor := "0xF4F6F9"
 
@@ -64,7 +65,7 @@ lvHistory := MainGui.Add("ListView", "x15 y300 w350 h135 Grid", ["Laikas", "Appl
 lvHistory.ModifyCol(1, 140)
 lvHistory.ModifyCol(2, 190)
 
-; Apatinė juosta su informacija (išsaugome į globalų kintamąjį sbStatus)
+; Apatinė juosta su informacija
 sbStatus := MainGui.Add("StatusBar",, " Pasiruošęs. Užstumkite raudoną rėmelį ant ID lauko.")
 
 ; Event Handlers
@@ -73,14 +74,50 @@ btnOverlay.OnEvent("Click", ToggleOverlay)
 btnLogFile.OnEvent("Click", SelectLogFile)
 MainGui.OnEvent("Close", (*) => ExitApp())
 
+; Inicijuojame / Patikriname Log Failą iš Nustatymų
+InitLogFilePath()
+
 ; Sukuriame Stebėjimo Rėmelio Overlay
 CreateOverlayWindow()
 
-; Įkeliame esamo logo duomenis jei failas egzistuoja
+; Įkeliame esamo logo duomenis
 LoadExistingLog()
 
 ; Parodome pagrindinį langą
 MainGui.Show("x100 y100 w380 h480")
+
+; ==============================================================================
+; LOG FAILO NUSTATYMAI IR INI PERSISTENCE
+; ==============================================================================
+InitLogFilePath() {
+    global configFile, logFilePath, sbStatus
+
+    try {
+        logFilePath := IniRead(configFile, "Settings", "LogFilePath", "")
+    } catch {
+        logFilePath := ""
+    }
+
+    if (logFilePath == "" || !HasValidLogExtension(logFilePath)) {
+        MsgBox("Prieš pradedant darbą, prašome pasirinkti arba sukurti log failą.", "Log Failo Nustatymas", "OK Iconi")
+        selectedPath := FileSelect("S16", A_ScriptDir . "\id_log.txt", "Pasirinkite arba sukurkite LOG failą", "Tekstiniai failai (*.txt; *.log)")
+        if (selectedPath != "") {
+            logFilePath := selectedPath
+            try {
+                IniWrite(logFilePath, configFile, "Settings", "LogFilePath")
+            }
+        } else {
+            ; Jei vartotojas atšaukia pirmo paleidimo metu, baigiame darbą tvarkingai
+            ExitApp()
+        }
+    }
+
+    sbStatus.Text := " Aktyvus Log failas: " . logFilePath
+}
+
+HasValidLogExtension(path) {
+    return (RegExMatch(path, "i)\.(txt|log)$") > 0)
+}
 
 ; ==============================================================================
 ; STEBĖJIMO RĖMELIO (OVERLAY) KŪRIMAS
@@ -99,17 +136,19 @@ CreateOverlayWindow() {
     ; InnerBox Gui elementas
     OverlayGui.Add("Text", "x4 y4 w" . (overlayW-8) . " h" . (overlayH-8) . " Background0xFE00FE vInnerBox")
 
-    ; Dragging & Resizing
+    ; Resizing su kairiuoju pelės mygtuku ant kraštinių (+Resize)
     OverlayGui.OnEvent("Size", OnOverlayResize)
-    OnMessage(0x0201, WM_LBUTTONDOWN)
+
+    ; Pastūmimas su DEŠINIUJU pelės mygtuku ant rėmelio krašto (WM_RBUTTONDOWN = 0x0204)
+    OnMessage(0x0204, WM_RBUTTONDOWN)
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
 }
 
-WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
+WM_RBUTTONDOWN(wParam, lParam, msg, hwnd) {
     global OverlayGui
-    if (hwnd == OverlayGui.Hwnd) {
-        PostMessage(0xA1, 2,,, OverlayGui.Hwnd) ; WM_NCLBUTTONDOWN - Drag Window
+    if (WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) {
+        PostMessage(0xA1, 2,,, OverlayGui.Hwnd) ; WM_NCLBUTTONDOWN vilkimas
     }
 }
 
@@ -132,7 +171,7 @@ ToggleOverlay(*) {
             sbStatus.Text := " Stebėjimo rėmelis paslėptas."
         } else {
             OverlayGui.Show("NoActivate")
-            sbStatus.Text := " Stebėjimo rėmelis rodomas."
+            sbStatus.Text := " Stebėjimo rėmelis rodomas (Dešinys mygtukas - stumdyti, Kairys mygtukas - didinti)."
         }
     }
 }
@@ -202,7 +241,7 @@ ScanTargetRegion() {
 ; TEXT EXTRACTION / OCR & SCREEN CAPTURE
 ; ==============================================================================
 CaptureTextFromRegion(rx, ry, rw, rh) {
-    ; 1. Pirmas metodas: Nuskaitome po rėmeliu esančių langų valdymo elementus
+    ; 1. Pirmas metodas: Nuskaitome po rėmeliu esančių langų valdymo elementus (0 CPU)
     textFromWin := GetTextFromWindowAtRegion(rx, ry, rw, rh)
     if (textFromWin != "")
         return textFromWin
@@ -216,7 +255,7 @@ GetTextFromWindowAtRegion(rx, ry, rw, rh) {
     centerX := rx + (rw // 2)
     centerY := ry + (rh // 2)
 
-    WinSetExStyle("+0x20", OverlayGui.Hwnd) ; WS_EX_TRANSPARENT užtikrina permatomumą WindowFromPoint
+    WinSetExStyle("+0x20", OverlayGui.Hwnd) ; WS_EX_TRANSPARENT permatomumui WindowFromPoint metu
     hwndUnder := DllCall("WindowFromPoint", "Int64", centerX | (centerY << 32), "Ptr")
     WinSetExStyle("-0x20", OverlayGui.Hwnd)
 
@@ -300,20 +339,31 @@ SaveHBitmapToFile(hbm, filePath) {
 }
 
 ReadOCRTextFromImage(imagePath) {
-    ; Nuskaitome OCR tekstą iš paveikslėlio naudojant Windows.Media.Ocr Engine slaptuoju būdu (be juodo lango)
     if (!FileExist(imagePath))
         return ""
 
     try {
-        psScript := "$bmp = [Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync([Windows.Storage.Streams.RandomAccessStreamReference]::CreateFromFile('" . imagePath . "')).GetResults(); "
-            . "$ocr = [Windows.Media.Ocr.OcrEngine, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]::TryCreateFromUserProfileLanguages(); "
-            . "if ($ocr -and $bmp) { $sBmp = $bmp.GetSoftwareBitmapAsync().GetResults(); $res = $ocr.RecognizeAsync($sBmp).GetResults(); Write-Output $res.Text }"
-
         outPath := A_Temp . "\id_ocr_res.txt"
         if FileExist(outPath)
             try FileDelete(outPath)
 
-        psCommand := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "' . psScript . ' | Out-File -FilePath "' . outPath . '" -Encoding utf8"'
+        psScript := "$null = [Reflection.Assembly]::LoadWithPartialName('System.Drawing'); "
+            . "$bmp = [System.Drawing.Bitmap]::FromFile('" . imagePath . "'); "
+            . "$ocr = [Windows.Media.Ocr.OcrEngine, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]::TryCreateFromUserProfileLanguages(); "
+            . "if ($ocr -and $bmp) { "
+            . "  $ms = New-Object System.IO.MemoryStream; "
+            . "  $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png); "
+            . "  $b = $ms.ToArray(); "
+            . "  $ras = New-Object Windows.Storage.Streams.InMemoryRandomAccessStream; "
+            . "  $writer = New-Object Windows.Storage.Streams.DataWriter($ras.GetOutputStreamAt(0)); "
+            . "  $writer.WriteBytes($b); "
+            . "  $null = $writer.StoreAsync().GetResults(); "
+            . "  $sBmp = [Windows.Graphics.Imaging.SoftwareBitmap]::CreateCopyFromBuffer($writer.DetachBuffer(), [Windows.Graphics.Imaging.BitmapPixelFormat]::Bgra8, $bmp.Width, $bmp.Height); "
+            . "  $res = $ocr.RecognizeAsync($sBmp).GetResults(); "
+            . "  if ($res -and $res.Text) { $res.Text | Out-File -FilePath '" . outPath . "' -Encoding utf8 } "
+            . "}"
+
+        psCommand := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "' . psScript . '"'
         RunWait(psCommand, , "Hide")
 
         if FileExist(outPath) {
@@ -374,7 +424,7 @@ TriggerGreenFlash() {
     isFlashing := true
     txtLastID.SetFont("cFFFFFF") ; Baltas tekstas mirksint
     idBoxBg.Value := 100 ; Užpildo progress barą žalia spalva 100%!
-    txtLastID.Redraw() ; Perpiešia tekstą aiškiai ant viršaus
+    WinRedraw(txtLastID.Hwnd) ; Perpiešia tekstą aiškiai ant viršaus per Control HWND
 
     SetTimer(ResetFlashColor, -600)
 }
@@ -383,7 +433,7 @@ ResetFlashColor() {
     global idBoxBg, txtLastID, isFlashing
     txtLastID.SetFont("c0x2C3E50") ; Tamsus tekstas
     idBoxBg.Value := 0 ; Nulinis progress baras - permatomas/baltas fonas
-    txtLastID.Redraw() ; Perpiešia tekstą aiškiai ant viršaus
+    WinRedraw(txtLastID.Hwnd) ; Perpiešia tekstą aiškiai ant viršaus per Control HWND
     isFlashing := false
 }
 
@@ -391,10 +441,13 @@ ResetFlashColor() {
 ; PASIŪLYMAI IR NUSTATYMAI
 ; ==============================================================================
 SelectLogFile(*) {
-    global logFilePath, sbStatus
-    selected := FileSelect("S16", logFilePath, "Pasirinkite arba sukurkite log failą", "Tekstiniai failai (*.txt; *.log)")
+    global configFile, logFilePath, sbStatus
+    selected := FileSelect("S16", logFilePath != "" ? logFilePath : A_ScriptDir . "\id_log.txt", "Pasirinkite arba sukurkite log failą", "Tekstiniai failai (*.txt; *.log)")
     if (selected != "") {
         logFilePath := selected
+        try {
+            IniWrite(logFilePath, configFile, "Settings", "LogFilePath")
+        }
         sbStatus.Text := " Log failas pakeistas į: " . logFilePath
         LoadExistingLog()
     }
@@ -406,7 +459,7 @@ LoadExistingLog() {
     capturedCount := 0
     capturedHistory := Map()
 
-    if (!FileExist(logFilePath))
+    if (logFilePath == "" || !FileExist(logFilePath))
         return
 
     try {
@@ -426,7 +479,7 @@ LoadExistingLog() {
             }
         }
         txtCount.Text := capturedCount . " vnt."
-        sbStatus.Text := " Įkelta " . capturedCount . " įrašų iš logo failo."
+        sbStatus.Text := " Įkelta " . capturedCount . " įrašų iš logo failo: " . logFilePath
     } catch {
         sbStatus.Text := " Nepavyko įkelti esamo logo failo."
     }
