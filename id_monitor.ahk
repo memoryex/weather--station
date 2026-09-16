@@ -1,6 +1,6 @@
 ; ==============================================================================
 ; Appliance ID Stebėjimo ir Logavimo Programa
-; Ver: 2.4 (AutoHotkey v2.0 - Fully Stable OCR & Clean Mouse Interaction)
+; Ver: 2.5 (AutoHotkey v2.0 - Saved Overlay Position in config.ini)
 ; ==============================================================================
 #Requires AutoHotkey v2.0
 #SingleInstance Force
@@ -21,7 +21,7 @@ global sbStatus := 0
 ; ==============================================================================
 ; GUI SĄSANAJOS KŪRIMAS
 ; ==============================================================================
-MainGui := Gui("+AlwaysOnTop +MinSize380x480", "Appliance ID Stebėjimas v2.4")
+MainGui := Gui("+AlwaysOnTop +MinSize380x480", "Appliance ID Stebėjimas v2.5")
 MainGui.SetFont("s10", "Segoe UI")
 MainGui.BackColor := "0xF4F6F9"
 
@@ -73,9 +73,13 @@ btnStart.OnEvent("Click", ToggleMonitoring)
 btnOverlay.OnEvent("Click", ToggleOverlay)
 btnLogFile.OnEvent("Click", SelectLogFile)
 MainGui.OnEvent("Close", (*) => ExitApp())
+OnExit(SaveOverlayPosition)
 
 ; Inicijuojame / Patikriname Log Failą iš Nustatymų
 InitLogFilePath()
+
+; Įkeliame Rėmelio Poziciją iš config.ini
+LoadOverlayPosition()
 
 ; Sukuriame Stebėjimo Rėmelio Overlay
 CreateOverlayWindow()
@@ -87,7 +91,7 @@ LoadExistingLog()
 MainGui.Show("x100 y100 w380 h480")
 
 ; ==============================================================================
-; LOG FAILO NUSTATYMAI IR INI PERSISTENCE
+; LOG FAILO IR OVERLAY POS PERSISTENCE
 ; ==============================================================================
 InitLogFilePath() {
     global configFile, logFilePath, sbStatus
@@ -107,7 +111,6 @@ InitLogFilePath() {
                 IniWrite(logFilePath, configFile, "Settings", "LogFilePath")
             }
         } else {
-            ; Jei vartotojas atšaukia pirmo paleidimo metu, baigiame darbą tvarkingai
             ExitApp()
         }
     }
@@ -117,6 +120,35 @@ InitLogFilePath() {
 
 HasValidLogExtension(path) {
     return (RegExMatch(path, "i)\.(txt|log)$") > 0)
+}
+
+LoadOverlayPosition() {
+    global configFile, overlayX, overlayY, overlayW, overlayH
+    try {
+        overlayX := Integer(IniRead(configFile, "Overlay", "X", "300"))
+        overlayY := Integer(IniRead(configFile, "Overlay", "Y", "200"))
+        overlayW := Integer(IniRead(configFile, "Overlay", "W", "260"))
+        overlayH := Integer(IniRead(configFile, "Overlay", "H", "60"))
+    } catch {
+        overlayX := 300, overlayY := 200, overlayW := 260, overlayH := 60
+    }
+}
+
+SaveOverlayPosition(*) {
+    global configFile, OverlayGui
+    if (WinExist(OverlayGui.Hwnd)) {
+        try {
+            OverlayGui.GetPos(&x, &y, &w, &h)
+            if (w > 10 && h > 10) {
+                IniWrite(x, configFile, "Overlay", "X")
+                IniWrite(y, configFile, "Overlay", "Y")
+                IniWrite(w, configFile, "Overlay", "W")
+                IniWrite(h, configFile, "Overlay", "H")
+            }
+        } catch {
+            return
+        }
+    }
 }
 
 ; ==============================================================================
@@ -139,8 +171,11 @@ CreateOverlayWindow() {
     ; Resizing su kairiuoju pelės mygtuku ant kraštinių (+Resize)
     OverlayGui.OnEvent("Size", OnOverlayResize)
 
-    ; Pastūmimas su DEŠINIUJU pelės mygtuku ant rėmelio krašto (WM_RBUTTONDOWN = 0x0204)
+    ; Pastūmimas su DEŠINIUJU pelės mygtuku (WM_RBUTTONDOWN = 0x0204)
     OnMessage(0x0204, WM_RBUTTONDOWN)
+
+    ; Saugome koordinates pabaigus vilkti/didinti (WM_EXITSIZEMOVE = 0x0232)
+    OnMessage(0x0232, WM_EXITSIZEMOVE)
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
 }
@@ -152,6 +187,13 @@ WM_RBUTTONDOWN(wParam, lParam, msg, hwnd) {
     }
 }
 
+WM_EXITSIZEMOVE(wParam, lParam, msg, hwnd) {
+    global OverlayGui
+    if (WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) {
+        SaveOverlayPosition()
+    }
+}
+
 OnOverlayResize(thisGui, minMax, width, height) {
     global overlayW, overlayH
     if (minMax != -1 && width > 10 && height > 10) {
@@ -159,7 +201,10 @@ OnOverlayResize(thisGui, minMax, width, height) {
         overlayH := height
         try {
             thisGui["InnerBox"].Move(4, 4, width - 8, height - 8)
+        } catch {
+            ; Control resize fallback
         }
+        SaveOverlayPosition()
     }
 }
 
@@ -347,21 +392,14 @@ ReadOCRTextFromImage(imagePath) {
         if FileExist(outPath)
             try FileDelete(outPath)
 
-        psScript := "$null = [Reflection.Assembly]::LoadWithPartialName('System.Drawing'); "
-            . "$bmp = [System.Drawing.Bitmap]::FromFile('" . imagePath . "'); "
-            . "$ocr = [Windows.Media.Ocr.OcrEngine, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]::TryCreateFromUserProfileLanguages(); "
-            . "if ($ocr -and $bmp) { "
-            . "  $ms = New-Object System.IO.MemoryStream; "
-            . "  $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png); "
-            . "  $b = $ms.ToArray(); "
-            . "  $ras = New-Object Windows.Storage.Streams.InMemoryRandomAccessStream; "
-            . "  $writer = New-Object Windows.Storage.Streams.DataWriter($ras.GetOutputStreamAt(0)); "
-            . "  $writer.WriteBytes($b); "
-            . "  $null = $writer.StoreAsync().GetResults(); "
-            . "  $sBmp = [Windows.Graphics.Imaging.SoftwareBitmap]::CreateCopyFromBuffer($writer.DetachBuffer(), [Windows.Graphics.Imaging.BitmapPixelFormat]::Bgra8, $bmp.Width, $bmp.Height); "
-            . "  $res = $ocr.RecognizeAsync($sBmp).GetResults(); "
-            . "  if ($res -and $res.Text) { $res.Text | Out-File -FilePath '" . outPath . "' -Encoding utf8 } "
-            . "}"
+        psScript := "[void][Windows.Media.Ocr.OcrEngine, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]; "
+            . "$file = [Windows.Storage.StorageFile, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]::GetFileFromPathAsync('" . imagePath . "').GetResults(); "
+            . "$stream = $file.OpenAsync([Windows.Storage.FileAccessMode]::Read).GetResults(); "
+            . "$bmp = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]::CreateAsync($stream).GetResults(); "
+            . "$sBmp = $bmp.GetSoftwareBitmapAsync().GetResults(); "
+            . "$ocr = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages(); "
+            . "$res = $ocr.RecognizeAsync($sBmp).GetResults(); "
+            . "if ($res -and $res.Text) { $res.Text | Out-File -FilePath '" . outPath . "' -Encoding utf8 }"
 
         psCommand := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "' . psScript . '"'
         RunWait(psCommand, , "Hide")
@@ -447,6 +485,8 @@ SelectLogFile(*) {
         logFilePath := selected
         try {
             IniWrite(logFilePath, configFile, "Settings", "LogFilePath")
+        } catch {
+            ; Config write fallback
         }
         sbStatus.Text := " Log failas pakeistas į: " . logFilePath
         LoadExistingLog()
