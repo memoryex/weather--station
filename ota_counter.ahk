@@ -35,6 +35,8 @@ global CtrlGui := 0
 global SettingsGui := 0
 global TotalText := 0
 global NewText := 0
+global TimerText := 0
+global LastResultText := 0
 global TotalCount := 0
 global NewCount := 0
 global ScannedLogs := Map()
@@ -42,6 +44,11 @@ global DirTotals := Map()
 global DirNewCounts := Map()
 global DirTextCtrls := Map()
 global TS_LAST_SEND := Map()
+
+global TimerSeconds := 0
+global TimerRunning := false
+global LastProductTick := 0
+global LastResultStr := ""
 
 global ResetPending := false
 global ResetCountdown := 5
@@ -114,6 +121,33 @@ SaveConfig() {
         IniWrite(str, iniPath, "Settings", "Root_Katalogai")
         IniWrite(Start_X, iniPath, "Settings", "Start_X")
         IniWrite(Start_Y, iniPath, "Settings", "Start_Y")
+    }
+}
+
+; =======================================================
+; LAIKMATIS FUNKCIJOS
+; =======================================================
+FormatTimeStr(sec) {
+    hrs := Floor(sec / 3600)
+    mins := Floor(Mod(sec, 3600) / 60)
+    secs := Mod(sec, 60)
+    return Format("{:02d}:{:02d}:{:02d}", hrs, mins, secs)
+}
+
+UpdateTimerTick() {
+    global TimerRunning, TimerSeconds, LastProductTick, TimerText
+
+    if (!TimerRunning)
+        return
+
+    if (LastProductTick > 0 && (A_TickCount - LastProductTick > 60000)) {
+        TimerRunning := false
+        return
+    }
+
+    TimerSeconds++
+    if IsObject(TimerText) {
+        try TimerText.Value := "Laikas: " . FormatTimeStr(TimerSeconds)
     }
 }
 
@@ -218,17 +252,26 @@ CancelReset() {
 
 DoReset() {
     global ResetPending, NewCount, NewText, ResetBtn, DirNewCounts, Root_Katalogai
+    global TimerSeconds, TimerRunning, LastResultStr
 
     ResetPending := false
+
+    if (NewCount > 0 || TimerSeconds > 0) {
+        LastResultStr := "Paskutinis: " . NewCount . " vnt. (" . FormatTimeStr(TimerSeconds) . ")"
+    }
+
     NewCount := 0
+    TimerSeconds := 0
+    TimerRunning := false
+
     for _, item in Root_Katalogai {
         DirNewCounts[item.path] := 0
     }
-    if IsObject(NewText)
-        NewText.Value := "Nauji: 0 vnt."
-    ResetBtn.Text := "RESET"
 
+    ResetBtn.Text := "RESET"
     SetTimer(UpdateResetCountdown, 0)
+
+    RebuildOverlayGui()
 }
 
 ; =======================================================
@@ -439,6 +482,7 @@ InitLogCounts() {
 ; =======================================================
 TikrintiKataloga() {
     global Root_Katalogai, TotalCount, NewCount, ScannedLogs, DirTotals, DirNewCounts
+    global TimerRunning, LastProductTick
 
     hasNewData := false
 
@@ -477,6 +521,9 @@ TikrintiKataloga() {
 
                     hasNewData := true
 
+                    TimerRunning := true
+                    LastProductTick := A_TickCount
+
                     TS_Send(DirNewCounts[dir], item.apiKey, item.field)
                 }
 
@@ -489,13 +536,15 @@ TikrintiKataloga() {
 }
 
 UpdateOverlayValues() {
-    global TotalText, NewText, DirTextCtrls, TotalCount, NewCount, Root_Katalogai, DirTotals
+    global TotalText, NewText, TimerText, DirTextCtrls, TotalCount, NewCount, Root_Katalogai, DirTotals, TimerSeconds
 
     if (!IsObject(OverlayGui))
         return
 
     TotalText.Value := "Viso: " TotalCount " vnt."
     NewText.Value := "Nauji: " NewCount " vnt."
+    if IsObject(TimerText)
+        TimerText.Value := "Laikas: " . FormatTimeStr(TimerSeconds)
 
     for _, item in Root_Katalogai {
         dir := item.path
@@ -541,9 +590,9 @@ TS_Send(value, apiKey := "", field := "") {
 ; GUI – SKAITLIUKAS (Dinamiškas Overlay)
 ; =======================================================
 RebuildOverlayGui() {
-    global OverlayGui, TotalText, NewText, DirTextCtrls
+    global OverlayGui, TotalText, NewText, TimerText, LastResultText, DirTextCtrls
     global Pagrindine_Spalva, Lango_Dydis, Start_X, Start_Y, Langas_Skaidrumas
-    global TotalCount, NewCount, Root_Katalogai, DirTotals
+    global TotalCount, NewCount, Root_Katalogai, DirTotals, TimerSeconds, LastResultStr
 
     if IsObject(OverlayGui) {
         try OverlayGui.Destroy()
@@ -557,10 +606,20 @@ RebuildOverlayGui() {
     OverlayGui.SetFont("s22 bold cWhite", "Arial")
     TotalText := OverlayGui.AddText("x0 y" yPos " w" Lango_Dydis " Center", "Viso: " TotalCount " vnt.")
 
-    yPos += 42
+    yPos += 40
     NewText := OverlayGui.AddText("x0 y" yPos " w" Lango_Dydis " Center", "Nauji: " NewCount " vnt.")
 
-    yPos += 45
+    yPos += 40
+    OverlayGui.SetFont("s15 bold cLime", "Arial")
+    TimerText := OverlayGui.AddText("x0 y" yPos " w" Lango_Dydis " Center", "Laikas: " . FormatTimeStr(TimerSeconds))
+
+    if (LastResultStr != "") {
+        yPos += 35
+        OverlayGui.SetFont("s10 bold cAqua", "Arial")
+        LastResultText := OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Center", LastResultStr)
+    }
+
+    yPos += 32
     OverlayGui.SetFont("s9 bold cYellow", "Arial")
     OverlayGui.AddText("x10 y" yPos " w" (Lango_Dydis - 20) " Center", "--- TERMOSTATAI ---")
 
@@ -642,6 +701,7 @@ RebuildOverlayGui()
 
 SetTimer EnsureTopMost, 500
 SetTimer TikrintiKataloga, 10000
+SetTimer UpdateTimerTick, 1000
 
 ; =======================================================
 ; HOTKEY
