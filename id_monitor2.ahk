@@ -47,6 +47,7 @@ global threshRedDiff := 20
 global liveOCRText := ""
 global liveLEDRGB := "R: - G: - B: -"
 global liveLEDStateStr := "Nežinoma"
+global liveDisplayRedBright := "R: 0 / 255"
 
 ; ==============================================================================
 ; GUI SĄSANAJOS KŪRIMAS
@@ -143,6 +144,7 @@ global SettingsGui := 0
 global txtTestOCRText := 0
 global txtTestLEDRGB := 0
 global txtTestLEDState := 0
+global txtTestSegmentBright := 0
 
 LoadThresholdSettings() {
     global configFile, threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
@@ -242,29 +244,32 @@ OpenSettingsGui(*) {
     SettingsGui.Add("UpDown", "Range0-255", threshRedDiff)
 
     ; 3. Grupinis Rėmelis: LIVE TEST / DIAGNOSTIKA
-    SettingsGui.Add("GroupBox", "x15 y283 w370 h110", "🔍 TESTINIS LANGELIS (Šalia matoma ką supranta AHK)")
+    SettingsGui.Add("GroupBox", "x15 y283 w370 h130", "🔍 TESTINIS LANGELIS (Šalia matoma ką supranta AHK)")
 
     SettingsGui.SetFont("s10 bold", "Consolas")
-    SettingsGui.Add("Text", "x30 y305 w140 c0x555555", "Šiuo metu mato OCR:")
-    txtTestOCRText := SettingsGui.Add("Text", "x175 y305 w195 c0x1976D2", liveOCRText != "" ? liveOCRText : "[ -- ]")
+    SettingsGui.Add("Text", "x30 y303 w140 c0x555555", "Šiuo metu mato OCR:")
+    txtTestOCRText := SettingsGui.Add("Text", "x175 y303 w195 c0x1976D2", liveOCRText != "" ? liveOCRText : "[ -- ]")
 
     SettingsGui.SetFont("s9 norm", "Segoe UI")
-    SettingsGui.Add("Text", "x30 y335 w140 c0x555555", "LED Pikselio RGB:")
-    txtTestLEDRGB := SettingsGui.Add("Text", "x175 y335 w195 c0x2C3E50", liveLEDRGB)
+    SettingsGui.Add("Text", "x30 y328 w140 c0x555555", "Display Raudona (R):")
+    txtTestSegmentBright := SettingsGui.Add("Text", "x175 y328 w195 c0xC62828 bold", liveDisplayRedBright)
 
-    SettingsGui.Add("Text", "x30 y360 w140 c0x555555", "LED Statusas:")
-    txtTestLEDState := SettingsGui.Add("Text", "x175 y360 w195 c0x2E7D32", liveLEDStateStr)
+    SettingsGui.Add("Text", "x30 y353 w140 c0x555555", "LED Pikselio RGB:")
+    txtTestLEDRGB := SettingsGui.Add("Text", "x175 y353 w195 c0x2C3E50", liveLEDRGB)
+
+    SettingsGui.Add("Text", "x30 y378 w140 c0x555555", "LED Statusas:")
+    txtTestLEDState := SettingsGui.Add("Text", "x175 y378 w195 c0x2E7D32", liveLEDStateStr)
 
     ; Mygtukai
-    btnSaveSet := SettingsGui.Add("Button", "x80 y405 w110 h32", "💾 Išsaugoti")
+    btnSaveSet := SettingsGui.Add("Button", "x80 y425 w110 h32", "💾 Išsaugoti")
     btnSaveSet.SetFont("bold")
-    btnCloseSet := SettingsGui.Add("Button", "x210 y405 w110 h32", "Uždaryti")
+    btnCloseSet := SettingsGui.Add("Button", "x210 y425 w110 h32", "Uždaryti")
 
     btnSaveSet.OnEvent("Click", (*) => SaveThresholdSettings(edtRMin, edtRGDiff, edtRBDiff, edtBlueMin, edtBlueDiff, edtRedMin, edtRedDiff))
     btnCloseSet.OnEvent("Click", (*) => CloseSettingsGui())
     SettingsGui.OnEvent("Close", (*) => CloseSettingsGui())
 
-    SettingsGui.Show("w400 h450")
+    SettingsGui.Show("w400 h475")
 }
 
 CloseSettingsGui() {
@@ -533,6 +538,7 @@ ScanTargetRegionSequence() {
         if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
             try {
                 txtTestOCRText.Text := liveOCRText
+                txtTestSegmentBright.Text := liveDisplayRedBright
             } catch {
                 ; Fallback
             }
@@ -756,6 +762,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
 
         pixelCount := w * h
         hashVal := 0
+        maxRedVal := 0
 
         ; Mėginių kaupimo (Anti-Flicker persistence) buferis kameros mirgėjimui suvaldyti
         static pixelHistory := Map()
@@ -772,6 +779,9 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                 gVal := NumGet(pPtr, 1, "UChar")
                 rVal := NumGet(pPtr, 2, "UChar")
 
+                if (rVal > maxRedVal)
+                    maxRedVal := rVal
+
                 pxIdx := rowY * w + colX
 
                 ; Jei Raudonas LED elementas pagal konfigūruojamus slenksčius
@@ -780,6 +790,8 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                 }
             }
         }
+
+        global liveDisplayRedBright := "R: " . maxRedVal . " / 255"
 
         ; Atnaujiname ir sujungiame praėjusių kadrų atmintį su esamu kadru
         newHistory := Map()
