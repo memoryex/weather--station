@@ -103,7 +103,7 @@ InitLogFilePath() {
     }
 
     if (logFilePath == "" || !HasValidLogExtension(logFilePath)) {
-        MsgBox("Prieš pradedant darbą, prašome pasirinkti arba sukurti log failą.", "Log Failo Nustatymas", "OK Iconi")
+        MsgBox("Prieš pradedant darbą, prašome pasirinkti arba sukurti log failą.", "Log Failo Nustatymas", "Iconi")
         selectedPath := FileSelect("S16", A_ScriptDir . "\id_log.txt", "Pasirinkite arba sukurkite LOG failą", "Tekstiniai failai (*.txt; *.log)")
         if (selectedPath != "") {
             logFilePath := selectedPath

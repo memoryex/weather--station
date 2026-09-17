@@ -129,7 +129,7 @@ InitLogFilePath() {
     }
 
     if (logFilePath == "" || !HasValidLogExtension(logFilePath)) {
-        MsgBox("Prieš pradedant darbą, prašome pasirinkti arba sukurti log failą.", "Log Failo Nustatymas", "OK Iconi")
+        MsgBox("Prieš pradedant darbą, prašome pasirinkti arba sukurti log failą.", "Log Failo Nustatymas", "Iconi")
         selectedPath := FileSelect("S16", A_ScriptDir . "\id_log_seq.txt", "Pasirinkite arba sukurkite LOG failą", "Tekstiniai failai (*.txt; *.log)")
         if (selectedPath != "") {
             logFilePath := selectedPath
@@ -356,6 +356,8 @@ ScanTargetRegionSequence() {
 
         ; TIKRINAME CACHE: Jei vaizdas nepasikeitė nuo praėjusio tiko, NENAUDOJAME CPU ir nešaukiame OCR!
         if (currentHash == lastFrameHash) {
+            if FileExist(frameData["imagePath"])
+                try FileDelete(frameData["imagePath"])
             isScanningActive := false
             return
         }
@@ -439,11 +441,15 @@ checkBlueLEDState() {
         g := (pixelColor >> 8) & 0xFF
         b := pixelColor & 0xFF
 
-        ; Tikriname ar Mėlyna spalva dominuoja (B > R+30 IR B > G+30)
+        ; Tikriname LED spalvos būseną (Mėlyna vs Raudona vs Neaktyvus)
         if (b > (r + 30) && b > (g + 30) && b > 80) {
             isBlueLEDActive := true
             txtLEDStatus.Text := "● Mirksi / Aktyvus"
             txtLEDStatus.SetFont("c0x1976D2 bold")
+        } else if (r > (b + 30) && r > (g + 30) && r > 80) {
+            isBlueLEDActive := false
+            txtLEDStatus.Text := "User rėžimas, įjunkite BT"
+            txtLEDStatus.SetFont("c0xC62828 bold")
         } else {
             isBlueLEDActive := false
             txtLEDStatus.Text := "○ Neaktyvus / Išėjo"
