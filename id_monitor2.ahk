@@ -519,6 +519,15 @@ ScanTargetRegionSequence() {
     ; Gauname binarizuotą 7-segmentų vaizdo pavyzdį bei jo kontrolinę suma (Hash)
     frameData := CaptureAndBinarizeRedLED(rx, ry, rw, rh)
 
+    ; Atnaujiname diagnostinį raudonos šviesumo tekstą kaskart atlikus kadrą
+    if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
+        try {
+            txtTestSegmentBright.Text := liveDisplayRedBright
+        } catch {
+            ; Fallback
+        }
+    }
+
     if (frameData.Has("hash") && frameData["hash"] != "") {
         currentHash := frameData["hash"]
 
@@ -539,7 +548,6 @@ ScanTargetRegionSequence() {
         if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
             try {
                 txtTestOCRText.Text := liveOCRText
-                txtTestSegmentBright.Text := liveDisplayRedBright
             } catch {
                 ; Fallback
             }
@@ -726,8 +734,13 @@ UpdateSequenceProgressUI() {
 ; RED 7-SEGMENT LED BINARIZATION (High-Contrast Black on White) & CACHING
 ; ==============================================================================
 CaptureAndBinarizeRedLED(x, y, w, h) {
+    global OverlayGui
     result := Map()
     tempImgPath := A_Temp . "\id_ocr_bin_" . A_TickCount . ".bmp"
+
+    ; Paslepariame stebėjimo rėmelį milisekundei kadrų fotografavimo metu
+    if (WinExist(OverlayGui.Hwnd))
+        OverlayGui.Hide()
 
     hdcScreen := DllCall("GetDC", "Ptr", 0, "Ptr")
     hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdcScreen, "Ptr")
@@ -736,6 +749,9 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
 
     ; Išsaugome tikrą RGB kadrą neperrašinėdami spalvų į nespalvotą
     DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr", hdcScreen, "Int", x, "Int", y, "UInt", 0x00CC0020)
+
+    if (WinExist(OverlayGui.Hwnd))
+        OverlayGui.Show("NoActivate")
 
     ; GDI+ Binarizacija (Slenkstinis Raudonos Spalvos Atskyrimas)
     pGpBitmap := 0
