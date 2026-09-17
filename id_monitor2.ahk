@@ -638,6 +638,10 @@ checkBlueLEDState() {
                 gVal := (pixelColor >> 8) & 0xFF
                 bVal := pixelColor & 0xFF
 
+                ; Ignoruojame permatomo rėmelio fono spalvą (Magenta 0xFE00FE: R=254, G=0, B=254)
+                if (rVal == 0xFE && gVal == 0 && bVal == 0xFE)
+                    continue
+
                 intensity := rVal + gVal + bVal
                 if (intensity > maxVal) {
                     maxVal := intensity
@@ -734,24 +738,16 @@ UpdateSequenceProgressUI() {
 ; RED 7-SEGMENT LED BINARIZATION (High-Contrast Black on White) & CACHING
 ; ==============================================================================
 CaptureAndBinarizeRedLED(x, y, w, h) {
-    global OverlayGui
     result := Map()
     tempImgPath := A_Temp . "\id_ocr_bin_" . A_TickCount . ".bmp"
-
-    ; Paslepariame stebėjimo rėmelį milisekundei kadrų fotografavimo metu
-    if (WinExist(OverlayGui.Hwnd))
-        OverlayGui.Hide()
 
     hdcScreen := DllCall("GetDC", "Ptr", 0, "Ptr")
     hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdcScreen, "Ptr")
     hbm := DllCall("CreateCompatibleBitmap", "Ptr", hdcScreen, "Int", w, "Int", h, "Ptr")
     hbmOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbm, "Ptr")
 
-    ; Išsaugome tikrą RGB kadrą neperrašinėdami spalvų į nespalvotą
+    ; Nuskaitome vaizdą po skaidria permatoma rėmelio sritimi (0xFE00FE)
     DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr", hdcScreen, "Int", x, "Int", y, "UInt", 0x00CC0020)
-
-    if (WinExist(OverlayGui.Hwnd))
-        OverlayGui.Show("NoActivate")
 
     ; GDI+ Binarizacija (Slenkstinis Raudonos Spalvos Atskyrimas)
     pGpBitmap := 0
@@ -795,6 +791,10 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                 bVal := NumGet(pPtr, 0, "UChar")
                 gVal := NumGet(pPtr, 1, "UChar")
                 rVal := NumGet(pPtr, 2, "UChar")
+
+                ; Ignoruojame permatomo rėmelio fono spalvą (Magenta 0xFE00FE: R=254, G=0, B=254)
+                if (rVal == 0xFE && gVal == 0 && bVal == 0xFE)
+                    continue
 
                 if (rVal > maxRedVal)
                     maxRedVal := rVal
