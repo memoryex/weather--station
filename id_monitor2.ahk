@@ -391,9 +391,9 @@ CreateOverlayWindows() {
 
 WM_RBUTTONDOWN(wParam, lParam, msg, hwnd) {
     global OverlayGui, LEDOverlayGui
-    if (WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) {
+    if (WinExist(OverlayGui.Hwnd) && (hwnd == OverlayGui.Hwnd || DllCall("IsChild", "Ptr", OverlayGui.Hwnd, "Ptr", hwnd))) {
         PostMessage(0xA1, 2,,, OverlayGui.Hwnd)
-    } else if (WinExist(LEDOverlayGui.Hwnd) && hwnd == LEDOverlayGui.Hwnd) {
+    } else if (WinExist(LEDOverlayGui.Hwnd) && (hwnd == LEDOverlayGui.Hwnd || DllCall("IsChild", "Ptr", LEDOverlayGui.Hwnd, "Ptr", hwnd))) {
         PostMessage(0xA1, 2,,, LEDOverlayGui.Hwnd)
     }
 }
@@ -603,6 +603,7 @@ checkBlueLEDState() {
     if (!WinExist(LEDOverlayGui.Hwnd))
         return
 
+    CoordMode("Pixel", "Screen")
     LEDOverlayGui.GetPos(&lx, &ly, &lw, &lh)
 
     bestR := 0, bestG := 0, bestB := 0
@@ -635,7 +636,31 @@ checkBlueLEDState() {
         }
     }
 
-    r := bestR, g := bestG, b := bestB
+    ; Multi-frame persistence LED stebėjimas mirgantiems puslaidininkiams
+    static ledRHistory := [], ledGHistory := [], ledBHistory := []
+
+    ledRHistory.Push(bestR)
+    ledGHistory.Push(bestG)
+    ledBHistory.Push(bestB)
+
+    if (ledRHistory.Length > 4) {
+        ledRHistory.RemoveAt(1)
+        ledGHistory.RemoveAt(1)
+        ledBHistory.RemoveAt(1)
+    }
+
+    maxR := 0, maxG := 0, maxB := 0
+    for val in ledRHistory
+        if (val > maxR)
+            maxR := val
+    for val in ledGHistory
+        if (val > maxG)
+            maxG := val
+    for val in ledBHistory
+        if (val > maxB)
+            maxB := val
+
+    r := maxR, g := maxG, b := maxB
     liveLEDRGB := "R: " . r . "  G: " . g . "  B: " . b
 
     try {
@@ -702,6 +727,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     hbm := DllCall("CreateCompatibleBitmap", "Ptr", hdcScreen, "Int", w, "Int", h, "Ptr")
     hbmOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbm, "Ptr")
 
+    ; Išsaugome tikrą RGB kadrą neperrašinėdami spalvų į nespalvotą
     DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr", hdcScreen, "Int", x, "Int", y, "UInt", 0x00CC0020)
 
     ; GDI+ Binarizacija (Slenkstinis Raudonos Spalvos Atskyrimas)
@@ -731,6 +757,10 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
         pixelCount := w * h
         hashVal := 0
 
+        ; Mėginių kaupimo (Anti-Flicker persistence) buferis kameros mirgėjimui suvaldyti
+        static pixelHistory := Map()
+        currentPixels := Map()
+
         Loop h {
             rowY := A_Index - 1
             rowPtr := scan0 + (rowY * stride)
@@ -742,15 +772,41 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                 gVal := NumGet(pPtr, 1, "UChar")
                 rVal := NumGet(pPtr, 2, "UChar")
 
+                pxIdx := rowY * w + colX
+
                 ; Jei Raudonas LED elementas pagal konfigūruojamus slenksčius
                 if (rVal >= threshRMin && rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff)) {
-                    ; Paverčiame JUODAIS skaitmenimis (OCR geriausiai skaito Juoda ant Balto)
+                    currentPixels[pxIdx] := 3 ; Išlaikome pikselį 3 kadruose
+                }
+            }
+        }
+
+        ; Atnaujiname ir sujungiame praėjusių kadrų atmintį su esamu kadru
+        newHistory := Map()
+        for idx, ttl in pixelHistory {
+            if (ttl > 1)
+                newHistory[idx] := ttl - 1
+        }
+        for idx, ttl in currentPixels {
+            newHistory[idx] := ttl
+        }
+        pixelHistory := newHistory
+
+        ; Įrašome binarizuotus pikselius (Juoda ant Balto)
+        Loop h {
+            rowY := A_Index - 1
+            rowPtr := scan0 + (rowY * stride)
+            Loop w {
+                colX := A_Index - 1
+                pPtr := rowPtr + (colX * 4)
+                pxIdx := rowY * w + colX
+
+                if pixelHistory.Has(pxIdx) {
                     NumPut("UChar", 0, pPtr, 0)
                     NumPut("UChar", 0, pPtr, 1)
                     NumPut("UChar", 0, pPtr, 2)
-                    hashVal += (rowY * w + colX)
+                    hashVal += pxIdx
                 } else {
-                    ; Fonas - BALTAS
                     NumPut("UChar", 255, pPtr, 0)
                     NumPut("UChar", 255, pPtr, 1)
                     NumPut("UChar", 255, pPtr, 2)

@@ -105,14 +105,22 @@ def process_led_image(image_path):
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     mask = cv2.bitwise_or(mask1, mask2)
 
-    # Fall back to adaptive grayscale thresholding if HSV mask yields low activation
+    # If HSV mask yields low activation, check if image is pre-binarized black-on-white by AHK
     if cv2.countNonZero(mask) < 15:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+        # Check if already black-on-white (black digits on white background)
+        black_pixels = np.sum(gray < 50)
+        white_pixels = np.sum(gray > 200)
+        if white_pixels > (img.size * 0.4) and black_pixels > 10:
+            # Pre-binarized black-on-white from AHK: invert so digits become white on black mask
+            mask = cv2.bitwise_not(gray)
+        else:
+            mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
 
-    # Morphological cleanup
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    # Morphological cleanup and dilation to bridge LED flicker line gaps
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.dilate(mask, kernel, iterations=1)
 
     # Find contours
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
