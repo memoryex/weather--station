@@ -34,6 +34,20 @@ global lastTokenTime := 0
 global bufferTimeoutMs := 6000
 global lastFrameHash := ""
 
+; Konfigūruojamos Slenkstinės Reikšmės (Thresholds)
+global threshRMin := 100
+global threshRGDiff := 30
+global threshRBDiff := 30
+global threshBlueMin := 80
+global threshBlueDiff := 30
+global threshRedMin := 80
+global threshRedDiff := 30
+
+; Live Test Diagnostiniai Kintamieji GUI
+global liveOCRText := ""
+global liveLEDRGB := "R: - G: - B: -"
+global liveLEDStateStr := "Nežinoma"
+
 ; ==============================================================================
 ; GUI SĄSANAJOS KŪRIMAS
 ; ==============================================================================
@@ -78,10 +92,12 @@ txtLastID := MainGui.Add("Text", "x35 y255 w310 Center BackgroundTrans c0x2C3E50
 MainGui.SetFont("s9 norm", "Segoe UI")
 
 ; Valdymo Mygtukai
-btnStart := MainGui.Add("Button", "x15 y320 w110 h32", "▶ Pradėti")
+btnStart := MainGui.Add("Button", "x15 y320 w80 h32", "▶ Pradėti")
 btnStart.SetFont("bold")
-btnOverlay := MainGui.Add("Button", "x135 y320 w110 h32", "🔲 Rėmeliai")
-btnLogFile := MainGui.Add("Button", "x255 y320 w110 h32", "📁 Log Failas")
+btnOverlay := MainGui.Add("Button", "x100 y320 w80 h32", "🔲 Rėmeliai")
+btnLogFile := MainGui.Add("Button", "x185 y320 w85 h32", "📁 Log Failas")
+btnSettings := MainGui.Add("Button", "x275 y320 w90 h32", "⚙ Nustatymai")
+btnSettings.SetFont("bold")
 
 ; Registruotų ID Sąrašas (ListView)
 MainGui.SetFont("bold")
@@ -98,8 +114,12 @@ sbStatus := MainGui.Add("StatusBar",, " Pasiruošęs. Užstumkite rėmelius ant 
 btnStart.OnEvent("Click", ToggleMonitoring)
 btnOverlay.OnEvent("Click", ToggleOverlays)
 btnLogFile.OnEvent("Click", SelectLogFile)
+btnSettings.OnEvent("Click", OpenSettingsGui)
 MainGui.OnEvent("Close", (*) => ExitApp())
 OnExit(SaveOverlayPositions)
+
+; Įkeliame Slenkstinius Nustatymus (Thresholds) iš config.ini
+LoadThresholdSettings()
 
 ; Inicijuojame / Patikriname Log Failą iš Nustatymų
 InitLogFilePath()
@@ -115,6 +135,131 @@ LoadExistingLog()
 
 ; Parodome pagrindinį langą
 MainGui.Show("x100 y100 w380 h570")
+
+; ==============================================================================
+; NUSTATYMŲ IR TESTAVIMO LANGO LOGIKA (SETTINGS & LIVE TEST)
+; ==============================================================================
+global SettingsGui := 0
+global txtTestOCRText := 0
+global txtTestLEDRGB := 0
+global txtTestLEDState := 0
+
+LoadThresholdSettings() {
+    global configFile, threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
+    try {
+        threshRMin := Integer(IniRead(configFile, "Thresholds2", "RMin", "100"))
+        threshRGDiff := Integer(IniRead(configFile, "Thresholds2", "RGDiff", "30"))
+        threshRBDiff := Integer(IniRead(configFile, "Thresholds2", "RBDiff", "30"))
+        threshBlueMin := Integer(IniRead(configFile, "Thresholds2", "BlueMin", "80"))
+        threshBlueDiff := Integer(IniRead(configFile, "Thresholds2", "BlueDiff", "30"))
+        threshRedMin := Integer(IniRead(configFile, "Thresholds2", "RedMin", "80"))
+        threshRedDiff := Integer(IniRead(configFile, "Thresholds2", "RedDiff", "30"))
+    } catch {
+        threshRMin := 100, threshRGDiff := 30, threshRBDiff := 30
+        threshBlueMin := 80, threshBlueDiff := 30
+        threshRedMin := 80, threshRedDiff := 30
+    }
+}
+
+SaveThresholdSettings(edtRMin, edtRGDiff, edtRBDiff, edtBlueMin, edtBlueDiff, edtRedMin, edtRedDiff) {
+    global configFile, threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff, sbStatus
+
+    try {
+        threshRMin := Integer(edtRMin.Value)
+        threshRGDiff := Integer(edtRGDiff.Value)
+        threshRBDiff := Integer(edtRBDiff.Value)
+        threshBlueMin := Integer(edtBlueMin.Value)
+        threshBlueDiff := Integer(edtBlueDiff.Value)
+        threshRedMin := Integer(edtRedMin.Value)
+        threshRedDiff := Integer(edtRedDiff.Value)
+
+        IniWrite(threshRMin, configFile, "Thresholds2", "RMin")
+        IniWrite(threshRGDiff, configFile, "Thresholds2", "RGDiff")
+        IniWrite(threshRBDiff, configFile, "Thresholds2", "RBDiff")
+        IniWrite(threshBlueMin, configFile, "Thresholds2", "BlueMin")
+        IniWrite(threshBlueDiff, configFile, "Thresholds2", "BlueDiff")
+        IniWrite(threshRedMin, configFile, "Thresholds2", "RedMin")
+        IniWrite(threshRedDiff, configFile, "Thresholds2", "RedDiff")
+
+        MsgBox("Nustatymai sėkmingai išsaugoti!", "Nustatymai", "Iconi")
+        sbStatus.Text := " Slenkstiniai nustatymai išsaugoti."
+    } catch as err {
+        MsgBox("Klaida išsaugant nustatymus: " . err.Message, "Klaida", "Icon!")
+    }
+}
+
+OpenSettingsGui(*) {
+    global SettingsGui, txtTestOCRText, txtTestLEDRGB, txtTestLEDState
+    global threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
+    global liveOCRText, liveLEDRGB, liveLEDStateStr
+
+    if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
+        SettingsGui.Show()
+        return
+    }
+
+    SettingsGui := Gui("+Owner" . MainGui.Hwnd . " +AlwaysOnTop", "Atpažinimo Nustatymai IR Live Testas")
+    SettingsGui.SetFont("s9", "Segoe UI")
+    SettingsGui.BackColor := "0xF4F6F9"
+
+    ; 1. Grupinis Rėmelis: OCR Binarizacijos Slenksčiai
+    SettingsGui.Add("GroupBox", "x15 y12 w370 h115", "7-Segmentų Raudonos Display Binarizacija")
+
+    SettingsGui.Add("Text", "x30 y35 w150", "Min. Raudona (R >):")
+    edtRMin := SettingsGui.Add("Edit", "x180 y32 w60 Center", threshRMin)
+    SettingsGui.Add("UpDown", "Range0-255", threshRMin)
+
+    SettingsGui.Add("Text", "x30 y62 w150", "R ir G skirtumas (R - G >):")
+    edtRGDiff := SettingsGui.Add("Edit", "x180 y59 w60 Center", threshRGDiff)
+    SettingsGui.Add("UpDown", "Range0-255", threshRGDiff)
+
+    SettingsGui.Add("Text", "x30 y89 w150", "R ir B skirtumas (R - B >):")
+    edtRBDiff := SettingsGui.Add("Edit", "x180 y86 w60 Center", threshRBDiff)
+    SettingsGui.Add("UpDown", "Range0-255", threshRBDiff)
+
+    ; 2. Grupinis Rėmelis: LED Indikatoriaus Slenksčiai
+    SettingsGui.Add("GroupBox", "x15 y135 w370 h140", "LED Indikatoriaus Spalvų Aptikimas")
+
+    SettingsGui.Add("Text", "x30 y158 w150", "Mėlyna Min (B >):")
+    edtBlueMin := SettingsGui.Add("Edit", "x180 y155 w60 Center", threshBlueMin)
+    SettingsGui.Add("UpDown", "Range0-255", threshBlueMin)
+
+    SettingsGui.Add("Text", "x30 y185 w150", "Mėlynas Skirtumas (B-R/G):")
+    edtBlueDiff := SettingsGui.Add("Edit", "x180 y182 w60 Center", threshBlueDiff)
+    SettingsGui.Add("UpDown", "Range0-255", threshBlueDiff)
+
+    SettingsGui.Add("Text", "x30 y212 w150", "Raudona Min (R >):")
+    edtRedMin := SettingsGui.Add("Edit", "x180 y209 w60 Center", threshRedMin)
+    SettingsGui.Add("UpDown", "Range0-255", threshRedMin)
+
+    SettingsGui.Add("Text", "x30 y239 w150", "Raudonas Skirtumas (R-B/G):")
+    edtRedDiff := SettingsGui.Add("Edit", "x180 y236 w60 Center", threshRedDiff)
+    SettingsGui.Add("UpDown", "Range0-255", threshRedDiff)
+
+    ; 3. Grupinis Rėmelis: LIVE TEST / DIAGNOSTIKA
+    SettingsGui.Add("GroupBox", "x15 y283 w370 h110", "🔍 TESTINIS LANGELIS (Šalia matoma ką supranta AHK)")
+
+    SettingsGui.SetFont("s10 bold", "Consolas")
+    SettingsGui.Add("Text", "x30 y305 w140 c0x555555", "Šiuo metu mato OCR:")
+    txtTestOCRText := SettingsGui.Add("Text", "x175 y305 w195 c0x1976D2", liveOCRText != "" ? liveOCRText : "[ -- ]")
+
+    SettingsGui.SetFont("s9 norm", "Segoe UI")
+    SettingsGui.Add("Text", "x30 y335 w140 c0x555555", "LED Pikselio RGB:")
+    txtTestLEDRGB := SettingsGui.Add("Text", "x175 y335 w195 c0x2C3E50", liveLEDRGB)
+
+    SettingsGui.Add("Text", "x30 y360 w140 c0x555555", "LED Statusas:")
+    txtTestLEDState := SettingsGui.Add("Text", "x175 y360 w195 c0x2E7D32", liveLEDStateStr)
+
+    ; Mygtukai
+    btnSaveSet := SettingsGui.Add("Button", "x80 y405 w110 h32", "💾 Išsaugoti")
+    btnSaveSet.SetFont("bold")
+    btnCloseSet := SettingsGui.Add("Button", "x210 y405 w110 h32", "Uždaryti")
+
+    btnSaveSet.OnEvent("Click", (*) => SaveThresholdSettings(edtRMin, edtRGDiff, edtRBDiff, edtBlueMin, edtBlueDiff, edtRedMin, edtRedDiff))
+    btnCloseSet.OnEvent("Click", (*) => SettingsGui.Hide())
+
+    SettingsGui.Show("w400 h450")
+}
 
 ; ==============================================================================
 ; LOG FAILO IR OVERLAY POS PERSISTENCE
@@ -367,6 +512,15 @@ ScanTargetRegionSequence() {
         if FileExist(frameData["imagePath"])
             try FileDelete(frameData["imagePath"])
 
+        liveOCRText := (detectedText != "") ? detectedText : "[ -- ]"
+        if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
+            try {
+                txtTestOCRText.Text := liveOCRText
+            } catch {
+                ; Fallback
+            }
+        }
+
         if (detectedText != "") {
             if RegExMatch(detectedText, "i)\b[A-Z0-9]{2}\b", &match) {
                 token := StrUpper(match[0])
@@ -426,6 +580,8 @@ ScanTargetRegionSequence() {
 ; ==============================================================================
 checkBlueLEDState() {
     global LEDOverlayGui, isBlueLEDActive, txtLEDStatus, lastLEDCheckTime
+    global threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
+    global liveLEDRGB, liveLEDStateStr, txtTestLEDRGB, txtTestLEDState, SettingsGui
 
     if (!WinExist(LEDOverlayGui.Hwnd))
         return
@@ -441,19 +597,34 @@ checkBlueLEDState() {
         g := (pixelColor >> 8) & 0xFF
         b := pixelColor & 0xFF
 
-        ; Tikriname LED spalvos būseną (Mėlyna vs Raudona vs Neaktyvus)
-        if (b > (r + 30) && b > (g + 30) && b > 80) {
+        liveLEDRGB := "R: " . r . "  G: " . g . "  B: " . b
+
+        ; Tikriname LED spalvos būseną pagal konfigūruojamus slenksčius
+        if (b > (r + threshBlueDiff) && b > (g + threshBlueDiff) && b >= threshBlueMin) {
             isBlueLEDActive := true
+            liveLEDStateStr := "● Mirksi Mėlyna (Aktyvus)"
             txtLEDStatus.Text := "● Mirksi / Aktyvus"
             txtLEDStatus.SetFont("c0x1976D2 bold")
-        } else if (r > (b + 30) && r > (g + 30) && r > 80) {
+        } else if (r > (b + threshRedDiff) && r > (g + threshRedDiff) && r >= threshRedMin) {
             isBlueLEDActive := false
+            liveLEDStateStr := "■ Dega Raudona (User rėžimas)"
             txtLEDStatus.Text := "User rėžimas, įjunkite BT"
             txtLEDStatus.SetFont("c0xC62828 bold")
         } else {
             isBlueLEDActive := false
+            liveLEDStateStr := "○ Neaktyvus / Nežinoma"
             txtLEDStatus.Text := "○ Neaktyvus / Išėjo"
             txtLEDStatus.SetFont("c0x7F8C8D bold")
+        }
+
+        ; Atnaujiname Live Test langelį jei atidarytas
+        if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
+            try {
+                txtTestLEDRGB.Text := liveLEDRGB
+                txtTestLEDState.Text := liveLEDStateStr
+            } catch {
+                ; Fallback
+            }
         }
     } catch {
         isBlueLEDActive := false
@@ -531,8 +702,8 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                 gVal := NumGet(pPtr, 1, "UChar")
                 rVal := NumGet(pPtr, 2, "UChar")
 
-                ; Jei Raudonas LED elementas (Raudona spalva gerokai viršija Žalią ir Mėlyną)
-                if (rVal > 110 && rVal > (gVal + 40) && rVal > (bVal + 40)) {
+                ; Jei Raudonas LED elementas pagal konfigūruojamus slenksčius
+                if (rVal >= threshRMin && rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff)) {
                     ; Paverčiame JUODAIS skaitmenimis (OCR geriausiai skaito Juoda ant Balto)
                     NumPut("UChar", 0, pPtr, 0)
                     NumPut("UChar", 0, pPtr, 1)
