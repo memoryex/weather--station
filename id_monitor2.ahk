@@ -252,7 +252,8 @@ OpenSettingsGui(*) {
 
     SettingsGui.SetFont("s9 norm", "Segoe UI")
     SettingsGui.Add("Text", "x30 y328 w140 c0x555555", "Display Raudona (R):")
-    txtTestSegmentBright := SettingsGui.Add("Text", "x175 y328 w195 c0xC62828 bold", liveDisplayRedBright)
+    txtTestSegmentBright := SettingsGui.Add("Text", "x175 y328 w195 c0xC62828", liveDisplayRedBright)
+    txtTestSegmentBright.SetFont("bold")
 
     SettingsGui.Add("Text", "x30 y353 w140 c0x555555", "LED Pikselio RGB:")
     txtTestLEDRGB := SettingsGui.Add("Text", "x175 y353 w195 c0x2C3E50", liveLEDRGB)
