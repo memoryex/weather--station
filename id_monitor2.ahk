@@ -35,13 +35,13 @@ global bufferTimeoutMs := 6000
 global lastFrameHash := ""
 
 ; Konfigūruojamos Slenkstinės Reikšmės (Thresholds)
-global threshRMin := 100
-global threshRGDiff := 30
-global threshRBDiff := 30
-global threshBlueMin := 80
-global threshBlueDiff := 30
-global threshRedMin := 80
-global threshRedDiff := 30
+global threshRMin := 70
+global threshRGDiff := 15
+global threshRBDiff := 15
+global threshBlueMin := 50
+global threshBlueDiff := 20
+global threshRedMin := 50
+global threshRedDiff := 20
 
 ; Live Test Diagnostiniai Kintamieji GUI
 global liveOCRText := ""
@@ -147,17 +147,17 @@ global txtTestLEDState := 0
 LoadThresholdSettings() {
     global configFile, threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
     try {
-        threshRMin := Integer(IniRead(configFile, "Thresholds2", "RMin", "100"))
-        threshRGDiff := Integer(IniRead(configFile, "Thresholds2", "RGDiff", "30"))
-        threshRBDiff := Integer(IniRead(configFile, "Thresholds2", "RBDiff", "30"))
-        threshBlueMin := Integer(IniRead(configFile, "Thresholds2", "BlueMin", "80"))
-        threshBlueDiff := Integer(IniRead(configFile, "Thresholds2", "BlueDiff", "30"))
-        threshRedMin := Integer(IniRead(configFile, "Thresholds2", "RedMin", "80"))
-        threshRedDiff := Integer(IniRead(configFile, "Thresholds2", "RedDiff", "30"))
+        threshRMin := Integer(IniRead(configFile, "Thresholds2", "RMin", "70"))
+        threshRGDiff := Integer(IniRead(configFile, "Thresholds2", "RGDiff", "15"))
+        threshRBDiff := Integer(IniRead(configFile, "Thresholds2", "RBDiff", "15"))
+        threshBlueMin := Integer(IniRead(configFile, "Thresholds2", "BlueMin", "50"))
+        threshBlueDiff := Integer(IniRead(configFile, "Thresholds2", "BlueDiff", "20"))
+        threshRedMin := Integer(IniRead(configFile, "Thresholds2", "RedMin", "50"))
+        threshRedDiff := Integer(IniRead(configFile, "Thresholds2", "RedDiff", "20"))
     } catch {
-        threshRMin := 100, threshRGDiff := 30, threshRBDiff := 30
-        threshBlueMin := 80, threshBlueDiff := 30
-        threshRedMin := 80, threshRedDiff := 30
+        threshRMin := 70, threshRGDiff := 15, threshRBDiff := 15
+        threshBlueMin := 50, threshBlueDiff := 20
+        threshRedMin := 50, threshRedDiff := 20
     }
 }
 
@@ -191,11 +191,16 @@ SaveThresholdSettings(edtRMin, edtRGDiff, edtRBDiff, edtBlueMin, edtBlueDiff, ed
 OpenSettingsGui(*) {
     global SettingsGui, txtTestOCRText, txtTestLEDRGB, txtTestLEDState
     global threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
-    global liveOCRText, liveLEDRGB, liveLEDStateStr
+    global liveOCRText, liveLEDRGB, liveLEDStateStr, isMonitoring
 
     if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
         SettingsGui.Show()
         return
+    }
+
+    ; Jei monitoringas neijungtas, paleidžiame 250 ms atnaujinimo laikmatį diagnostikai
+    if (!isMonitoring) {
+        SetTimer(ScanTargetRegionSequence, 250)
     }
 
     SettingsGui := Gui("+Owner" . MainGui.Hwnd . " +AlwaysOnTop", "Atpažinimo Nustatymai IR Live Testas")
@@ -256,9 +261,20 @@ OpenSettingsGui(*) {
     btnCloseSet := SettingsGui.Add("Button", "x210 y405 w110 h32", "Uždaryti")
 
     btnSaveSet.OnEvent("Click", (*) => SaveThresholdSettings(edtRMin, edtRGDiff, edtRBDiff, edtBlueMin, edtBlueDiff, edtRedMin, edtRedDiff))
-    btnCloseSet.OnEvent("Click", (*) => SettingsGui.Hide())
+    btnCloseSet.OnEvent("Click", (*) => CloseSettingsGui())
+    SettingsGui.OnEvent("Close", (*) => CloseSettingsGui())
 
     SettingsGui.Show("w400 h450")
+}
+
+CloseSettingsGui() {
+    global SettingsGui, isMonitoring
+    if (SettingsGui != 0) {
+        SettingsGui.Hide()
+    }
+    if (!isMonitoring) {
+        SetTimer(ScanTargetRegionSequence, 0)
+    }
 }
 
 ; ==============================================================================
@@ -458,11 +474,12 @@ ToggleMonitoring(*) {
 }
 
 ScanTargetRegionSequence() {
-    global OverlayGui, LEDOverlayGui, isMonitoring, isScanningActive
+    global OverlayGui, LEDOverlayGui, isMonitoring, isScanningActive, SettingsGui
     global sequenceBuffer, isCapturingID, lastSeenToken, lastTokenTime, bufferTimeoutMs
     global isBlueLEDActive, txtLEDStatus, lastFrameHash
 
-    if (!isMonitoring || !WinExist(OverlayGui.Hwnd) || isScanningActive)
+    isSettingsOpen := (SettingsGui != 0 && WinExist(SettingsGui.Hwnd))
+    if ((!isMonitoring && !isSettingsOpen) || !WinExist(OverlayGui.Hwnd) || isScanningActive)
         return
 
     isScanningActive := true
@@ -587,18 +604,41 @@ checkBlueLEDState() {
         return
 
     LEDOverlayGui.GetPos(&lx, &ly, &lw, &lh)
-    centerX := lx + (lw // 2)
-    centerY := ly + (lh // 2)
+
+    bestR := 0, bestG := 0, bestB := 0
+    maxVal := -1
+
+    ; Mėginame 5x5 pikselių tinklelį LED overlay langelyje ryškiausiam spaudui surasti
+    Loop 5 {
+        stepY := A_Index
+        sampleY := ly + (lh * stepY // 6)
+        Loop 5 {
+            stepX := A_Index
+            sampleX := lx + (lw * stepX // 6)
+
+            try {
+                pixelColor := PixelGetColor(sampleX, sampleY, "RGB")
+                rVal := (pixelColor >> 16) & 0xFF
+                gVal := (pixelColor >> 8) & 0xFF
+                bVal := pixelColor & 0xFF
+
+                intensity := rVal + gVal + bVal
+                if (intensity > maxVal) {
+                    maxVal := intensity
+                    bestR := rVal
+                    bestG := gVal
+                    bestB := bVal
+                }
+            } catch {
+                ; Ignoruojame
+            }
+        }
+    }
+
+    r := bestR, g := bestG, b := bestB
+    liveLEDRGB := "R: " . r . "  G: " . g . "  B: " . b
 
     try {
-        ; Nuskaitome pikselio spalvą LED overlay centre
-        pixelColor := PixelGetColor(centerX, centerY, "RGB")
-        r := (pixelColor >> 16) & 0xFF
-        g := (pixelColor >> 8) & 0xFF
-        b := pixelColor & 0xFF
-
-        liveLEDRGB := "R: " . r . "  G: " . g . "  B: " . b
-
         ; Tikriname LED spalvos būseną pagal konfigūruojamus slenksčius
         if (b > (r + threshBlueDiff) && b > (g + threshBlueDiff) && b >= threshBlueMin) {
             isBlueLEDActive := true

@@ -95,20 +95,20 @@ def process_led_image(image_path):
     h, w = img.shape[:2]
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    # Red LED HSV range (both lower and upper red boundaries)
-    lower_red1 = np.array([0, 50, 50])
-    upper_red1 = np.array([12, 255, 255])
-    lower_red2 = np.array([168, 50, 50])
+    # Red LED HSV range (relaxed thresholds for camera glare/dark background)
+    lower_red1 = np.array([0, 30, 30])
+    upper_red1 = np.array([15, 255, 255])
+    lower_red2 = np.array([160, 30, 30])
     upper_red2 = np.array([180, 255, 255])
 
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     mask = cv2.bitwise_or(mask1, mask2)
 
-    # If HSV mask is empty, fall back to grayscale thresholding (for black-on-white binarized inputs)
-    if cv2.countNonZero(mask) < 20:
+    # Fall back to adaptive grayscale thresholding if HSV mask yields low activation
+    if cv2.countNonZero(mask) < 15:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        _, mask = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY_INV)
+        mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
 
     # Morphological cleanup
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
