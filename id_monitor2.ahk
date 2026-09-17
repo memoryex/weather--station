@@ -621,6 +621,9 @@ checkBlueLEDState() {
     CoordMode("Pixel", "Screen")
     LEDOverlayGui.GetPos(&lx, &ly, &lw, &lh)
 
+    ; Trumpam paslepiame LED overlay, kad BitBlt / PixelGetColor nenuskaitytų overlay spalvos (0xFE00FE)
+    DllCall("ShowWindow", "Ptr", LEDOverlayGui.Hwnd, "Int", 0) ; SW_HIDE
+
     bestR := 0, bestG := 0, bestB := 0
     maxVal := -1
 
@@ -653,6 +656,11 @@ checkBlueLEDState() {
                 ; Ignoruojame
             }
         }
+    }
+
+    ; Grąžiname LED overlay matomumą
+    if (WinExist(LEDOverlayGui.Hwnd)) {
+        DllCall("ShowWindow", "Ptr", LEDOverlayGui.Hwnd, "Int", 8) ; SW_SHOWNA
     }
 
     ; Multi-frame persistence LED stebėjimas mirgantiems puslaidininkiams
@@ -738,16 +746,27 @@ UpdateSequenceProgressUI() {
 ; RED 7-SEGMENT LED BINARIZATION (High-Contrast Black on White) & CACHING
 ; ==============================================================================
 CaptureAndBinarizeRedLED(x, y, w, h) {
+    global OverlayGui
     result := Map()
     tempImgPath := A_Temp . "\id_ocr_bin_" . A_TickCount . ".bmp"
+
+    ; Trumpam paslepiame OverlayGui, kad BitBlt nuskaitytų tikro ekrano vaizdą po rėmeliu (be Magenta 0xFE00FE)
+    if (WinExist(OverlayGui.Hwnd)) {
+        DllCall("ShowWindow", "Ptr", OverlayGui.Hwnd, "Int", 0) ; SW_HIDE
+    }
 
     hdcScreen := DllCall("GetDC", "Ptr", 0, "Ptr")
     hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdcScreen, "Ptr")
     hbm := DllCall("CreateCompatibleBitmap", "Ptr", hdcScreen, "Int", w, "Int", h, "Ptr")
     hbmOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbm, "Ptr")
 
-    ; Nuskaitome vaizdą po skaidria permatoma rėmelio sritimi (0xFE00FE)
+    ; Nuskaitome vaizdą po rėmeliu tiesiogiai iš ekrano DC
     DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr", hdcScreen, "Int", x, "Int", y, "UInt", 0x00CC0020)
+
+    ; Iš karto atstatome OverlayGui matomumą
+    if (WinExist(OverlayGui.Hwnd)) {
+        DllCall("ShowWindow", "Ptr", OverlayGui.Hwnd, "Int", 8) ; SW_SHOWNA
+    }
 
     ; GDI+ Binarizacija (Slenkstinis Raudonos Spalvos Atskyrimas)
     pGpBitmap := 0
