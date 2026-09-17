@@ -742,11 +742,30 @@ RunNativeWinRTOCR(imagePath) {
     if (!FileExist(imagePath))
         return ""
 
-    try {
-        outPath := A_Temp . "\id_ocr_res2.txt"
-        if FileExist(outPath)
-            try FileDelete(outPath)
+    outPath := A_Temp . "\id_ocr_res2.txt"
+    if FileExist(outPath)
+        try FileDelete(outPath)
 
+    ; 1. PIRMENYBĖ: Python + OpenCV 7-Segmentų LED Apdorojimo Pagalbininkas (led_ocr.py)
+    pythonScript := A_ScriptDir . "\led_ocr.py"
+    if FileExist(pythonScript) {
+        try {
+            pyCommand := 'python.exe "' . pythonScript . '" "' . imagePath . '" > "' . outPath . '"'
+            RunWait('cmd.exe /c "' . pyCommand . '"', , "Hide")
+
+            if FileExist(outPath) {
+                pyOutput := Trim(FileRead(outPath, "UTF-8"))
+                try FileDelete(outPath)
+                if (pyOutput != "")
+                    return pyOutput
+            }
+        } catch {
+            ; Fallback į WinRT PowerShell OCR
+        }
+    }
+
+    ; 2. FALLBACK: Windows Native WinRT OCR (PowerShell)
+    try {
         psScript := "[void][Windows.Media.Ocr.OcrEngine, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]; "
             . "$file = [Windows.Storage.StorageFile, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]::GetFileFromPathAsync('" . imagePath . "').GetResults(); "
             . "$stream = $file.OpenAsync([Windows.Storage.FileAccessMode]::Read).GetResults(); "
