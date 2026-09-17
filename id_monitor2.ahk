@@ -621,13 +621,10 @@ checkBlueLEDState() {
     CoordMode("Pixel", "Screen")
     LEDOverlayGui.GetPos(&lx, &ly, &lw, &lh)
 
-    ; Trumpam paslepiame LED overlay, kad BitBlt / PixelGetColor nenuskaitytų overlay spalvos (0xFE00FE)
-    DllCall("ShowWindow", "Ptr", LEDOverlayGui.Hwnd, "Int", 0) ; SW_HIDE
-
     bestR := 0, bestG := 0, bestB := 0
     maxVal := -1
 
-    ; Mėginame 5x5 pikselių tinklelį LED overlay langelyje ryškiausiam spaudui surasti
+    ; Mėginame 5x5 pikselių tinklelį LED overlay langelyje (vidinėje srityje be rėmelio)
     Loop 5 {
         stepY := A_Index
         sampleY := ly + (lh * stepY // 6)
@@ -641,8 +638,8 @@ checkBlueLEDState() {
                 gVal := (pixelColor >> 8) & 0xFF
                 bVal := pixelColor & 0xFF
 
-                ; Ignoruojame permatomo rėmelio fono spalvą (Magenta 0xFE00FE: R=254, G=0, B=254)
-                if (rVal == 0xFE && gVal == 0 && bVal == 0xFE)
+                ; Ignoruojame permatomo rėmelio fono spalvą (Magenta 0xFE00FE) bei mėlyną rėmelio spalvą (0x0088FF)
+                if ((rVal == 0xFE && gVal == 0 && bVal == 0xFE) || (rVal == 0 && gVal == 0x88 && bVal == 0xFF))
                     continue
 
                 intensity := rVal + gVal + bVal
@@ -656,11 +653,6 @@ checkBlueLEDState() {
                 ; Ignoruojame
             }
         }
-    }
-
-    ; Grąžiname LED overlay matomumą
-    if (WinExist(LEDOverlayGui.Hwnd)) {
-        DllCall("ShowWindow", "Ptr", LEDOverlayGui.Hwnd, "Int", 8) ; SW_SHOWNA
     }
 
     ; Multi-frame persistence LED stebėjimas mirgantiems puslaidininkiams
@@ -750,23 +742,13 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     result := Map()
     tempImgPath := A_Temp . "\id_ocr_bin_" . A_TickCount . ".bmp"
 
-    ; Trumpam paslepiame OverlayGui, kad BitBlt nuskaitytų tikro ekrano vaizdą po rėmeliu (be Magenta 0xFE00FE)
-    if (WinExist(OverlayGui.Hwnd)) {
-        DllCall("ShowWindow", "Ptr", OverlayGui.Hwnd, "Int", 0) ; SW_HIDE
-    }
-
     hdcScreen := DllCall("GetDC", "Ptr", 0, "Ptr")
     hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdcScreen, "Ptr")
     hbm := DllCall("CreateCompatibleBitmap", "Ptr", hdcScreen, "Int", w, "Int", h, "Ptr")
     hbmOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbm, "Ptr")
 
-    ; Nuskaitome vaizdą po rėmeliu tiesiogiai iš ekrano DC
+    ; Nuskaitome vaizdą po rėmeliu tiesiogiai iš ekrano DC be ShowWindow iškraipymų
     DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr", hdcScreen, "Int", x, "Int", y, "UInt", 0x00CC0020)
-
-    ; Iš karto atstatome OverlayGui matomumą
-    if (WinExist(OverlayGui.Hwnd)) {
-        DllCall("ShowWindow", "Ptr", OverlayGui.Hwnd, "Int", 8) ; SW_SHOWNA
-    }
 
     ; GDI+ Binarizacija (Slenkstinis Raudonos Spalvos Atskyrimas)
     pGpBitmap := 0
