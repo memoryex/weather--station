@@ -387,20 +387,12 @@ CreateOverlayWindows() {
 
     OnMessage(0x0204, WM_RBUTTONDOWN)
     OnMessage(0x0232, WM_EXITSIZEMOVE)
-    OnMessage(0x0003, WM_MOVE)
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
     LEDOverlayGui.Show("x" . ledOverlayX . " y" . ledOverlayY . " w" . ledOverlayW . " h" . ledOverlayH . " NoActivate")
 
     UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 4)
     UpdateOverlayRegion(LEDOverlayGui, ledOverlayW, ledOverlayH, 3)
-}
-
-WM_MOVE(wParam, lParam, msg, hwnd) {
-    global OverlayGui, LEDOverlayGui
-    if ((WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) || (WinExist(LEDOverlayGui.Hwnd) && hwnd == LEDOverlayGui.Hwnd)) {
-        SaveOverlayPositions()
-    }
 }
 
 UpdateOverlayRegion(guiObj, width, height, borderWidth := 4) {
@@ -952,11 +944,8 @@ RunNativeWinRTOCR(imagePath) {
 }
 
 ; ==============================================================================
-; NAUJO ID APDOROJIMAS IR FLASH EFEKTAS (10 Sekundžių Mirksėjimas)
+; NAUJO ID APDOROJIMAS IR FLASH EFEKTAS
 ; ==============================================================================
-global flashEndTime := 0
-global flashToggleState := false
-
 ProcessNewID(newID) {
     global lastCapturedID, capturedCount, txtCount, txtLastID, lvHistory, logFilePath, capturedHistory, sbStatus
 
@@ -986,45 +975,26 @@ AppendToLogFile(timestamp, id) {
 }
 
 TriggerGreenFlash() {
-    global idBoxBg, txtLastID, isFlashing, flashEndTime, flashToggleState
+    global idBoxBg, txtLastID, isFlashing
 
     if (isFlashing) {
-        SetTimer(ToggleFlashStep, 0)
+        SetTimer(ResetFlashColor, 0)
     }
 
     isFlashing := true
-    flashEndTime := A_TickCount + 10000 ; 10 sekundžių mirksėjimas
-    flashToggleState := true
-
     txtLastID.SetFont("cFFFFFF")
     idBoxBg.Value := 100
     WinRedraw(txtLastID.Hwnd)
 
-    SetTimer(ToggleFlashStep, 500)
+    SetTimer(ResetFlashColor, -600)
 }
 
-ToggleFlashStep() {
-    global idBoxBg, txtLastID, isFlashing, flashEndTime, flashToggleState
-
-    if (A_TickCount >= flashEndTime) {
-        SetTimer(ToggleFlashStep, 0)
-        txtLastID.SetFont("c0x2C3E50")
-        idBoxBg.Value := 0
-        WinRedraw(txtLastID.Hwnd)
-        isFlashing := false
-        return
-    }
-
-    flashToggleState := !flashToggleState
-
-    if (flashToggleState) {
-        txtLastID.SetFont("cFFFFFF")
-        idBoxBg.Value := 100
-    } else {
-        txtLastID.SetFont("c0x2C3E50")
-        idBoxBg.Value := 0
-    }
+ResetFlashColor() {
+    global idBoxBg, txtLastID, isFlashing
+    txtLastID.SetFont("c0x2C3E50")
+    idBoxBg.Value := 0
     WinRedraw(txtLastID.Hwnd)
+    isFlashing := false
 }
 
 ; ==============================================================================

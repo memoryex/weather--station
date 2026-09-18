@@ -174,8 +174,9 @@ CreateOverlayWindow() {
     ; Pastūmimas su DEŠINIUJU pelės mygtuku (WM_RBUTTONDOWN = 0x0204)
     OnMessage(0x0204, WM_RBUTTONDOWN)
 
-    ; Saugome koordinates pabaigus vilkti/didinti (WM_EXITSIZEMOVE = 0x0232)
+    ; Saugome koordinates pabaigus vilkti/didinti (WM_EXITSIZEMOVE = 0x0232, WM_MOVE = 0x0003)
     OnMessage(0x0232, WM_EXITSIZEMOVE)
+    OnMessage(0x0003, WM_MOVE)
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
 }
@@ -188,6 +189,13 @@ WM_RBUTTONDOWN(wParam, lParam, msg, hwnd) {
 }
 
 WM_EXITSIZEMOVE(wParam, lParam, msg, hwnd) {
+    global OverlayGui
+    if (WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) {
+        SaveOverlayPosition()
+    }
+}
+
+WM_MOVE(wParam, lParam, msg, hwnd) {
     global OverlayGui
     if (WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) {
         SaveOverlayPosition()
@@ -416,8 +424,11 @@ ReadOCRTextFromImage(imagePath) {
 }
 
 ; ==============================================================================
-; NAUJO ID APDOROJIMAS IR FLASH EFEKTAS
+; NAUJO ID APDOROJIMAS IR FLASH EFEKTAS (10 Sekundžių Mirksėjimas)
 ; ==============================================================================
+global flashEndTime := 0
+global flashToggleState := false
+
 ProcessNewID(newID) {
     global lastCapturedID, capturedCount, txtCount, txtLastID, lvHistory, logFilePath, capturedHistory, sbStatus
 
@@ -436,7 +447,7 @@ ProcessNewID(newID) {
     ; Įrašome į Log failą (Kaupti žemin eilutėmis)
     AppendToLogFile(timestamp, newID)
 
-    ; Paleidžiame žalio sumirksėjimo efektą langelyje!
+    ; Paleidžiame žalio sumirksėjimo efektą langelyje (10 sekundžių)!
     TriggerGreenFlash()
 
     sbStatus.Text := " [" . timestamp . "] Pagautas naujas ID: " . newID
@@ -453,26 +464,45 @@ AppendToLogFile(timestamp, id) {
 }
 
 TriggerGreenFlash() {
-    global idBoxBg, txtLastID, isFlashing
+    global idBoxBg, txtLastID, isFlashing, flashEndTime, flashToggleState
 
     if (isFlashing) {
-        SetTimer(ResetFlashColor, 0)
+        SetTimer(ToggleFlashStep, 0)
     }
 
     isFlashing := true
+    flashEndTime := A_TickCount + 10000 ; 10 sekundžių mirksėjimas
+    flashToggleState := true
+
     txtLastID.SetFont("cFFFFFF") ; Baltas tekstas mirksint
     idBoxBg.Value := 100 ; Užpildo progress barą žalia spalva 100%!
-    WinRedraw(txtLastID.Hwnd) ; Perpiešia tekstą aiškiai ant viršaus per Control HWND
+    WinRedraw(txtLastID.Hwnd)
 
-    SetTimer(ResetFlashColor, -600)
+    SetTimer(ToggleFlashStep, 500)
 }
 
-ResetFlashColor() {
-    global idBoxBg, txtLastID, isFlashing
-    txtLastID.SetFont("c0x2C3E50") ; Tamsus tekstas
-    idBoxBg.Value := 0 ; Nulinis progress baras - permatomas/baltas fonas
-    WinRedraw(txtLastID.Hwnd) ; Perpiešia tekstą aiškiai ant viršaus per Control HWND
-    isFlashing := false
+ToggleFlashStep() {
+    global idBoxBg, txtLastID, isFlashing, flashEndTime, flashToggleState
+
+    if (A_TickCount >= flashEndTime) {
+        SetTimer(ToggleFlashStep, 0)
+        txtLastID.SetFont("c0x2C3E50") ; Tamsus tekstas
+        idBoxBg.Value := 0 ; Nulinis progress baras - permatomas/baltas fonas
+        WinRedraw(txtLastID.Hwnd)
+        isFlashing := false
+        return
+    }
+
+    flashToggleState := !flashToggleState
+
+    if (flashToggleState) {
+        txtLastID.SetFont("cFFFFFF")
+        idBoxBg.Value := 100
+    } else {
+        txtLastID.SetFont("c0x2C3E50")
+        idBoxBg.Value := 0
+    }
+    WinRedraw(txtLastID.Hwnd)
 }
 
 ; ==============================================================================
