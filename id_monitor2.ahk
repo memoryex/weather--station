@@ -862,11 +862,91 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     hbm := DllCall("CreateCompatibleBitmap", "Ptr", hdcScreen, "Int", w, "Int", h, "Ptr")
     hbmOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbm, "Ptr")
 
-    ; Nuskaitome vaizdą po rėmeliu su CAPTUREBLT | SRCCOPY (0x40000000 | 0x00CC0020 = 0x40CC0020) užtikrinant pilną ekrano nuskaitymą
+    ; Nuskaitome vaizdą po rėmeliu su CAPTUREBLT | SRCCOPY (0x40000000 | 0x00CC0020 = 0x40CC0020)
     DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr", hdcScreen, "Int", x, "Int", y, "UInt", 0x40CC0020)
 
-    ; GDI+ Binarizacija (Slenkstinis Raudonos Spalvos Atskyrimas)
-    pGpBitmap := 0
+    ; Nuskaitome žalius BGRX pikselius tiesiogiai iš GDI HBITMAP išvengiant GDI+ alpha zeroing problemos
+    bi := Buffer(40, 0)
+    NumPut("UInt", 40, bi, 0)       ; biSize
+    NumPut("Int", w, bi, 4)         ; biWidth
+    NumPut("Int", -h, bi, 8)        ; biHeight (negative = top-down)
+    NumPut("UShort", 1, bi, 12)     ; biPlanes
+    NumPut("UShort", 32, bi, 14)    ; biBitCount = 32
+    NumPut("UInt", 0, bi, 16)       ; biCompression = BI_RGB
+
+    pixelBuf := Buffer(w * h * 4, 0)
+    DllCall("GetDIBits", "Ptr", hdcMem, "Ptr", hbm, "UInt", 0, "UInt", h, "Ptr", pixelBuf, "Ptr", bi, "UInt", 0)
+
+    hashVal := 0
+    maxRedVal := 0
+
+    static pixelHistory := Map()
+    currentPixels := Map()
+
+    Loop h {
+        rowY := A_Index - 1
+        Loop w {
+            colX := A_Index - 1
+            offset := (rowY * w + colX) * 4
+
+            bVal := NumGet(pixelBuf, offset, "UChar")
+            gVal := NumGet(pixelBuf, offset + 1, "UChar")
+            rVal := NumGet(pixelBuf, offset + 2, "UChar")
+
+            ; Ignoruojame raudoną rėmelį (grynasis R > 200 bei G < 50, B < 50)
+            if (rVal > 220 && gVal < 40 && bVal < 40)
+                continue
+
+            if (rVal > maxRedVal)
+                maxRedVal := rVal
+
+            pxIdx := rowY * w + colX
+
+            ; Jei Raudonas LED elementas pagal konfigūruojamus slenksčius
+            if (rVal >= threshRMin && rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff)) {
+                currentPixels[pxIdx] := 3 ; Išlaikome pikselį 3 kadruose
+            }
+        }
+    }
+
+    global liveDisplayRedBright := "R: " . maxRedVal . " / 255"
+
+    ; Atnaujiname ir sujungiame praėjusių kadrų atmintį su esamu kadru
+    newHistory := Map()
+    for idx, ttl in pixelHistory {
+        if (ttl > 1)
+            newHistory[idx] := ttl - 1
+    }
+    for idx, ttl in currentPixels {
+        newHistory[idx] := ttl
+    }
+    pixelHistory := newHistory
+
+    ; Įrašome binarizuotus pikselius: Balti segmentai Juodame fone (White on Black)
+    binBuf := Buffer(w * h * 4, 0)
+    Loop h {
+        rowY := A_Index - 1
+        Loop w {
+            colX := A_Index - 1
+            pxIdx := rowY * w + colX
+            offset := pxIdx * 4
+
+            if pixelHistory.Has(pxIdx) {
+                NumPut("UChar", 255, binBuf, offset)     ; B
+                NumPut("UChar", 255, binBuf, offset + 1) ; G
+                NumPut("UChar", 255, binBuf, offset + 2) ; R
+                NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
+                hashVal += pxIdx
+            } else {
+                NumPut("UChar", 0, binBuf, offset)       ; B
+                NumPut("UChar", 0, binBuf, offset + 1)   ; G
+                NumPut("UChar", 0, binBuf, offset + 2)   ; R
+                NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
+            }
+        }
+    }
+
+    ; Išsaugome binarizuotą pavyzdį failui naudojant GDI+
     static pToken := 0
     if (!pToken) {
         si := Buffer(24, 0)
@@ -874,105 +954,15 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
         DllCall("gdiplus\GdiplusStartup", "Ptr*", &pToken, "Ptr", si, "Ptr", 0)
     }
 
-    DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", &pGpBitmap)
+    pGpBitmap := 0
+    ; PixelFormat32bppARGB = 0x26200A
+    DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", w, "Int", h, "Int", w * 4, "Int", 0x26200A, "Ptr", binBuf, "Ptr*", &pGpBitmap)
 
     if (pGpBitmap) {
-        ; Greitas pikselių apdorojimas per LockBits
-        Rect := Buffer(16, 0)
-        NumPut("Int", w, Rect, 8)
-        NumPut("Int", h, Rect, 12)
-
-        BitmapData := Buffer(32, 0)
-        ; PixelFormat32bppARGB = 0x26200A
-        DllCall("gdiplus\GdipBitmapLockBits", "Ptr", pGpBitmap, "Ptr", Rect, "UInt", 3, "Int", 0x26200A, "Ptr", BitmapData)
-
-        scan0 := NumGet(BitmapData, 16, "Ptr")
-        stride := NumGet(BitmapData, 8, "Int")
-
-        pixelCount := w * h
-        hashVal := 0
-        maxRedVal := 0
-
-        ; Mėginių kaupimo (Anti-Flicker persistence) buferis kameros mirgėjimui suvaldyti
-        static pixelHistory := Map()
-        currentPixels := Map()
-
-        Loop h {
-            rowY := A_Index - 1
-            rowPtr := scan0 + (rowY * stride)
-            Loop w {
-                colX := A_Index - 1
-                pPtr := rowPtr + (colX * 4)
-
-                bVal := NumGet(pPtr, 0, "UChar")
-                gVal := NumGet(pPtr, 1, "UChar")
-                rVal := NumGet(pPtr, 2, "UChar")
-
-                ; Ignoruojame permatomo rėmelio fono spalvą (Magenta 0xFE00FE: R=254, G=0, B=254)
-                if (rVal == 0xFE && gVal == 0 && bVal == 0xFE)
-                    continue
-
-                if (rVal > maxRedVal)
-                    maxRedVal := rVal
-
-                pxIdx := rowY * w + colX
-
-                ; Jei Raudonas LED elementas pagal konfigūruojamus slenksčius
-                if (rVal >= threshRMin && rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff)) {
-                    currentPixels[pxIdx] := 3 ; Išlaikome pikselį 3 kadruose
-                }
-            }
-        }
-
-        global liveDisplayRedBright := "R: " . maxRedVal . " / 255"
-
-        ; Atnaujiname ir sujungiame praėjusių kadrų atmintį su esamu kadru
-        newHistory := Map()
-        for idx, ttl in pixelHistory {
-            if (ttl > 1)
-                newHistory[idx] := ttl - 1
-        }
-        for idx, ttl in currentPixels {
-            newHistory[idx] := ttl
-        }
-        pixelHistory := newHistory
-
-        ; Įrašome binarizuotus pikselius: Balti segmentai Juodame fone (White on Black)
-        Loop h {
-            rowY := A_Index - 1
-            rowPtr := scan0 + (rowY * stride)
-            Loop w {
-                colX := A_Index - 1
-                pPtr := rowPtr + (colX * 4)
-                pxIdx := rowY * w + colX
-
-                if pixelHistory.Has(pxIdx) {
-                    NumPut("UChar", 255, pPtr, 0)
-                    NumPut("UChar", 255, pPtr, 1)
-                    NumPut("UChar", 255, pPtr, 2)
-                    hashVal += pxIdx
-                } else {
-                    NumPut("UChar", 0, pPtr, 0)
-                    NumPut("UChar", 0, pPtr, 1)
-                    NumPut("UChar", 0, pPtr, 2)
-                }
-            }
-        }
-
-        DllCall("gdiplus\GdipBitmapUnlockBits", "Ptr", pGpBitmap, "Ptr", BitmapData)
-
         clsid := Buffer(16)
         DllCall("ole32\CLSIDFromString", "WStr", "{557CF400-1A04-11D3-9A73-0000F81EF32E}", "Ptr", clsid)
-
-        ; Išsaugome binarizuotą / apdorotą pGpBitmap paveikslėlį OCR nuskaitymui
-        if (pGpBitmap) {
-            DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", tempImgPath, "Ptr", clsid, "Ptr", 0)
-        }
-
+        DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", tempImgPath, "Ptr", clsid, "Ptr", 0)
         DllCall("gdiplus\GdipDisposeImage", "Ptr", pGpBitmap)
-
-        result["hash"] := String(hashVal)
-        result["imagePath"] := tempImgPath
     }
 
     DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbmOld, "Ptr")
@@ -980,6 +970,8 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdcScreen)
     DllCall("DeleteObject", "Ptr", hbm)
 
+    result["hash"] := String(hashVal)
+    result["imagePath"] := tempImgPath
     return result
 }
 
