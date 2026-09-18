@@ -395,17 +395,20 @@ CreateOverlayWindows() {
     UpdateOverlayRegion(LEDOverlayGui, ledOverlayW, ledOverlayH, 3)
 }
 
-UpdateOverlayRegion(guiObj, width, height, borderWidth := 4) {
+UpdateOverlayRegion(guiObj, width, height, borderWidth := 5) {
     if (!WinExist(guiObj.Hwnd) || width <= borderWidth * 2 || height <= borderWidth * 2)
         return
 
-    rgnStr := "0-0 " . width . "-0 " . width . "-" . height . " 0-" . height . " 0-0 "
-           . borderWidth . "-" . borderWidth . " " . (width - borderWidth) . "-" . borderWidth . " "
-           . (width - borderWidth) . "-" . (height - borderWidth) . " " . borderWidth . "-" . (height - borderWidth) . " "
-           . borderWidth . "-" . borderWidth
-
     try {
-        WinSetRegion(rgnStr, guiObj.Hwnd)
+        rgnOuter := DllCall("CreateRectRgn", "Int", 0, "Int", 0, "Int", width, "Int", height, "Ptr")
+        rgnInner := DllCall("CreateRectRgn", "Int", borderWidth, "Int", borderWidth, "Int", width - borderWidth, "Int", height - borderWidth, "Ptr")
+
+        ; RGN_DIFF = 3 (Atima vidinį stačiakampį iš išorinio, palikdamas tuščiavidurį rėmelį)
+        DllCall("CombineRgn", "Ptr", rgnOuter, "Ptr", rgnOuter, "Ptr", rgnInner, "Int", 3)
+        DllCall("DeleteObject", "Ptr", rgnInner)
+
+        ; SetWindowRgn priskiria hRgn langui ir automatiškai perpiešia (bRedraw = 1)
+        DllCall("SetWindowRgn", "Ptr", guiObj.Hwnd, "Ptr", rgnOuter, "Int", 1)
     } catch {
         ; Fallback
     }
