@@ -6,6 +6,11 @@
 #SingleInstance Force
 Persistent
 
+; Užtikriname Dpi Awareness V2, kad ekrano koordinatės atitiktų 1:1 physical pixels
+try {
+    DllCall("SetThreadDpiAwarenessContext", "Ptr", -4)
+}
+
 ; Global Kintamieji
 global isMonitoring := false
 global configFile := A_ScriptDir . "\config.ini"
@@ -365,27 +370,19 @@ SaveOverlayPositions(*) {
 }
 
 ; ==============================================================================
-; STEBĖJIMO RĖMELIŲ (OVERLAY) KŪRIMAS
+; STEBĖJIMO RĖMELIŲ (OVERLAY) KŪRIMAS (Su Hollow Cutout Regionais)
 ; ==============================================================================
 CreateOverlayWindows() {
     global OverlayGui, LEDOverlayGui, overlayX, overlayY, overlayW, overlayH, ledOverlayX, ledOverlayY, ledOverlayW, ledOverlayH
 
-    ; 1. Display Overlay (Raudonas Rėmelis 2-jų skaitmenų ekranėliui)
+    ; 1. Display Overlay (Raudonas Hollow Rėmelis 2-jų skaitmenų ekranėliui)
     OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption +E0x00080000", "Stebėjimo Rėmelis 2")
     OverlayGui.BackColor := "0xFF0000"
-    WinSetTransColor("0xFE00FE 255", OverlayGui)
-    OverlayGui.MarginX := 0
-    OverlayGui.MarginY := 0
-    OverlayGui.Add("Text", "x4 y4 w" . (overlayW-8) . " h" . (overlayH-8) . " Background0xFE00FE vInnerBox")
     OverlayGui.OnEvent("Size", OnOverlayResize)
 
-    ; 2. Mėlyno LED Overlay (Mėlynas Rėmelis būsenos LED'ui)
+    ; 2. Mėlyno LED Overlay (Mėlynas Hollow Rėmelis būsenos LED'ui)
     LEDOverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption +E0x00080000", "LED Stebėjimo Rėmelis")
     LEDOverlayGui.BackColor := "0x0088FF"
-    WinSetTransColor("0xFE00FE 255", LEDOverlayGui)
-    LEDOverlayGui.MarginX := 0
-    LEDOverlayGui.MarginY := 0
-    LEDOverlayGui.Add("Text", "x3 y3 w" . (ledOverlayW-6) . " h" . (ledOverlayH-6) . " Background0xFE00FE vLEDInnerBox")
     LEDOverlayGui.OnEvent("Size", OnLEDOverlayResize)
 
     OnMessage(0x0204, WM_RBUTTONDOWN)
@@ -393,6 +390,25 @@ CreateOverlayWindows() {
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
     LEDOverlayGui.Show("x" . ledOverlayX . " y" . ledOverlayY . " w" . ledOverlayW . " h" . ledOverlayH . " NoActivate")
+
+    UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 4)
+    UpdateOverlayRegion(LEDOverlayGui, ledOverlayW, ledOverlayH, 3)
+}
+
+UpdateOverlayRegion(guiObj, width, height, borderWidth := 4) {
+    if (!WinExist(guiObj.Hwnd) || width <= borderWidth * 2 || height <= borderWidth * 2)
+        return
+
+    rgnStr := "0-0 " . width . "-0 " . width . "-" . height . " 0-" . height . " 0-0 "
+           . borderWidth . "-" . borderWidth . " " . (width - borderWidth) . "-" . borderWidth . " "
+           . (width - borderWidth) . "-" . (height - borderWidth) . " " . borderWidth . "-" . (height - borderWidth) . " "
+           . borderWidth . "-" . borderWidth
+
+    try {
+        WinSetRegion(rgnStr, guiObj.Hwnd)
+    } catch {
+        ; Fallback
+    }
 }
 
 WM_RBUTTONDOWN(wParam, lParam, msg, hwnd) {
@@ -416,11 +432,7 @@ OnOverlayResize(thisGui, minMax, width, height) {
     if (minMax != -1 && width > 10 && height > 10) {
         overlayW := width
         overlayH := height
-        try {
-            thisGui["InnerBox"].Move(4, 4, width - 8, height - 8)
-        } catch {
-            ; Fallback
-        }
+        UpdateOverlayRegion(thisGui, width, height, 4)
         SaveOverlayPositions()
     }
 }
@@ -430,11 +442,7 @@ OnLEDOverlayResize(thisGui, minMax, width, height) {
     if (minMax != -1 && width > 5 && height > 5) {
         ledOverlayW := width
         ledOverlayH := height
-        try {
-            thisGui["LEDInnerBox"].Move(3, 3, width - 6, height - 6)
-        } catch {
-            ; Fallback
-        }
+        UpdateOverlayRegion(thisGui, width, height, 3)
         SaveOverlayPositions()
     }
 }
@@ -621,16 +629,25 @@ checkBlueLEDState() {
     CoordMode("Pixel", "Screen")
     LEDOverlayGui.GetPos(&lx, &ly, &lw, &lh)
 
-    bestR := 0, bestG := 0, bestB := 0
-    maxVal := -1
+    ; Vidinė LED sritis be rėmelio (3px rėmelis)
+    innerX := lx + 3
+    innerY := ly + 3
+    innerW := lw - 6
+    innerH := lh - 6
 
-    ; Mėginame 5x5 pikselių tinklelį LED overlay langelyje (vidinėje srityje be rėmelio)
+    if (innerW <= 0 || innerH <= 0)
+        return
+
+    bestR := 0, bestG := 0, bestB := 0
+    bestBlueProminence := -9999
+
+    ; Mėginame 5x5 pikselių tinklelį vidinėje LED overlay srityje
     Loop 5 {
         stepY := A_Index
-        sampleY := ly + (lh * stepY // 6)
+        sampleY := innerY + (innerH * stepY // 6)
         Loop 5 {
             stepX := A_Index
-            sampleX := lx + (lw * stepX // 6)
+            sampleX := innerX + (innerW * stepX // 6)
 
             try {
                 pixelColor := PixelGetColor(sampleX, sampleY, "RGB")
@@ -638,13 +655,14 @@ checkBlueLEDState() {
                 gVal := (pixelColor >> 8) & 0xFF
                 bVal := pixelColor & 0xFF
 
-                ; Ignoruojame permatomo rėmelio fono spalvą (Magenta 0xFE00FE) bei mėlyną rėmelio spalvą (0x0088FF)
-                if ((rVal == 0xFE && gVal == 0 && bVal == 0xFE) || (rVal == 0 && gVal == 0x88 && bVal == 0xFF))
+                ; Ignoruojame permatomo/mėlyno rėmelio pakraščius
+                if (rVal == 0 && gVal == 0x88 && bVal == 0xFF)
                     continue
 
-                intensity := rVal + gVal + bVal
-                if (intensity > maxVal) {
-                    maxVal := intensity
+                ; Iškaitome tašką su didžiausiu mėlynumo ryškumu ir santyku
+                prominence := bVal - Max(rVal, gVal)
+                if (prominence > bestBlueProminence || (prominence == bestBlueProminence && bVal > bestB)) {
+                    bestBlueProminence := prominence
                     bestR := rVal
                     bestG := gVal
                     bestB := bVal
