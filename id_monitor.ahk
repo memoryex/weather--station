@@ -136,7 +136,7 @@ LoadOverlayPosition() {
 
 SaveOverlayPosition(*) {
     global configFile, OverlayGui
-    if (WinExist(OverlayGui.Hwnd)) {
+    if (IsSet(OverlayGui) && WinExist(OverlayGui.Hwnd)) {
         try {
             OverlayGui.GetPos(&x, &y, &w, &h)
             if (w > 10 && h > 10) {
@@ -157,22 +157,76 @@ SaveOverlayPosition(*) {
 CreateOverlayWindow() {
     global OverlayGui, overlayX, overlayY, overlayW, overlayH
 
-    ; Overlay langas: Visada viršuje (+AlwaysOnTop), be antraštės (-Caption), keičiamo dydžio (+Resize)
+    ; Overlay langas: Visada viršuje (+AlwaysOnTop), keičiamo dydžio (+Resize), be DWM antraštės (-Caption)
     OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption", "Stebėjimo Rėmelis")
-    OverlayGui.BackColor := "Red" ; Raudona spalva rėmeliui
+    OverlayGui.BackColor := "Red" ; Visi 4 kraštai 100% gryna raudona spalva
 
-    ; Resizing su kairiuoju pelės mygtuku ant kraštinių (+Resize)
     OverlayGui.OnEvent("Size", OnOverlayResize)
 
-    ; Pastūmimas su DEŠINIUJU pelės mygtuku (WM_RBUTTONDOWN = 0x0204)
-    OnMessage(0x0204, WM_RBUTTONDOWN)
+    ; WM_NCCALCSIZE (0x0083) - Pašalina DWM baltus rėmelius išlaikant natūralų Windows resize palaikymą
+    OnMessage(0x0083, "WM_NCCALCSIZE")
 
-    ; Saugome koordinates pabaigus vilkti/didinti (WM_EXITSIZEMOVE = 0x0232, WM_MOVE = 0x0003)
-    OnMessage(0x0232, WM_EXITSIZEMOVE)
-    OnMessage(0x0003, WM_MOVE)
+    ; WM_NCHITTEST (0x0084) - Įgalina 100% natūralų kraštinių ir kampų tempimą bei pelės kurso rodyklytes
+    OnMessage(0x0084, "WM_NCHITTEST_OVERLAY")
+
+    ; WM_RBUTTONDOWN (0x0204) - Perstumia langa desiniu peles mygtuku
+    OnMessage(0x0204, "WM_RBUTTONDOWN")
+
+    ; Saugome koordinates pabaigus vilkti/didinti
+    OnMessage(0x0232, "WM_EXITSIZEMOVE")
+    OnMessage(0x0003, "WM_MOVE")
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
-    UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 4)
+    UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 6)
+}
+
+WM_NCCALCSIZE(wParam, lParam, msg, hwnd) {
+    global OverlayGui
+    if (WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd)
+        return 0 ; Pašalina DWM rėmelio apvadus
+}
+
+WM_NCHITTEST_OVERLAY(wParam, lParam, msg, hwnd) {
+    global OverlayGui
+    if (!WinExist(OverlayGui.Hwnd) || hwnd != OverlayGui.Hwnd)
+        return
+
+    x := lParam & 0xFFFF
+    if (x > 0x7FFF)
+        x := x - 0x10000
+    y := (lParam >> 16) & 0xFFFF
+    if (y > 0x7FFF)
+        y := y - 0x10000
+
+    OverlayGui.GetPos(&winX, &winY, &winW, &winH)
+
+    relX := x - winX
+    relY := y - winY
+    border := 8 ; 8px jautrumo zona visoms kraštinėms ir kampams
+
+    left := (relX < border)
+    right := (relX >= winW - border)
+    top := (relY < border)
+    bottom := (relY >= winH - border)
+
+    if (top && left)
+        return 13 ; HTTOPLEFT (↖)
+    if (top && right)
+        return 14 ; HTTOPRIGHT (↗)
+    if (bottom && left)
+        return 16 ; HTBOTTOMLEFT (↙)
+    if (bottom && right)
+        return 17 ; HTBOTTOMRIGHT (↘)
+    if (left)
+        return 10 ; HTLEFT (←)
+    if (right)
+        return 11 ; HTRIGHT (→)
+    if (top)
+        return 12 ; HTTOP (↑)
+    if (bottom)
+        return 15 ; HTBOTTOM (↓)
+
+    return 2 ; HTCAPTION (vilkti kairiuoju mygtuku)
 }
 
 UpdateOverlayRegion(guiObj, width, height, borderWidth := 5) {

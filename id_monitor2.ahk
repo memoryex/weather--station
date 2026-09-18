@@ -340,7 +340,7 @@ LoadOverlayPositions() {
 
 SaveOverlayPositions(*) {
     global configFile, OverlayGui, LEDOverlayGui
-    if (WinExist(OverlayGui.Hwnd)) {
+    if (IsSet(OverlayGui) && WinExist(OverlayGui.Hwnd)) {
         try {
             OverlayGui.GetPos(&x, &y, &w, &h)
             if (w > 10 && h > 10) {
@@ -354,7 +354,7 @@ SaveOverlayPositions(*) {
         }
     }
 
-    if (WinExist(LEDOverlayGui.Hwnd)) {
+    if (IsSet(LEDOverlayGui) && WinExist(LEDOverlayGui.Hwnd)) {
         try {
             LEDOverlayGui.GetPos(&lx, &ly, &lw, &lh)
             if (lw > 5 && lh > 5) {
@@ -375,24 +375,89 @@ SaveOverlayPositions(*) {
 CreateOverlayWindows() {
     global OverlayGui, LEDOverlayGui, overlayX, overlayY, overlayW, overlayH, ledOverlayX, ledOverlayY, ledOverlayW, ledOverlayH
 
-    ; 1. Display Overlay (Raudonas Hollow Rėmelis 2-jų skaitmenų ekranėliui)
+    ; 1. Display Overlay (Grynas Raudonas Hollow Rėmelis 2-jų skaitmenų ekranėliui)
     OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption", "Stebėjimo Rėmelis 2")
     OverlayGui.BackColor := "Red"
     OverlayGui.OnEvent("Size", OnOverlayResize)
 
-    ; 2. Mėlyno LED Overlay (Mėlynas Hollow Rėmelis būsenos LED'ui)
+    ; 2. Mėlyno LED Overlay (Grynas Mėlynas Hollow Rėmelis būsenos LED'ui)
     LEDOverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption", "LED Stebėjimo Rėmelis")
     LEDOverlayGui.BackColor := "0x0088FF"
     LEDOverlayGui.OnEvent("Size", OnLEDOverlayResize)
 
-    OnMessage(0x0204, WM_RBUTTONDOWN)
-    OnMessage(0x0232, WM_EXITSIZEMOVE)
+    ; WM_NCCALCSIZE (0x0083) - Pašalina DWM baltus rėmelius išlaikant natūralų Windows resize palaikymą
+    OnMessage(0x0083, "WM_NCCALCSIZE2")
+
+    ; WM_NCHITTEST (0x0084) - Įgalina 100% natūralų kraštinių ir kampų tempimą bei pelės kurso rodyklytes
+    OnMessage(0x0084, "WM_NCHITTEST_OVERLAY2")
+
+    ; Perstumia langa desiniu peles mygtuku
+    OnMessage(0x0204, "WM_RBUTTONDOWN")
+
+    OnMessage(0x0232, "WM_EXITSIZEMOVE")
+    OnMessage(0x0003, "WM_MOVE")
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
     LEDOverlayGui.Show("x" . ledOverlayX . " y" . ledOverlayY . " w" . ledOverlayW . " h" . ledOverlayH . " NoActivate")
 
-    UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 4)
-    UpdateOverlayRegion(LEDOverlayGui, ledOverlayW, ledOverlayH, 3)
+    UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 6)
+    UpdateOverlayRegion(LEDOverlayGui, ledOverlayW, ledOverlayH, 5)
+}
+
+WM_NCCALCSIZE2(wParam, lParam, msg, hwnd) {
+    global OverlayGui, LEDOverlayGui
+    if ((WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) || (WinExist(LEDOverlayGui.Hwnd) && hwnd == LEDOverlayGui.Hwnd))
+        return 0 ; Pašalina DWM rėmelio apvadus
+}
+
+WM_NCHITTEST_OVERLAY2(wParam, lParam, msg, hwnd) {
+    global OverlayGui, LEDOverlayGui
+    targetGui := 0
+
+    if (WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) {
+        targetGui := OverlayGui
+    } else if (WinExist(LEDOverlayGui.Hwnd) && hwnd == LEDOverlayGui.Hwnd) {
+        targetGui := LEDOverlayGui
+    } else {
+        return
+    }
+
+    x := lParam & 0xFFFF
+    if (x > 0x7FFF)
+        x := x - 0x10000
+    y := (lParam >> 16) & 0xFFFF
+    if (y > 0x7FFF)
+        y := y - 0x10000
+
+    targetGui.GetPos(&winX, &winY, &winW, &winH)
+
+    relX := x - winX
+    relY := y - winY
+    border := 8 ; 8px jautrumo zona visoms kraštinėms ir kampams
+
+    left := (relX < border)
+    right := (relX >= winW - border)
+    top := (relY < border)
+    bottom := (relY >= winH - border)
+
+    if (top && left)
+        return 13 ; HTTOPLEFT (↖)
+    if (top && right)
+        return 14 ; HTTOPRIGHT (↗)
+    if (bottom && left)
+        return 16 ; HTBOTTOMLEFT (↙)
+    if (bottom && right)
+        return 17 ; HTBOTTOMRIGHT (↘)
+    if (left)
+        return 10 ; HTLEFT (←)
+    if (right)
+        return 11 ; HTRIGHT (→)
+    if (top)
+        return 12 ; HTTOP (↑)
+    if (bottom)
+        return 15 ; HTBOTTOM (↓)
+
+    return 2 ; HTCAPTION (vilkti kairiuoju mygtuku)
 }
 
 UpdateOverlayRegion(guiObj, width, height, borderWidth := 5) {
@@ -424,6 +489,13 @@ WM_RBUTTONDOWN(wParam, lParam, msg, hwnd) {
 }
 
 WM_EXITSIZEMOVE(wParam, lParam, msg, hwnd) {
+    global OverlayGui, LEDOverlayGui
+    if ((WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) || (WinExist(LEDOverlayGui.Hwnd) && hwnd == LEDOverlayGui.Hwnd)) {
+        SaveOverlayPositions()
+    }
+}
+
+WM_MOVE(wParam, lParam, msg, hwnd) {
     global OverlayGui, LEDOverlayGui
     if ((WinExist(OverlayGui.Hwnd) && hwnd == OverlayGui.Hwnd) || (WinExist(LEDOverlayGui.Hwnd) && hwnd == LEDOverlayGui.Hwnd)) {
         SaveOverlayPositions()
@@ -595,7 +667,7 @@ ScanTargetRegionSequence() {
                         ; Kai surenkame 6 poras (12 simbolių ID)
                         if (sequenceBuffer.Length == 6) {
                             assembledID := ""
-                            for pair in sequenceBuffer {
+                            for idx, pair in sequenceBuffer {
                                 assembledID .= pair
                             }
 
@@ -690,13 +762,13 @@ checkBlueLEDState() {
     }
 
     maxR := 0, maxG := 0, maxB := 0
-    for val in ledRHistory
+    for idx, val in ledRHistory
         if (val > maxR)
             maxR := val
-    for val in ledGHistory
+    for idx, val in ledGHistory
         if (val > maxG)
             maxG := val
-    for val in ledBHistory
+    for idx, val in ledBHistory
         if (val > maxB)
             maxB := val
 
