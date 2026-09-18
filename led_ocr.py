@@ -84,6 +84,109 @@ def decode_7segment(roi):
 
     return best_char
 
+# Global cached TensorFlow / TFLite / OpenCV DNN model handle
+_TF_MODEL = None
+_TF_TYPE = None  # 'tflite', 'tf', 'onnx_dnn'
+_CLASSES = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "H", "I", "N", "P", "R", "U"]
+
+def load_tf_dnn_model():
+    """
+    Attempts to load a TensorFlow / TFLite or ONNX model if present in script directory.
+    Supported model filenames: model.tflite, model.onnx, model.h5, model.pb
+    """
+    global _TF_MODEL, _TF_TYPE
+    if _TF_TYPE is not None:
+        return _TF_MODEL, _TF_TYPE
+
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    tflite_path = os.path.join(script_dir, "model.tflite")
+    onnx_path = os.path.join(script_dir, "model.onnx")
+    h5_path = os.path.join(script_dir, "model.h5")
+
+    # 1. Try TFLite (Fastest inference)
+    if os.path.exists(tflite_path):
+        try:
+            try:
+                import tflite_runtime.interpreter as tflite
+                interpreter = tflite.Interpreter(model_path=tflite_path)
+            except ImportError:
+                import tensorflow.lite as tflite
+                interpreter = tflite.Interpreter(model_path=tflite_path)
+            interpreter.allocate_tensors()
+            _TF_MODEL = interpreter
+            _TF_TYPE = "tflite"
+            return _TF_MODEL, _TF_TYPE
+        except Exception:
+            pass
+
+    # 2. Try OpenCV DNN ONNX (No TensorFlow required)
+    if os.path.exists(onnx_path):
+        try:
+            net = cv2.dnn.readNetFromONNX(onnx_path)
+            _TF_MODEL = net
+            _TF_TYPE = "onnx_dnn"
+            return _TF_MODEL, _TF_TYPE
+        except Exception:
+            pass
+
+    # 3. Try Full TensorFlow Keras Model
+    if os.path.exists(h5_path):
+        try:
+            import tensorflow as tf
+            model = tf.keras.models.load_model(h5_path)
+            _TF_MODEL = model
+            _TF_TYPE = "tf"
+            return _TF_MODEL, _TF_TYPE
+        except Exception:
+            pass
+
+    _TF_TYPE = "none"
+    return None, "none"
+
+def classify_digit_tf_dnn(roi):
+    """
+    Classifies a 7-segment digit ROI using loaded TensorFlow / TFLite / ONNX model.
+    Falls back to geometric 7-segment decoding if model prediction confidence is low or unavailable.
+    """
+    model, model_type = load_tf_dnn_model()
+
+    if model_type != "none" and model is not None:
+        try:
+            # Preprocess ROI to 28x28 grayscale normalized tensor
+            gray_roi = cv2.resize(roi, (28, 28))
+            norm_roi = gray_roi.astype("float32") / 255.0
+
+            if model_type == "tflite":
+                input_details = model.get_input_details()
+                output_details = model.get_output_details()
+                input_data = np.expand_dims(norm_roi, axis=(0, -1)) # Shape: (1, 28, 28, 1)
+                model.set_tensor(input_details[0]['index'], input_data)
+                model.invoke()
+                preds = model.get_tensor(output_details[0]['index'])[0]
+                idx = np.argmax(preds)
+                if preds[idx] > 0.45 and idx < len(_CLASSES):
+                    return _CLASSES[idx]
+
+            elif model_type == "onnx_dnn":
+                blob = cv2.dnn.blobFromImage(gray_roi, 1.0/255.0, (28, 28))
+                model.setInput(blob)
+                preds = model.forward()[0]
+                idx = np.argmax(preds)
+                if preds[idx] > 0.45 and idx < len(_CLASSES):
+                    return _CLASSES[idx]
+
+            elif model_type == "tf":
+                input_data = np.expand_dims(norm_roi, axis=(0, -1))
+                preds = model.predict(input_data, verbose=0)[0]
+                idx = np.argmax(preds)
+                if preds[idx] > 0.45 and idx < len(_CLASSES):
+                    return _CLASSES[idx]
+        except Exception:
+            pass
+
+    # Fallback to geometric 7-segment decoding
+    return decode_7segment(roi)
+
 def process_led_image(image_path):
     if not os.path.exists(image_path):
         return ""
@@ -137,7 +240,7 @@ def process_led_image(image_path):
     recognized_chars = []
     for (x, y, bw, bh) in digit_boxes:
         roi = mask[y:y+bh, x:x+bw]
-        char = decode_7segment(roi)
+        char = classify_digit_tf_dnn(roi)
         if char:
             recognized_chars.append(char)
 
