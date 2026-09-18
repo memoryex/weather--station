@@ -158,15 +158,8 @@ CreateOverlayWindow() {
     global OverlayGui, overlayX, overlayY, overlayW, overlayH
 
     ; Overlay langas: Visada viršuje (+AlwaysOnTop), be antraštės (-Caption), keičiamo dydžio (+Resize)
-    OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption +E0x00080000", "Stebėjimo Rėmelis")
-    OverlayGui.BackColor := "0xFF0000" ; Raudona spalva rėmeliui
-    WinSetTransColor("0xFE00FE 255", OverlayGui) ; Vidinė dalis 100% permatoma
-
-    OverlayGui.MarginX := 0
-    OverlayGui.MarginY := 0
-
-    ; InnerBox Gui elementas
-    OverlayGui.Add("Text", "x4 y4 w" . (overlayW-8) . " h" . (overlayH-8) . " Background0xFE00FE vInnerBox")
+    OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption", "Stebėjimo Rėmelis")
+    OverlayGui.BackColor := "Red" ; Raudona spalva rėmeliui
 
     ; Resizing su kairiuoju pelės mygtuku ant kraštinių (+Resize)
     OverlayGui.OnEvent("Size", OnOverlayResize)
@@ -179,6 +172,23 @@ CreateOverlayWindow() {
     OnMessage(0x0003, WM_MOVE)
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
+    UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 4)
+}
+
+UpdateOverlayRegion(guiObj, width, height, borderWidth := 4) {
+    if (!WinExist(guiObj.Hwnd) || width <= borderWidth * 2 || height <= borderWidth * 2)
+        return
+
+    rgnStr := "0-0 " . width . "-0 " . width . "-" . height . " 0-" . height . " 0-0 "
+           . borderWidth . "-" . borderWidth . " " . (width - borderWidth) . "-" . borderWidth . " "
+           . (width - borderWidth) . "-" . (height - borderWidth) . " " . borderWidth . "-" . (height - borderWidth) . " "
+           . borderWidth . "-" . borderWidth
+
+    try {
+        WinSetRegion(rgnStr, guiObj.Hwnd)
+    } catch {
+        ; Fallback
+    }
 }
 
 WM_RBUTTONDOWN(wParam, lParam, msg, hwnd) {
@@ -207,11 +217,7 @@ OnOverlayResize(thisGui, minMax, width, height) {
     if (minMax != -1 && width > 10 && height > 10) {
         overlayW := width
         overlayH := height
-        try {
-            thisGui["InnerBox"].Move(4, 4, width - 8, height - 8)
-        } catch {
-            ; Control resize fallback
-        }
+        UpdateOverlayRegion(thisGui, width, height, 4)
         SaveOverlayPosition()
     }
 }
