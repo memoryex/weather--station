@@ -370,19 +370,25 @@ SaveOverlayPositions(*) {
 }
 
 ; ==============================================================================
-; STEBĖJIMO RĖMELIŲ (OVERLAY) KŪRIMAS (Su Hollow Cutout Regionais)
+; STEBĖJIMO RĖMELIŲ (OVERLAY) KŪRIMAS (Su Transparent Color Key & InnerBox)
 ; ==============================================================================
 CreateOverlayWindows() {
     global OverlayGui, LEDOverlayGui, overlayX, overlayY, overlayW, overlayH, ledOverlayX, ledOverlayY, ledOverlayW, ledOverlayH
 
-    ; 1. Display Overlay (Raudonas Hollow Rėmelis 2-jų skaitmenų ekranėliui)
-    OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption +E0x00080000", "Stebėjimo Rėmelis 2")
+    ; 1. Display Overlay (Raudonas Rėmelis 2-jų skaitmenų ekranėliui)
+    OverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption", "Stebėjimo Rėmelis 2")
     OverlayGui.BackColor := "0xFF0000"
+    WinSetTransColor("0xFE00FE 255", OverlayGui)
+    OverlayGui.MarginX := 0, OverlayGui.MarginY := 0
+    OverlayGui.Add("Text", "x4 y4 w" . (overlayW-8) . " h" . (overlayH-8) . " Background0xFE00FE vInnerBox")
     OverlayGui.OnEvent("Size", OnOverlayResize)
 
-    ; 2. Mėlyno LED Overlay (Mėlynas Hollow Rėmelis būsenos LED'ui)
-    LEDOverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption +E0x00080000", "LED Stebėjimo Rėmelis")
+    ; 2. Mėlyno LED Overlay (Mėlynas Rėmelis būsenos LED'ui)
+    LEDOverlayGui := Gui("+AlwaysOnTop +ToolWindow +Resize -Caption", "LED Stebėjimo Rėmelis")
     LEDOverlayGui.BackColor := "0x0088FF"
+    WinSetTransColor("0xFE00FE 255", LEDOverlayGui)
+    LEDOverlayGui.MarginX := 0, LEDOverlayGui.MarginY := 0
+    LEDOverlayGui.Add("Text", "x3 y3 w" . (ledOverlayW-6) . " h" . (ledOverlayH-6) . " Background0xFE00FE vInnerBox")
     LEDOverlayGui.OnEvent("Size", OnLEDOverlayResize)
 
     OnMessage(0x0204, WM_RBUTTONDOWN)
@@ -390,24 +396,15 @@ CreateOverlayWindows() {
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
     LEDOverlayGui.Show("x" . ledOverlayX . " y" . ledOverlayY . " w" . ledOverlayW . " h" . ledOverlayH . " NoActivate")
-
-    UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 4)
-    UpdateOverlayRegion(LEDOverlayGui, ledOverlayW, ledOverlayH, 3)
 }
 
 UpdateOverlayRegion(guiObj, width, height, borderWidth := 4) {
     if (!WinExist(guiObj.Hwnd) || width <= borderWidth * 2 || height <= borderWidth * 2)
         return
-
-    rgnStr := "0-0 " . width . "-0 " . width . "-" . height . " 0-" . height . " 0-0 "
-           . borderWidth . "-" . borderWidth . " " . (width - borderWidth) . "-" . borderWidth . " "
-           . (width - borderWidth) . "-" . (height - borderWidth) . " " . borderWidth . "-" . (height - borderWidth) . " "
-           . borderWidth . "-" . borderWidth
-
     try {
-        WinSetRegion(rgnStr, guiObj.Hwnd)
+        guiObj["InnerBox"].Move(borderWidth, borderWidth, width - borderWidth*2, height - borderWidth*2)
     } catch {
-        ; Fallback
+        ; Control resize fallback
     }
 }
 
