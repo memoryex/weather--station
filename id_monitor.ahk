@@ -26,7 +26,7 @@ MainGui.SetFont("s10", "Segoe UI")
 MainGui.BackColor := "0xF4F6F9"
 
 ; Viršutinė antraštė
-MainGui.SetFont("s13 b", "Segoe UI")
+MainGui.SetFont("s13 bold", "Segoe UI")
 MainGui.Add("Text", "x15 y12 w350 c0x1A252C", "Appliance ID Stebėjimo Skydelis")
 MainGui.SetFont("s9 norm", "Segoe UI")
 
@@ -34,31 +34,31 @@ MainGui.SetFont("s9 norm", "Segoe UI")
 MainGui.Add("GroupBox", "x15 y42 w350 h85", "Būsena IR Skaitiklis")
 
 MainGui.Add("Text", "x30 y65 w120 c0x555555", "Pagauta naujų ID:")
-MainGui.SetFont("s18 b", "Segoe UI")
+MainGui.SetFont("s18 bold", "Segoe UI")
 txtCount := MainGui.Add("Text", "x150 y58 w190 c0x2E7D32", "0 vnt.")
 MainGui.SetFont("s9 norm", "Segoe UI")
 
 MainGui.Add("Text", "x30 y98 w120 c0x555555", "Sistemos būsena:")
 txtStatus := MainGui.Add("Text", "x150 y98 w190 c0xC62828", "Sustabdyta")
-txtStatus.SetFont("b")
+txtStatus.SetFont("bold")
 
 ; Paskutinio Pamatyto ID Langas (Su Sumirksėjimo Efektu)
 MainGui.Add("GroupBox", "x15 y135 w350 h90", "Paskutinis Gautas ID")
 
 ; Progress baras su Range0-100 žaliu užpildymu mirksėjimui
 idBoxBg := MainGui.Add("Progress", "x30 y158 w320 h52 BackgroundFFFFFF c0x27AE60 Range0-100", 0)
-MainGui.SetFont("s16 b", "Consolas")
+MainGui.SetFont("s16 bold", "Consolas")
 txtLastID := MainGui.Add("Text", "x35 y170 w310 Center BackgroundTrans c0x2C3E50", "------------")
 MainGui.SetFont("s9 norm", "Segoe UI")
 
 ; Valdymo Mygtukai
 btnStart := MainGui.Add("Button", "x15 y235 w110 h32", "▶ Pradėti")
-btnStart.SetFont("b")
+btnStart.SetFont("bold")
 btnOverlay := MainGui.Add("Button", "x135 y235 w110 h32", "🔲 Rėmelis")
 btnLogFile := MainGui.Add("Button", "x255 y235 w110 h32", "📁 Log Failas")
 
 ; Registruotų ID Sąrašas (ListView)
-MainGui.SetFont("b")
+MainGui.SetFont("bold")
 MainGui.Add("Text", "x15 y280 w200 c0x333333", "Pagautų ID Istorija:")
 MainGui.SetFont("norm")
 lvHistory := MainGui.Add("ListView", "x15 y300 w350 h135 Grid", ["Laikas", "Appliance ID"])
