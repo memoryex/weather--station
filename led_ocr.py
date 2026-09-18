@@ -196,29 +196,35 @@ def process_led_image(image_path):
         return ""
 
     h, w = img.shape[:2]
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    # Red LED HSV range (relaxed thresholds for camera glare/dark background)
-    lower_red1 = np.array([0, 30, 30])
-    upper_red1 = np.array([15, 255, 255])
-    lower_red2 = np.array([160, 30, 30])
-    upper_red2 = np.array([180, 255, 255])
+    # 1. Direct Red-Channel Prominence Binarization for Dark Backgrounds
+    b_chan, g_chan, r_chan = cv2.split(img)
+    red_prominent = (r_chan >= 50) & ((r_chan.astype(int) - g_chan.astype(int)) >= 15) & ((r_chan.astype(int) - b_chan.astype(int)) >= 15)
+    mask = np.zeros((h, w), dtype=np.uint8)
+    mask[red_prominent] = 255
 
-    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-    mask = cv2.bitwise_or(mask1, mask2)
+    # 2. HSV Fallback if Red Channel mask is empty/low
+    if cv2.countNonZero(mask) < 15:
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        lower_red1 = np.array([0, 30, 30])
+        upper_red1 = np.array([15, 255, 255])
+        lower_red2 = np.array([160, 30, 30])
+        upper_red2 = np.array([180, 255, 255])
 
-    # If HSV mask yields low activation, check if image is pre-binarized black-on-white by AHK
+        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        mask = cv2.bitwise_or(mask1, mask2)
+
+    # 3. White-on-black or pre-binarized grayscale fallback
     if cv2.countNonZero(mask) < 15:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Check if already black-on-white (black digits on white background)
-        black_pixels = np.sum(gray < 50)
         white_pixels = np.sum(gray > 200)
-        if white_pixels > (img.size * 0.4) and black_pixels > 10:
-            # Pre-binarized black-on-white from AHK: invert so digits become white on black mask
-            mask = cv2.bitwise_not(gray)
+        black_pixels = np.sum(gray < 50)
+        if white_pixels > 10 and black_pixels > (img.size * 0.4):
+            # Already white digits on dark background
+            mask = np.where(gray > 150, 255, 0).astype(np.uint8)
         else:
-            mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+            mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 
     # Morphological cleanup and dilation to bridge LED flicker line gaps
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
@@ -231,8 +237,14 @@ def process_led_image(image_path):
 
     for cnt in contours:
         x, y, bw, bh = cv2.boundingRect(cnt)
-        if bh > h * 0.3 and bw > w * 0.1 and bw < w * 0.8:
-            digit_boxes.append((x, y, bw, bh))
+        if bh > h * 0.25 and bw > w * 0.08:
+            # If a single bounding box spans across two digits (wide aspect ratio bw/bh >= 1.1)
+            if (bw / float(bh)) >= 1.1 and bw > w * 0.35:
+                half_w = bw // 2
+                digit_boxes.append((x, y, half_w, bh))
+                digit_boxes.append((x + half_w, y, bw - half_w, bh))
+            elif bw < w * 0.85:
+                digit_boxes.append((x, y, bw, bh))
 
     # Sort boxes left-to-right
     digit_boxes.sort(key=lambda b: b[0])

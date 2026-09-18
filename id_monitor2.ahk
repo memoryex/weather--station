@@ -822,7 +822,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
         }
         pixelHistory := newHistory
 
-        ; Įrašome binarizuotus pikselius (Juoda ant Balto)
+        ; Įrašome binarizuotus pikselius: Balti segmentai Juodame fone (White on Black)
         Loop h {
             rowY := A_Index - 1
             rowPtr := scan0 + (rowY * stride)
@@ -832,24 +832,34 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                 pxIdx := rowY * w + colX
 
                 if pixelHistory.Has(pxIdx) {
-                    NumPut("UChar", 0, pPtr, 0)
-                    NumPut("UChar", 0, pPtr, 1)
-                    NumPut("UChar", 0, pPtr, 2)
-                    hashVal += pxIdx
-                } else {
                     NumPut("UChar", 255, pPtr, 0)
                     NumPut("UChar", 255, pPtr, 1)
                     NumPut("UChar", 255, pPtr, 2)
+                    hashVal += pxIdx
+                } else {
+                    NumPut("UChar", 0, pPtr, 0)
+                    NumPut("UChar", 0, pPtr, 1)
+                    NumPut("UChar", 0, pPtr, 2)
                 }
             }
         }
 
         DllCall("gdiplus\GdipBitmapUnlockBits", "Ptr", pGpBitmap, "Ptr", BitmapData)
 
-        ; Išsaugome į failą
+        ; Išsaugome tiesiogiai paimtą natūralų HBITMAP vaizdą (su raudonomis spalvomis ir juodu fonu)
+        pRawBitmap := 0
+        DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", &pRawBitmap)
+
         clsid := Buffer(16)
         DllCall("ole32\CLSIDFromString", "WStr", "{557CF400-1A04-11D3-9A73-0000F81EF32E}", "Ptr", clsid)
-        DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", tempImgPath, "Ptr", clsid, "Ptr", 0)
+
+        if (pRawBitmap) {
+            DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pRawBitmap, "WStr", tempImgPath, "Ptr", clsid, "Ptr", 0)
+            DllCall("gdiplus\GdipDisposeImage", "Ptr", pRawBitmap)
+        } else {
+            DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", tempImgPath, "Ptr", clsid, "Ptr", 0)
+        }
+
         DllCall("gdiplus\GdipDisposeImage", "Ptr", pGpBitmap)
 
         result["hash"] := String(hashVal)
