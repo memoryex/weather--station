@@ -164,17 +164,17 @@ CreateOverlayWindow() {
     OverlayGui.OnEvent("Size", OnOverlayResize)
 
     ; WM_NCCALCSIZE (0x0083) - Pašalina DWM baltus rėmelius išlaikant natūralų Windows resize palaikymą
-    OnMessage(0x0083, "WM_NCCALCSIZE")
+    OnMessage(0x0083, WM_NCCALCSIZE)
 
     ; WM_NCHITTEST (0x0084) - Įgalina 100% natūralų kraštinių ir kampų tempimą bei pelės kurso rodyklytes
-    OnMessage(0x0084, "WM_NCHITTEST_OVERLAY")
+    OnMessage(0x0084, WM_NCHITTEST_OVERLAY)
 
     ; WM_RBUTTONDOWN (0x0204) - Perstumia langa desiniu peles mygtuku
-    OnMessage(0x0204, "WM_RBUTTONDOWN")
+    OnMessage(0x0204, WM_RBUTTONDOWN)
 
     ; Saugome koordinates pabaigus vilkti/didinti
-    OnMessage(0x0232, "WM_EXITSIZEMOVE")
-    OnMessage(0x0003, "WM_MOVE")
+    OnMessage(0x0232, WM_EXITSIZEMOVE)
+    OnMessage(0x0003, WM_MOVE)
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
     UpdateOverlayRegion(OverlayGui, overlayW, overlayH, 6)

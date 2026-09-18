@@ -281,7 +281,12 @@ OpenSettingsGui(*) {
 CloseSettingsGui() {
     global SettingsGui, isMonitoring
     if (SettingsGui != 0) {
-        SettingsGui.Hide()
+        try {
+            SettingsGui.Destroy()
+        } catch {
+            ; Fallback
+        }
+        SettingsGui := 0
     }
     if (!isMonitoring) {
         SetTimer(ScanTargetRegionSequence, 0)
@@ -386,16 +391,16 @@ CreateOverlayWindows() {
     LEDOverlayGui.OnEvent("Size", OnLEDOverlayResize)
 
     ; WM_NCCALCSIZE (0x0083) - Pašalina DWM baltus rėmelius išlaikant natūralų Windows resize palaikymą
-    OnMessage(0x0083, "WM_NCCALCSIZE2")
+    OnMessage(0x0083, WM_NCCALCSIZE2)
 
     ; WM_NCHITTEST (0x0084) - Įgalina 100% natūralų kraštinių ir kampų tempimą bei pelės kurso rodyklytes
-    OnMessage(0x0084, "WM_NCHITTEST_OVERLAY2")
+    OnMessage(0x0084, WM_NCHITTEST_OVERLAY2)
 
     ; Perstumia langa desiniu peles mygtuku
-    OnMessage(0x0204, "WM_RBUTTONDOWN")
+    OnMessage(0x0204, WM_RBUTTONDOWN)
 
-    OnMessage(0x0232, "WM_EXITSIZEMOVE")
-    OnMessage(0x0003, "WM_MOVE")
+    OnMessage(0x0232, WM_EXITSIZEMOVE)
+    OnMessage(0x0003, WM_MOVE)
 
     OverlayGui.Show("x" . overlayX . " y" . overlayY . " w" . overlayW . " h" . overlayH . " NoActivate")
     LEDOverlayGui.Show("x" . ledOverlayX . " y" . ledOverlayY . " w" . ledOverlayW . " h" . ledOverlayH . " NoActivate")
@@ -567,7 +572,7 @@ ScanTargetRegionSequence() {
     global sequenceBuffer, isCapturingID, lastSeenToken, lastTokenTime, bufferTimeoutMs
     global isBlueLEDActive, txtLEDStatus, lastFrameHash
 
-    isSettingsOpen := (SettingsGui != 0 && WinExist(SettingsGui.Hwnd))
+    isSettingsOpen := (SettingsGui != 0 && WinExist(SettingsGui.Hwnd) && DllCall("IsWindowVisible", "Ptr", SettingsGui.Hwnd))
     if ((!isMonitoring && !isSettingsOpen) || !WinExist(OverlayGui.Hwnd) || isScanningActive)
         return
 
