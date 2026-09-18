@@ -1,14 +1,28 @@
 #!/usr/bin/env python3
 """
 OpenCV 7-Segment LED & Character Recognition Helper for AutoHotkey ID Monitor
-Usage: python led_ocr.py <image_path>
-Outputs recognized 2-character token (e.g. ID, PN, or digits 00-99/A-F) to stdout.
+Usage:
+  1. Standalone watcher service: python led_ocr.py --watch
+  2. Single file execution:     python led_ocr.py <image_path>
 """
 
 import sys
 import os
-import cv2
-import numpy as np
+import time
+import tempfile
+
+# Print startup header
+print("============================================================")
+print("  7-Segment LED OCR Python Helper Service (v2.2)")
+print("============================================================")
+
+try:
+    import cv2
+    import numpy as np
+    print("[INFO] OpenCV and NumPy successfully loaded.")
+except ImportError as e:
+    print(f"[ERROR] Required Python module missing: {e}")
+    print("[INSTRUCTION] Please install dependencies using: pip install opencv-python numpy")
 
 # Standard 7-segment display digit/letter lookup map
 # Segments order: (top, top-left, top-right, middle, bottom-left, bottom-right, bottom)
@@ -103,7 +117,7 @@ def load_tf_dnn_model():
     onnx_path = os.path.join(script_dir, "model.onnx")
     h5_path = os.path.join(script_dir, "model.h5")
 
-    # 1. Try TFLite (Fastest inference)
+    # 1. Try TFLite
     if os.path.exists(tflite_path):
         try:
             try:
@@ -119,7 +133,7 @@ def load_tf_dnn_model():
         except Exception:
             pass
 
-    # 2. Try OpenCV DNN ONNX (No TensorFlow required)
+    # 2. Try OpenCV DNN ONNX
     if os.path.exists(onnx_path):
         try:
             net = cv2.dnn.readNetFromONNX(onnx_path)
@@ -146,20 +160,19 @@ def load_tf_dnn_model():
 def classify_digit_tf_dnn(roi):
     """
     Classifies a 7-segment digit ROI using loaded TensorFlow / TFLite / ONNX model.
-    Falls back to geometric 7-segment decoding if model prediction confidence is low or unavailable.
+    Falls back to geometric 7-segment decoding.
     """
     model, model_type = load_tf_dnn_model()
 
     if model_type != "none" and model is not None:
         try:
-            # Preprocess ROI to 28x28 grayscale normalized tensor
             gray_roi = cv2.resize(roi, (28, 28))
             norm_roi = gray_roi.astype("float32") / 255.0
 
             if model_type == "tflite":
                 input_details = model.get_input_details()
                 output_details = model.get_output_details()
-                input_data = np.expand_dims(norm_roi, axis=(0, -1)) # Shape: (1, 28, 28, 1)
+                input_data = np.expand_dims(norm_roi, axis=(0, -1))
                 model.set_tensor(input_details[0]['index'], input_data)
                 model.invoke()
                 preds = model.get_tensor(output_details[0]['index'])[0]
@@ -184,7 +197,6 @@ def classify_digit_tf_dnn(roi):
         except Exception:
             pass
 
-    # Fallback to geometric 7-segment decoding
     return decode_7segment(roi)
 
 def process_led_image(image_path):
@@ -197,13 +209,13 @@ def process_led_image(image_path):
 
     h, w = img.shape[:2]
 
-    # 1. Direct Red-Channel Prominence Binarization for Dark Backgrounds
+    # 1. Direct Red-Channel Prominence Binarization
     b_chan, g_chan, r_chan = cv2.split(img)
     red_prominent = (r_chan >= 50) & ((r_chan.astype(int) - g_chan.astype(int)) >= 15) & ((r_chan.astype(int) - b_chan.astype(int)) >= 15)
     mask = np.zeros((h, w), dtype=np.uint8)
     mask[red_prominent] = 255
 
-    # 2. HSV Fallback if Red Channel mask is empty/low
+    # 2. HSV Fallback
     if cv2.countNonZero(mask) < 15:
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 30, 30])
@@ -221,24 +233,20 @@ def process_led_image(image_path):
         white_pixels = np.sum(gray > 200)
         black_pixels = np.sum(gray < 50)
         if white_pixels > 10 and black_pixels > (img.size * 0.4):
-            # Already white digits on dark background
             mask = np.where(gray > 150, 255, 0).astype(np.uint8)
         else:
             mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 
-    # Morphological cleanup and dilation to bridge LED flicker line gaps
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     mask = cv2.dilate(mask, kernel, iterations=1)
 
-    # Find contours
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     digit_boxes = []
 
     for cnt in contours:
         x, y, bw, bh = cv2.boundingRect(cnt)
         if bh > h * 0.25 and bw > w * 0.08:
-            # If a single bounding box spans across two digits (wide aspect ratio bw/bh >= 1.1)
             if (bw / float(bh)) >= 1.1 and bw > w * 0.35:
                 half_w = bw // 2
                 digit_boxes.append((x, y, half_w, bh))
@@ -246,7 +254,6 @@ def process_led_image(image_path):
             elif bw < w * 0.85:
                 digit_boxes.append((x, y, bw, bh))
 
-    # Sort boxes left-to-right
     digit_boxes.sort(key=lambda b: b[0])
 
     recognized_chars = []
@@ -258,7 +265,6 @@ def process_led_image(image_path):
 
     result = "".join(recognized_chars).upper()
 
-    # Alias mapping for standard tokens
     if result in ["1D", "TD", "LD", "ID"]:
         return "ID"
     if result in ["PN", "1N", "P1"]:
@@ -266,13 +272,59 @@ def process_led_image(image_path):
 
     return result
 
-def main():
-    if len(sys.argv) < 2:
-        sys.exit(0)
+def run_watcher_service():
+    temp_dir = tempfile.gettempdir()
+    req_file = os.path.join(temp_dir, "id_ocr_req.txt")
+    res_file = os.path.join(temp_dir, "id_ocr_res2.txt")
 
-    image_path = sys.argv[1]
-    res = process_led_image(image_path)
-    print(res, end="")
+    print(f"[STATUS] Watching for requests at: {req_file}")
+    print("[STATUS] Service is ready. Press Ctrl+C to stop.\n")
+
+    while True:
+        try:
+            if os.path.exists(req_file):
+                t_start = time.time()
+                try:
+                    with open(req_file, "r", encoding="utf-8") as f:
+                        img_path = f.read().strip()
+                except Exception:
+                    img_path = ""
+
+                # Remove request trigger
+                try:
+                    os.remove(req_file)
+                except Exception:
+                    pass
+
+                if img_path and os.path.exists(img_path):
+                    res = process_led_image(img_path)
+                    elapsed_ms = int((time.time() - t_start) * 1000)
+                    t_stamp = time.strftime("%H:%M:%S")
+                    print(f"[{t_stamp}] Processed: '{os.path.basename(img_path)}' -> Output: '{res}' ({elapsed_ms} ms)")
+
+                    with open(res_file, "w", encoding="utf-8") as f:
+                        f.write(res)
+                else:
+                    with open(res_file, "w", encoding="utf-8") as f:
+                        f.write("")
+            else:
+                time.sleep(0.05)
+        except KeyboardInterrupt:
+            print("\n[STATUS] Service stopped by user.")
+            break
+        except Exception as e:
+            print(f"[ERROR] Exception in watcher loop: {e}")
+            time.sleep(0.1)
+
+def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "--watch":
+        run_watcher_service()
+    elif len(sys.argv) >= 2:
+        image_path = sys.argv[1]
+        res = process_led_image(image_path)
+        print(res, end="")
+    else:
+        run_watcher_service()
 
 if __name__ == "__main__":
     main()

@@ -567,6 +567,18 @@ ToggleMonitoring(*) {
     }
 }
 
+GetPhysicalWindowRect(hwnd, &x, &y, &w, &h) {
+    rect := Buffer(16, 0)
+    if DllCall("GetWindowRect", "Ptr", hwnd, "Ptr", rect) {
+        x := NumGet(rect, 0, "Int")
+        y := NumGet(rect, 4, "Int")
+        w := NumGet(rect, 8, "Int") - x
+        h := NumGet(rect, 12, "Int") - y
+        return true
+    }
+    return false
+}
+
 ScanTargetRegionSequence() {
     global OverlayGui, LEDOverlayGui, isMonitoring, isScanningActive, SettingsGui
     global sequenceBuffer, isCapturingID, lastSeenToken, lastTokenTime, bufferTimeoutMs
@@ -592,12 +604,16 @@ ScanTargetRegionSequence() {
         UpdateSequenceProgressUI()
     }
 
-    ; 2. SKAITMENŲ EKRANĖLIO PROCESAVIMAS
-    OverlayGui.GetPos(&x, &y, &w, &h)
-    rx := x + 4
-    ry := y + 4
-    rw := w - 8
-    rh := h - 8
+    ; 2. SKAITMENŲ EKRANĖLIO PROCESAVIMAS (Naudojame Physical Screen Pixels 1:1)
+    if (!GetPhysicalWindowRect(OverlayGui.Hwnd, &x, &y, &w, &h)) {
+        isScanningActive := false
+        return
+    }
+
+    rx := x + 6
+    ry := y + 6
+    rw := w - 12
+    rh := h - 12
 
     if (rw <= 0 || rh <= 0) {
         isScanningActive := false
@@ -707,13 +723,14 @@ checkBlueLEDState() {
         return
 
     CoordMode("Pixel", "Screen")
-    LEDOverlayGui.GetPos(&lx, &ly, &lw, &lh)
+    if (!GetPhysicalWindowRect(LEDOverlayGui.Hwnd, &lx, &ly, &lw, &lh))
+        return
 
-    ; Vidinė LED sritis be rėmelio (3px rėmelis)
-    innerX := lx + 3
-    innerY := ly + 3
-    innerW := lw - 6
-    innerH := lh - 6
+    ; Vidinė LED sritis be rėmelio (5px rėmelis)
+    innerX := lx + 5
+    innerY := ly + 5
+    innerW := lw - 10
+    innerH := lh - 10
 
     if (innerW <= 0 || innerH <= 0)
         return
@@ -971,6 +988,7 @@ RunNativeWinRTOCR(imagePath) {
         return ""
 
     outPath := A_Temp . "\id_ocr_res2.txt"
+    reqPath := A_Temp . "\id_ocr_req.txt"
     if FileExist(outPath)
         try FileDelete(outPath)
 
@@ -978,9 +996,33 @@ RunNativeWinRTOCR(imagePath) {
     pythonScript := A_ScriptDir . "\led_ocr.py"
     if FileExist(pythonScript) {
         try {
-            pyCommand := 'python.exe "' . pythonScript . '" "' . imagePath . '" > "' . outPath . '"'
-            RunWait('cmd.exe /c "' . pyCommand . '"', , "Hide")
+            ; Įrašome paveikslėlio kelią užklausos failui (UTF-8-RAW be BOM)
+            FileOpen(reqPath, "w", "UTF-8-RAW").Write(imagePath)
 
+            ; Jei Python fono langas ("7-Segment LED OCR") dar nepaleistas, paleidžiame ji matomame CMD lange fone
+            if (!WinExist("7-Segment LED OCR") && !WinExist("ahk_exe python.exe")) {
+                Run('cmd.exe /k "title 7-Segment LED OCR && python.exe "' . pythonScript . '" --watch"')
+            }
+
+            ; Laukiame iki 250 ms kol Python OCR servisas įrašys rezultatą
+            loop 10 {
+                if FileExist(outPath) {
+                    pyOutput := Trim(FileRead(outPath, "UTF-8"))
+                    try FileDelete(outPath)
+                    if (pyOutput != "")
+                        return pyOutput
+                    break
+                }
+                Sleep(25)
+            }
+        } catch {
+            ; Fallback jei nepasileido Python
+        }
+
+        ; Atsarginis tiesioginis šaukimas (matomame/fono langelyje be slėpimo, kad matytųsi procesas)
+        try {
+            pyCommand := 'python.exe "' . pythonScript . '" "' . imagePath . '"'
+            RunWait('cmd.exe /c "' . pyCommand . ' > "' . outPath . '""')
             if FileExist(outPath) {
                 pyOutput := Trim(FileRead(outPath, "UTF-8"))
                 try FileDelete(outPath)
@@ -988,7 +1030,7 @@ RunNativeWinRTOCR(imagePath) {
                     return pyOutput
             }
         } catch {
-            ; Fallback į WinRT PowerShell OCR
+            ; Fallback į WinRT
         }
     }
 
