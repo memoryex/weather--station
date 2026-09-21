@@ -604,16 +604,18 @@ ScanTargetRegionSequence() {
         UpdateSequenceProgressUI()
     }
 
-    ; 2. SKAITMENŲ EKRANĖLIO PROCESAVIMAS (Naudojame Physical Screen Pixels 1:1)
-    if (!GetPhysicalWindowRect(OverlayGui.Hwnd, &x, &y, &w, &h)) {
+    ; 2. SKAITMENŲ EKRANĖLIO PROCESAVIMAS (Grynosios Vidinės Koordinatės)
+    try {
+        OverlayGui.GetPos(&x, &y, &w, &h)
+    } catch {
         isScanningActive := false
         return
     }
 
-    rx := x + 6
-    ry := y + 6
-    rw := w - 12
-    rh := h - 12
+    rx := x + 8
+    ry := y + 8
+    rw := w - 16
+    rh := h - 16
 
     if (rw <= 0 || rh <= 0) {
         isScanningActive := false
@@ -723,27 +725,23 @@ checkBlueLEDState() {
         return
 
     CoordMode("Pixel", "Screen")
-    if (!GetPhysicalWindowRect(LEDOverlayGui.Hwnd, &lx, &ly, &lw, &lh))
+    try {
+        LEDOverlayGui.GetPos(&lx, &ly, &lw, &lh)
+    } catch {
         return
+    }
 
-    ; Vidinė LED sritis be rėmelio (5px rėmelis)
-    innerX := lx + 5
-    innerY := ly + 5
-    innerW := lw - 10
-    innerH := lh - 10
+    ; Vidinė LED sritis be rėmelio (6px rėmelis)
+    innerX := lx + 6
+    innerY := ly + 6
+    innerW := lw - 12
+    innerH := lh - 12
 
     if (innerW <= 0 || innerH <= 0)
         return
 
     bestR := 0, bestG := 0, bestB := 0
     bestBlueProminence := -9999
-
-    ledOverlayWasVisible := false
-    if (IsSet(LEDOverlayGui) && WinExist(LEDOverlayGui.Hwnd) && DllCall("IsWindowVisible", "Ptr", LEDOverlayGui.Hwnd)) {
-        ledOverlayWasVisible := true
-        LEDOverlayGui.Hide()
-        Sleep(1)
-    }
 
     ; Mėginame 5x5 pikselių tinklelį vidinėje LED overlay srityje
     Loop 5 {
@@ -775,10 +773,6 @@ checkBlueLEDState() {
                 ; Ignoruojame
             }
         }
-    }
-
-    if (ledOverlayWasVisible && IsSet(LEDOverlayGui) && WinExist(LEDOverlayGui.Hwnd)) {
-        LEDOverlayGui.Show("NoActivate")
     }
 
     ; Multi-frame persistence LED stebėjimas mirgantiems puslaidininkiams
@@ -867,14 +861,6 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     global OverlayGui
     result := Map()
     tempImgPath := A_Temp . "\id_ocr_bin_" . A_TickCount . ".bmp"
-
-    ; Paslepiame Overlay rėmelį 1ms, kad BitBlt ir PixelGetColor matytų Tikrąjį Ekraną be AHK rėmelio apvado
-    overlayWasVisible := false
-    if (IsSet(OverlayGui) && WinExist(OverlayGui.Hwnd) && DllCall("IsWindowVisible", "Ptr", OverlayGui.Hwnd)) {
-        overlayWasVisible := true
-        OverlayGui.Hide()
-        Sleep(1)
-    }
 
     hdcScreen := DllCall("GetDC", "Ptr", 0, "Ptr")
     hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdcScreen, "Ptr")
@@ -1022,10 +1008,6 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     DllCall("DeleteDC", "Ptr", hdcMem)
     DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdcScreen)
     DllCall("DeleteObject", "Ptr", hbm)
-
-    if (overlayWasVisible && IsSet(OverlayGui) && WinExist(OverlayGui.Hwnd)) {
-        OverlayGui.Show("NoActivate")
-    }
 
     result["hash"] := String(hashVal)
     result["imagePath"] := tempImgPath
