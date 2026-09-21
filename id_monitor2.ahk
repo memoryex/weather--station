@@ -893,10 +893,6 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
             gVal := NumGet(pixelBuf, offset + 1, "UChar")
             rVal := NumGet(pixelBuf, offset + 2, "UChar")
 
-            ; Ignoruojame raudoną rėmelį (grynasis R > 200 bei G < 50, B < 50)
-            if (rVal > 220 && gVal < 40 && bVal < 40)
-                continue
-
             if (rVal > maxRedVal)
                 maxRedVal := rVal
 
@@ -993,7 +989,7 @@ RunNativeWinRTOCR(imagePath) {
 
             ; Jei Python fono langas ("7-Segment LED OCR") dar nepaleistas, paleidžiame ji matomame CMD lange fone
             if (!WinExist("7-Segment LED OCR") && !WinExist("ahk_exe python.exe")) {
-                Run('cmd.exe /k "title 7-Segment LED OCR && python.exe "' . pythonScript . '" --watch"')
+                Run('cmd.exe /k "title 7-Segment LED OCR && python.exe `"' . pythonScript . '`" --watch"')
             }
 
             ; Laukiame iki 250 ms kol Python OCR servisas įrašys rezultatą
