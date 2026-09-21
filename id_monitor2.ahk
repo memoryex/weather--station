@@ -612,10 +612,10 @@ ScanTargetRegionSequence() {
         return
     }
 
-    rx := x + 8
-    ry := y + 8
-    rw := w - 16
-    rh := h - 16
+    rx := x + 12
+    ry := y + 12
+    rw := w - 24
+    rh := h - 24
 
     if (rw <= 0 || rh <= 0) {
         isScanningActive := false
@@ -904,14 +904,16 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
             gVal := NumGet(pixelBuf, offset + 1, "UChar")
             rVal := NumGet(pixelBuf, offset + 2, "UChar")
 
-            if (rVal > maxRedVal)
-                maxRedVal := rVal
-
             pxIdx := rowY * w + colX
 
-            ; Jei Raudonas LED elementas pagal konfigūruojamus slenksčius
-            if (rVal >= threshRMin && rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff)) {
-                currentPixels[pxIdx] := 3 ; Išlaikome pikselį 3 kadruose
+            ; Matuojame tik tikros raudonos spalvos ryškumą (atmetame baltas/pilkas rėmelio linijas kur R = G = B)
+            if (rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff)) {
+                if (rVal > maxRedVal)
+                    maxRedVal := rVal
+
+                if (rVal >= threshRMin) {
+                    currentPixels[pxIdx] := 3 ; Išlaikome pikselį 3 kadruose
+                }
             }
         }
     }
@@ -932,15 +934,17 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                     pG := (pCol >> 8) & 0xFF
                     pB := pCol & 0xFF
 
-                    if (pR > maxRedVal)
-                        maxRedVal := pR
+                    ; Tikriname tik raudoną spalvą atmetant baltus/pilkus rėmelius
+                    if (pR > (pG + threshRGDiff) && pR > (pB + threshRBDiff)) {
+                        if (pR > maxRedVal)
+                            maxRedVal := pR
 
-                    if (pR >= threshRMin && pR > (pG + threshRGDiff) && pR > (pB + threshRBDiff)) {
-                        ; Map grid sample to scaled pixel area
-                        mapY := (h * rowIdx // (gridRows + 1))
-                        mapX := (w * colIdx // (gridCols + 1))
-                        pxIdx := (mapY * w) + mapX
-                        currentPixels[pxIdx] := 3
+                        if (pR >= threshRMin) {
+                            mapY := (h * rowIdx // (gridRows + 1))
+                            mapX := (w * colIdx // (gridCols + 1))
+                            pxIdx := (mapY * w) + mapX
+                            currentPixels[pxIdx] := 3
+                        }
                     }
                 } catch {
                     ; Fallback
