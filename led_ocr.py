@@ -276,16 +276,27 @@ def process_led_image(image_path):
     return result
 
 def run_watcher_service():
+    script_dir = os.path.dirname(os.path.realpath(__file__))
     temp_dir = tempfile.gettempdir()
-    req_file = os.path.join(temp_dir, "id_ocr_req.txt")
-    res_file = os.path.join(temp_dir, "id_ocr_res2.txt")
 
-    print(f"[STATUS] Watching for requests at: {req_file}")
+    req_files = [
+        os.path.join(temp_dir, "id_ocr_req.txt"),
+        os.path.join(script_dir, "id_ocr_req.txt")
+    ]
+
+    print(f"[STATUS] Watching for requests at: {temp_dir} & {script_dir}")
     print("[STATUS] Service is ready. Press Ctrl+C to stop.\n")
 
     while True:
         try:
-            if os.path.exists(req_file):
+            req_file = None
+            for rf in req_files:
+                if os.path.exists(rf):
+                    req_file = rf
+                    break
+
+            if req_file:
+                res_file = req_file.replace("id_ocr_req.txt", "id_ocr_res2.txt")
                 t_start = time.time()
                 try:
                     with open(req_file, "r", encoding="utf-8") as f:

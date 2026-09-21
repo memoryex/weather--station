@@ -13,6 +13,7 @@ try {
 
 ; Global Kintamieji
 global isMonitoring := false
+global isDirectLogMode := false
 global configFile := A_ScriptDir . "\config.ini"
 global logFilePath := ""
 global lastCapturedID := ""
@@ -83,9 +84,11 @@ txtLEDStatus := MainGui.Add("Text", "x150 y118 w190 c0x7F8C8D", "Neaktyvus / Nea
 txtLEDStatus.SetFont("bold")
 
 ; Dabartinio Surinkimo Sekos Būsena (Live Sequence Buffer Progress)
-MainGui.Add("GroupBox", "x15 y152 w350 h65", "Renkamas ID (Po 'ID' Trigerio)")
+MainGui.Add("GroupBox", "x15 y152 w350 h65", "Rinkimo Režimas")
+chkDirectLog := MainGui.Add("Checkbox", "x25 y170 w330 h20", "Tiesioginis registravimas (Be 'ID' sekos)")
+chkDirectLog.OnEvent("Click", (*) => (isDirectLogMode := chkDirectLog.Value))
 MainGui.SetFont("s11 bold", "Consolas")
-txtSequenceProgress := MainGui.Add("Text", "x25 y175 w330 Center c0x1976D2", "Laukiama 'ID'...")
+txtSequenceProgress := MainGui.Add("Text", "x25 y190 w330 Center c0x1976D2", "Laukiama 'ID'...")
 MainGui.SetFont("s9 norm", "Segoe UI")
 
 ; Paskutinio Pamatyto Pilno ID Langas (Su Sumirksėjimo Efektu)
@@ -205,9 +208,9 @@ OpenSettingsGui(*) {
         return
     }
 
-    ; Jei monitoringas neijungtas, paleidžiame 250 ms atnaujinimo laikmatį diagnostikai
+    ; Jei monitoringas neijungtas, paleidžiame 80 ms atnaujinimo laikmatį diagnostikai
     if (!isMonitoring) {
-        SetTimer(ScanTargetRegionSequence, 250)
+        SetTimer(ScanTargetRegionSequence, 80)
     }
 
     SettingsGui := Gui("+Owner" . MainGui.Hwnd . " +AlwaysOnTop", "Atpažinimo Nustatymai IR Live Testas")
@@ -557,7 +560,7 @@ ToggleMonitoring(*) {
         txtStatus.Text := "Stebima..."
         txtStatus.SetFont("c0x2E7D32")
         sbStatus.Text := " Aktyvus stebėjimas (LED būsena ir 2-skaitmenų sekos rinkimas)."
-        SetTimer(ScanTargetRegionSequence, 250)
+        SetTimer(ScanTargetRegionSequence, 80)
     } else {
         btnStart.Text := "▶ Pradėti"
         txtStatus.Text := "Sustabdyta"
@@ -668,8 +671,11 @@ ScanTargetRegionSequence() {
                     lastTokenTime := now
                     lastFrameHash := currentHash
 
+                    if (isDirectLogMode) {
+                        ProcessNewID(token)
+                    }
                     ; A. ID Pradžia
-                    if (token == "ID" || token == "1D") {
+                    else if (token == "ID" || token == "1D") {
                         if (isBlueLEDActive) {
                             isCapturingID := true
                             sequenceBuffer := []
@@ -1031,6 +1037,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
 
     result["hash"] := String(hashVal)
     result["imagePath"] := tempImgPath
+    result["native7Seg"] := DecodeAHK7Segment(pixelHistory, w, h)
     return result
 }
 
@@ -1212,4 +1219,148 @@ LoadExistingLog() {
     } catch {
         sbStatus.Text := " Nepavyko įkelti esamo logo failo."
     }
+}
+
+; ==============================================================================
+; PURE AHK NATIVE 7-SEGMENT GEOMETRIC DECODER (<1ms Real-time RAM Processing)
+; ==============================================================================
+DecodeAHK7Segment(pixelMap, w, h) {
+    if (pixelMap.Count < 5 || w < 10 || h < 10)
+        return ""
+
+    minX := w, minY := h, maxX := 0, maxY := 0
+    for idx, _ in pixelMap {
+        rowY := idx // w
+        colX := Mod(idx, w)
+        if (colX < minX)
+            minX := colX
+        if (colX > maxX)
+            maxX := colX
+        if (rowY < minY)
+            minY := rowY
+        if (rowY > maxY)
+            maxY := rowY
+    }
+
+    bw := maxX - minX + 1
+    bh := maxY - minY + 1
+
+    if (bw < 4 || bh < 8)
+        return ""
+
+    digitROIs := []
+    if (bw > bh * 0.95 && bw > 25) {
+        halfW := bw // 2
+        digitROIs.Push({x: minX, y: minY, w: halfW, h: bh})
+        digitROIs.Push({x: minX + halfW, y: minY, w: bw - halfW, h: bh})
+    } else {
+        digitROIs.Push({x: minX, y: minY, w: bw, h: bh})
+    }
+
+    resultStr := ""
+    for _, roi in digitROIs {
+        charVal := DecodeSingleDigitROI(pixelMap, w, roi.x, roi.y, roi.w, roi.h)
+        if (charVal != "")
+            resultStr .= charVal
+    }
+
+    if (resultStr == "1D" || resultStr == "TD" || resultStr == "LD")
+        return "ID"
+    if (resultStr == "1N" || resultStr == "P1")
+        return "PN"
+
+    return resultStr
+}
+
+DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
+    if (rw < 3 || rh < 6)
+        return ""
+
+    segments := [
+        [0.00, 0.25, 0.15, 0.85], ; 0: Top
+        [0.05, 0.50, 0.00, 0.40], ; 1: Top-Left
+        [0.05, 0.50, 0.60, 1.00], ; 2: Top-Right
+        [0.35, 0.65, 0.15, 0.85], ; 3: Middle
+        [0.50, 0.95, 0.00, 0.40], ; 4: Bottom-Left
+        [0.50, 0.95, 0.60, 1.00], ; 5: Bottom-Right
+        [0.75, 1.00, 0.15, 0.85]  ; 6: Bottom
+    ]
+
+    patternStr := ""
+    for _, seg in segments {
+        x1 := rx + Integer(rw * seg[1])
+        x2 := rx + Integer(rw * seg[2])
+        y1 := ry + Integer(rh * seg[3])
+        y2 := ry + Integer(rh * seg[4])
+
+        ; Correct x/y segment mapping
+        x1 := rx + Integer(rw * seg[3])
+        x2 := rx + Integer(rw * seg[4])
+        y1 := ry + Integer(rh * seg[1])
+        y2 := ry + Integer(rh * seg[2])
+
+        totalPts := Max(1, (x2 - x1 + 1) * (y2 - y1 + 1))
+        activePts := 0
+
+        yCurr := y1
+        while (yCurr <= y2) {
+            xCurr := x1
+            while (xCurr <= x2) {
+                pxIdx := (yCurr * totalW) + xCurr
+                if pixelMap.Has(pxIdx)
+                    activePts++
+                xCurr++
+            }
+            yCurr++
+        }
+
+        ratio := activePts / totalPts
+        patternStr .= (ratio > 0.18 ? "1" : "0")
+    }
+
+    static map7Seg := Map(
+        "1110111", "0",
+        "0010010", "1",
+        "1011101", "2",
+        "1011011", "3",
+        "0111010", "4",
+        "1101011", "5",
+        "1101111", "6",
+        "1010010", "7",
+        "1111111", "8",
+        "1111011", "9",
+        "1111110", "A",
+        "0101111", "B",
+        "1100101", "C",
+        "0011111", "D",
+        "1101101", "E",
+        "1101100", "F",
+        "0111110", "H",
+        "0100100", "L",
+        "0111100", "P",
+        "0110110", "U",
+        "0101101", "n",
+        "0101100", "r",
+        "0001111", "t",
+        "0010100", "i"
+    )
+
+    if map7Seg.Has(patternStr)
+        return map7Seg[patternStr]
+
+    bestChar := ""
+    minDiff := 8
+    for segPat, charVal in map7Seg {
+        diff := 0
+        Loop 7 {
+            if (SubStr(patternStr, A_Index, 1) != SubStr(segPat, A_Index, 1))
+                diff++
+        }
+        if (diff < minDiff && diff <= 1) {
+            minDiff := diff
+            bestChar := charVal
+        }
+    }
+
+    return bestChar
 }
