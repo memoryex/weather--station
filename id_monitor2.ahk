@@ -887,6 +887,8 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     static pixelHistory := Map()
     currentPixels := Map()
 
+    CoordMode("Pixel", "Screen")
+
     Loop h {
         rowY := A_Index - 1
         Loop w {
@@ -909,25 +911,31 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
         }
     }
 
-    ; ATSARGINIS PIXELGETCOLOR TINKLELIS: Jei BitBlt/GetDIBits dėl DWM ar GPU tvarkyklių grąžina 0, tiesiogiai nuskaitome R šviesumą
-    if (maxRedVal == 0 && w > 0 && h > 0) {
-        CoordMode("Pixel", "Screen")
-        Loop 8 {
-            sy := A_Index
-            sampleY := y + (h * sy // 9)
-            Loop 8 {
-                sx := A_Index
-                sampleX := x + (w * sx // 9)
+    ; TIESIOGINIS AHK SCREEN PIXEL READ: Nuskaitymas tiesiai per PixelGetColor užtikrina 100% matomumą visose GPU/DWM konfigūracijose
+    gridCols := Min(w, 20)
+    gridRows := Min(h, 15)
+    if (gridCols > 0 && gridRows > 0) {
+        Loop gridRows {
+            rowIdx := A_Index
+            sampleY := y + (h * rowIdx // (gridRows + 1))
+            Loop gridCols {
+                colIdx := A_Index
+                sampleX := x + (w * colIdx // (gridCols + 1))
                 try {
                     pCol := PixelGetColor(sampleX, sampleY, "RGB")
                     pR := (pCol >> 16) & 0xFF
                     pG := (pCol >> 8) & 0xFF
                     pB := pCol & 0xFF
+
                     if (pR > maxRedVal)
                         maxRedVal := pR
+
                     if (pR >= threshRMin && pR > (pG + threshRGDiff) && pR > (pB + threshRBDiff)) {
-                        gridIdx := (sy * w) + sx
-                        currentPixels[gridIdx] := 3
+                        ; Map grid sample to scaled pixel area
+                        mapY := (h * rowIdx // (gridRows + 1))
+                        mapX := (w * colIdx // (gridCols + 1))
+                        pxIdx := (mapY * w) + mapX
+                        currentPixels[pxIdx] := 3
                     }
                 } catch {
                     ; Fallback
