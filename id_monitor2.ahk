@@ -649,7 +649,13 @@ ScanTargetRegionSequence() {
         }
 
         ; Vaizdas pasikeitė! Vykdome OCR tik naujam kadrui
-        detectedText := RunNativeWinRTOCR(frameData["imagePath"])
+        detectedText := ""
+        if (frameData.Has("native7Seg") && frameData["native7Seg"] != "") {
+            detectedText := frameData["native7Seg"]
+        }
+        if (detectedText == "") {
+            detectedText := RunNativeWinRTOCR(frameData["imagePath"])
+        }
         if FileExist(frameData["imagePath"])
             try FileDelete(frameData["imagePath"])
 
@@ -1315,7 +1321,7 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
         }
 
         ratio := activePts / totalPts
-        patternStr .= (ratio > 0.18 ? "1" : "0")
+        patternStr .= (ratio > 0.08 ? "1" : "0")
     }
 
     static map7Seg := Map(
@@ -1356,7 +1362,7 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
             if (SubStr(patternStr, A_Index, 1) != SubStr(segPat, A_Index, 1))
                 diff++
         }
-        if (diff < minDiff && diff <= 1) {
+        if (diff < minDiff && diff <= 2) {
             minDiff := diff
             bestChar := charVal
         }
