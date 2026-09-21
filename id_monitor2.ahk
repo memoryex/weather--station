@@ -865,6 +865,9 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     ; Nuskaitome vaizdą po rėmeliu su CAPTUREBLT | SRCCOPY (0x40000000 | 0x00CC0020 = 0x40CC0020)
     DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr", hdcScreen, "Int", x, "Int", y, "UInt", 0x40CC0020)
 
+    ; Win32 GDI Taisyklė: hbm BŪTINA atkabinti iš hdcMem prieš šaukiant GetDIBits!
+    DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbmOld, "Ptr")
+
     ; Nuskaitome žalius BGRX pikselius tiesiogiai iš GDI HBITMAP išvengiant GDI+ alpha zeroing problemos
     bi := Buffer(40, 0)
     NumPut("UInt", 40, bi, 0)       ; biSize
@@ -961,7 +964,6 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
         DllCall("gdiplus\GdipDisposeImage", "Ptr", pGpBitmap)
     }
 
-    DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbmOld, "Ptr")
     DllCall("DeleteDC", "Ptr", hdcMem)
     DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdcScreen)
     DllCall("DeleteObject", "Ptr", hbm)
