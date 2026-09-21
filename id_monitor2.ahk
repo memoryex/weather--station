@@ -878,7 +878,8 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     NumPut("UInt", 0, bi, 16)       ; biCompression = BI_RGB
 
     pixelBuf := Buffer(w * h * 4, 0)
-    DllCall("GetDIBits", "Ptr", hdcMem, "Ptr", hbm, "UInt", 0, "UInt", h, "Ptr", pixelBuf, "Ptr", bi, "UInt", 0)
+    ; NAUDOJAME hdcScreen vietoje hdcMem, kad GetDIBits gautų pilną 32-bit truecolor ekraną
+    scanRes := DllCall("GetDIBits", "Ptr", hdcScreen, "Ptr", hbm, "UInt", 0, "UInt", h, "Ptr", pixelBuf, "Ptr", bi, "UInt", 0)
 
     hashVal := 0
     maxRedVal := 0
@@ -904,6 +905,33 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
             ; Jei Raudonas LED elementas pagal konfigūruojamus slenksčius
             if (rVal >= threshRMin && rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff)) {
                 currentPixels[pxIdx] := 3 ; Išlaikome pikselį 3 kadruose
+            }
+        }
+    }
+
+    ; ATSARGINIS PIXELGETCOLOR TINKLELIS: Jei BitBlt/GetDIBits dėl DWM ar GPU tvarkyklių grąžina 0, tiesiogiai nuskaitome R šviesumą
+    if (maxRedVal == 0 && w > 0 && h > 0) {
+        CoordMode("Pixel", "Screen")
+        Loop 8 {
+            sy := A_Index
+            sampleY := y + (h * sy // 9)
+            Loop 8 {
+                sx := A_Index
+                sampleX := x + (w * sx // 9)
+                try {
+                    pCol := PixelGetColor(sampleX, sampleY, "RGB")
+                    pR := (pCol >> 16) & 0xFF
+                    pG := (pCol >> 8) & 0xFF
+                    pB := pCol & 0xFF
+                    if (pR > maxRedVal)
+                        maxRedVal := pR
+                    if (pR >= threshRMin && pR > (pG + threshRGDiff) && pR > (pB + threshRBDiff)) {
+                        gridIdx := (sy * w) + sx
+                        currentPixels[gridIdx] := 3
+                    }
+                } catch {
+                    ; Fallback
+                }
             }
         }
     }
