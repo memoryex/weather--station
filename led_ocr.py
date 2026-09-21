@@ -81,7 +81,7 @@ def decode_7segment(roi):
         total_pixels = seg_roi.size
         active_pixels = cv2.countNonZero(seg_roi)
         ratio = active_pixels / total_pixels
-        on_segments.append(1 if ratio > 0.35 else 0)
+        on_segments.append(1 if ratio > 0.20 else 0)
 
     pattern = tuple(on_segments)
     if pattern in DIGIT_MAP:
@@ -246,13 +246,16 @@ def process_led_image(image_path):
 
     for cnt in contours:
         x, y, bw, bh = cv2.boundingRect(cnt)
-        if bh > h * 0.25 and bw > w * 0.08:
+        if bh > h * 0.15 and bw > w * 0.05:
             if (bw / float(bh)) >= 1.1 and bw > w * 0.35:
                 half_w = bw // 2
                 digit_boxes.append((x, y, half_w, bh))
                 digit_boxes.append((x + half_w, y, bw - half_w, bh))
-            elif bw < w * 0.85:
+            else:
                 digit_boxes.append((x, y, bw, bh))
+
+    if not digit_boxes and cv2.countNonZero(mask) > 10:
+        digit_boxes.append((0, 0, w, h))
 
     digit_boxes.sort(key=lambda b: b[0])
 

@@ -660,7 +660,7 @@ ScanTargetRegionSequence() {
         }
 
         if (detectedText != "") {
-            if RegExMatch(detectedText, "i)\b[A-Z0-9]{2}\b", &match) {
+            if RegExMatch(detectedText, "i)[A-Z0-9]{1,2}", &match) {
                 token := StrUpper(match[0])
 
                 if (token != lastSeenToken) {
