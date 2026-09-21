@@ -1235,6 +1235,8 @@ DecodeAHK7Segment(pixelMap, w, h) {
         return ""
 
     minX := w, minY := h, maxX := 0, maxY := 0
+    colCounts := Map()
+
     for idx, _ in pixelMap {
         rowY := idx // w
         colX := Mod(idx, w)
@@ -1246,6 +1248,8 @@ DecodeAHK7Segment(pixelMap, w, h) {
             minY := rowY
         if (rowY > maxY)
             maxY := rowY
+
+        colCounts[colX] := (colCounts.Has(colX) ? colCounts[colX] + 1 : 1)
     }
 
     bw := maxX - minX + 1
@@ -1255,10 +1259,26 @@ DecodeAHK7Segment(pixelMap, w, h) {
         return ""
 
     digitROIs := []
-    if (bw > bh * 0.95 && bw > 25) {
-        halfW := bw // 2
-        digitROIs.Push({x: minX, y: minY, w: halfW, h: bh})
-        digitROIs.Push({x: minX + halfW, y: minY, w: bw - halfW, h: bh})
+    ; Tikriname stulpelių tankį (Vertical Projection Gap) tiksliam 2 skaitmenų atskyrimui
+    if (bw > bh * 0.65 && bw > 20) {
+        midStart := minX + Integer(bw * 0.25)
+        midEnd := minX + Integer(bw * 0.75)
+
+        minColVal := 999999
+        splitCol := minX + (bw // 2)
+
+        currC := midStart
+        while (currC <= midEnd) {
+            cnt := (colCounts.Has(currC) ? colCounts[currC] : 0)
+            if (cnt < minColVal) {
+                minColVal := cnt
+                splitCol := currC
+            }
+            currC++
+        }
+
+        digitROIs.Push({x: minX, y: minY, w: Max(1, splitCol - minX), h: bh})
+        digitROIs.Push({x: splitCol + 1, y: minY, w: Max(1, maxX - splitCol), h: bh})
     } else {
         digitROIs.Push({x: minX, y: minY, w: bw, h: bh})
     }
@@ -1321,7 +1341,7 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
         }
 
         ratio := activePts / totalPts
-        patternStr .= (ratio > 0.08 ? "1" : "0")
+        patternStr .= (ratio > 0.25 ? "1" : "0")
     }
 
     static map7Seg := Map(
@@ -1362,7 +1382,7 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
             if (SubStr(patternStr, A_Index, 1) != SubStr(segPat, A_Index, 1))
                 diff++
         }
-        if (diff < minDiff && diff <= 2) {
+        if (diff < minDiff && diff <= 1) {
             minDiff := diff
             bestChar := charVal
         }
