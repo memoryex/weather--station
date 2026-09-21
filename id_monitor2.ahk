@@ -962,8 +962,10 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     }
     pixelHistory := newHistory
 
-    ; Įrašome binarizuotus pikselius: Balti segmentai Juodame fone (White on Black)
+    ; BENDROJI OCR BINARIZACIJA / SPALVŲ PALAIKYMAS (Raudona + Pilkumo/Bet kokių tekstų atpažinimas)
     binBuf := Buffer(w * h * 4, 0)
+    useRedBinarization := (pixelHistory.Count > 0)
+
     Loop h {
         rowY := A_Index - 1
         Loop w {
@@ -971,17 +973,31 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
             pxIdx := rowY * w + colX
             offset := pxIdx * 4
 
-            if pixelHistory.Has(pxIdx) {
-                NumPut("UChar", 255, binBuf, offset)     ; B
-                NumPut("UChar", 255, binBuf, offset + 1) ; G
-                NumPut("UChar", 255, binBuf, offset + 2) ; R
-                NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
-                hashVal += pxIdx
+            bVal := NumGet(pixelBuf, offset, "UChar")
+            gVal := NumGet(pixelBuf, offset + 1, "UChar")
+            rVal := NumGet(pixelBuf, offset + 2, "UChar")
+
+            if (useRedBinarization) {
+                if pixelHistory.Has(pxIdx) {
+                    NumPut("UChar", 255, binBuf, offset)     ; B
+                    NumPut("UChar", 255, binBuf, offset + 1) ; G
+                    NumPut("UChar", 255, binBuf, offset + 2) ; R
+                    NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
+                    hashVal += pxIdx
+                } else {
+                    NumPut("UChar", 0, binBuf, offset)       ; B
+                    NumPut("UChar", 0, binBuf, offset + 1)   ; G
+                    NumPut("UChar", 0, binBuf, offset + 2)   ; R
+                    NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
+                }
             } else {
-                NumPut("UChar", 0, binBuf, offset)       ; B
-                NumPut("UChar", 0, binBuf, offset + 1)   ; G
-                NumPut("UChar", 0, binBuf, offset + 2)   ; R
+                ; ATSARGINIS VISŲ SPALVŲ REŽIMAS: Išsaugome natūralią spalvų/kontrasto informaciją bendram OCR testavimui
+                gray := Integer((rVal * 0.299) + (gVal * 0.587) + (bVal * 0.114))
+                NumPut("UChar", gray, binBuf, offset)     ; B
+                NumPut("UChar", gray, binBuf, offset + 1) ; G
+                NumPut("UChar", gray, binBuf, offset + 2) ; R
                 NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
+                hashVal += (gray > 100 ? pxIdx : 0)
             }
         }
     }
