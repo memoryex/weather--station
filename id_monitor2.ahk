@@ -203,7 +203,7 @@ SaveThresholdSettings(edtRMin, edtRGDiff, edtRBDiff, edtBlueMin, edtBlueDiff, ed
 }
 
 OpenSettingsGui(*) {
-    global SettingsGui, txtTestOCRText, txtTestLEDRGB, txtTestLEDState, picBinarizedPreview
+    global SettingsGui, txtTestOCRText, txtTestLEDRGB, txtTestLEDState, txtTestSegmentBright, picBinarizedPreview
     global txtRMinVal, txtRGDiffVal, txtRBDiffVal
     global threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
     global liveOCRText, liveLEDRGB, liveLEDStateStr, isMonitoring
@@ -642,10 +642,8 @@ ScanTargetRegionSequence() {
         UpdateSequenceProgressUI()
     }
 
-    ; 2. SKAITMENŲ EKRANĖLIO PROCESAVIMAS
-    try {
-        OverlayGui.GetPos(&x, &y, &w, &h)
-    } catch {
+    ; 2. SKAITMENŲ EKRANĖLIO PROCESAVIMAS (Fizinės Ekrano Koordinatės)
+    if (!GetPhysicalWindowRect(OverlayGui.Hwnd, &x, &y, &w, &h)) {
         isScanningActive := false
         return
     }
@@ -667,8 +665,11 @@ ScanTargetRegionSequence() {
     if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
         try {
             txtTestSegmentBright.Text := liveDisplayRedBright
-            if (picBinarizedPreview != 0 && frameData.Has("previewPath") && FileExist(frameData["previewPath"])) {
-                picBinarizedPreview.Value := frameData["previewPath"]
+            if (picBinarizedPreview != 0 && frameData.Has("hBitmap") && frameData["hBitmap"]) {
+                static hPrevBmp := 0
+                hOld := DllCall("SendMessage", "Ptr", picBinarizedPreview.Hwnd, "UInt", 0x0172, "Ptr", 0, "Ptr", frameData["hBitmap"], "Ptr")
+                if (hOld && hOld != frameData["hBitmap"])
+                    DllCall("DeleteObject", "Ptr", hOld)
             }
         } catch {
             ; Fallback
@@ -1059,6 +1060,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
         DllCall("gdiplus\GdiplusStartup", "Ptr*", &pToken, "Ptr", si, "Ptr", 0)
     }
 
+    hBinarizedBitmap := 0
     pGpBitmap := 0
     ; PixelFormat32bppARGB = 0x26200A
     DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", w, "Int", h, "Int", w * 4, "Int", 0x26200A, "Ptr", binBuf, "Ptr*", &pGpBitmap)
@@ -1069,6 +1071,9 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
         DllCall("ole32\CLSIDFromString", "WStr", "{557CF400-1A04-11D3-9A73-0000F81EF32E}", "Ptr", clsid)
         DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", tempImgPath, "Ptr", clsid, "Ptr", 0)
         DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", previewImgPath, "Ptr", clsid, "Ptr", 0)
+
+        ; Sukuriame GDI HBITMAP atmintyje tiesioginiam vaizdo rodymui AHK GUI paveikslėlyje (STM_SETIMAGE)
+        DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", pGpBitmap, "Ptr*", &hBinarizedBitmap, "UInt", 0xFF000000)
         DllCall("gdiplus\GdipDisposeImage", "Ptr", pGpBitmap)
     }
 
@@ -1079,6 +1084,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     result["hash"] := String(hashVal)
     result["imagePath"] := tempImgPath
     result["previewPath"] := previewImgPath
+    result["hBitmap"] := hBinarizedBitmap
     result["hasRed"] := (pixelHistory.Count > 0)
     result["native7Seg"] := DecodeAHK7Segment(pixelHistory, w, h)
     return result
