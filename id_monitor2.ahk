@@ -157,17 +157,17 @@ global txtTestSegmentBright := 0
 LoadThresholdSettings() {
     global configFile, threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
     try {
-        threshRMin := Integer(IniRead(configFile, "Thresholds2", "RMin", "70"))
-        threshRGDiff := Integer(IniRead(configFile, "Thresholds2", "RGDiff", "15"))
-        threshRBDiff := Integer(IniRead(configFile, "Thresholds2", "RBDiff", "15"))
+        threshRMin := Integer(IniRead(configFile, "Thresholds2", "RMin", "45"))
+        threshRGDiff := Integer(IniRead(configFile, "Thresholds2", "RGDiff", "10"))
+        threshRBDiff := Integer(IniRead(configFile, "Thresholds2", "RBDiff", "10"))
         threshBlueMin := Integer(IniRead(configFile, "Thresholds2", "BlueMin", "50"))
         threshBlueDiff := Integer(IniRead(configFile, "Thresholds2", "BlueDiff", "20"))
-        threshRedMin := Integer(IniRead(configFile, "Thresholds2", "RedMin", "50"))
-        threshRedDiff := Integer(IniRead(configFile, "Thresholds2", "RedDiff", "20"))
+        threshRedMin := Integer(IniRead(configFile, "Thresholds2", "RedMin", "45"))
+        threshRedDiff := Integer(IniRead(configFile, "Thresholds2", "RedDiff", "10"))
     } catch {
-        threshRMin := 70, threshRGDiff := 15, threshRBDiff := 15
+        threshRMin := 45, threshRGDiff := 10, threshRBDiff := 10
         threshBlueMin := 50, threshBlueDiff := 20
-        threshRedMin := 50, threshRedDiff := 20
+        threshRedMin := 45, threshRedDiff := 10
     }
 }
 
@@ -615,10 +615,10 @@ ScanTargetRegionSequence() {
         return
     }
 
-    rx := x + 12
-    ry := y + 12
-    rw := w - 24
-    rh := h - 24
+    rx := x + 7
+    ry := y + 7
+    rw := w - 14
+    rh := h - 14
 
     if (rw <= 0 || rh <= 0) {
         isScanningActive := false
@@ -653,7 +653,8 @@ ScanTargetRegionSequence() {
         if (frameData.Has("native7Seg") && frameData["native7Seg"] != "") {
             detectedText := frameData["native7Seg"]
         }
-        if (detectedText == "") {
+        ; Vykdome pagalbinį OCR tik jei atpažinta raudona šviesa
+        if (detectedText == "" && frameData.Has("hasRed") && frameData["hasRed"]) {
             detectedText := RunNativeWinRTOCR(frameData["imagePath"])
         }
         if FileExist(frameData["imagePath"])
@@ -918,14 +919,11 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
 
             pxIdx := rowY * w + colX
 
-            ; Matuojame tik tikros raudonos spalvos ryškumą (atmetame baltas/pilkas rėmelio linijas kur R = G = B)
-            if (rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff)) {
-                if (rVal > maxRedVal)
-                    maxRedVal := rVal
+            if (rVal > gVal && rVal > bVal && rVal > maxRedVal)
+                maxRedVal := rVal
 
-                if (rVal >= threshRMin) {
-                    currentPixels[pxIdx] := 3 ; Išlaikome pikselį 3 kadruose
-                }
+            if (rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff) && rVal >= threshRMin) {
+                currentPixels[pxIdx] := 3 ; Išlaikome pikselį 3 kadruose
             }
         }
     }
@@ -946,17 +944,14 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                     pG := (pCol >> 8) & 0xFF
                     pB := pCol & 0xFF
 
-                    ; Tikriname tik raudoną spalvą atmetant baltus/pilkus rėmelius
-                    if (pR > (pG + threshRGDiff) && pR > (pB + threshRBDiff)) {
-                        if (pR > maxRedVal)
-                            maxRedVal := pR
+                    if (pR > pG && pR > pB && pR > maxRedVal)
+                        maxRedVal := pR
 
-                        if (pR >= threshRMin) {
-                            mapY := (h * rowIdx // (gridRows + 1))
-                            mapX := (w * colIdx // (gridCols + 1))
-                            pxIdx := (mapY * w) + mapX
-                            currentPixels[pxIdx] := 3
-                        }
+                    if (pR > (pG + threshRGDiff) && pR > (pB + threshRBDiff) && pR >= threshRMin) {
+                        mapY := (h * rowIdx // (gridRows + 1))
+                        mapX := (w * colIdx // (gridCols + 1))
+                        pxIdx := (mapY * w) + mapX
+                        currentPixels[pxIdx] := 3
                     }
                 } catch {
                     ; Fallback
@@ -1043,6 +1038,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
 
     result["hash"] := String(hashVal)
     result["imagePath"] := tempImgPath
+    result["hasRed"] := (pixelHistory.Count > 0)
     result["native7Seg"] := DecodeAHK7Segment(pixelHistory, w, h)
     return result
 }
@@ -1295,13 +1291,13 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
     }
 
     segments := [
-        [0.00, 0.25, 0.15, 0.85], ; 0: Top
-        [0.05, 0.50, 0.00, 0.40], ; 1: Top-Left
-        [0.05, 0.50, 0.60, 1.00], ; 2: Top-Right
-        [0.35, 0.65, 0.15, 0.85], ; 3: Middle
-        [0.50, 0.95, 0.00, 0.40], ; 4: Bottom-Left
-        [0.50, 0.95, 0.60, 1.00], ; 5: Bottom-Right
-        [0.75, 1.00, 0.15, 0.85]  ; 6: Bottom
+        [0.15, 0.85, 0.00, 0.25], ; 0: Top
+        [0.00, 0.40, 0.05, 0.50], ; 1: Top-Left
+        [0.60, 1.00, 0.05, 0.50], ; 2: Top-Right
+        [0.15, 0.85, 0.35, 0.65], ; 3: Middle
+        [0.00, 0.40, 0.50, 0.95], ; 4: Bottom-Left
+        [0.60, 1.00, 0.50, 0.95], ; 5: Bottom-Right
+        [0.15, 0.85, 0.75, 1.00]  ; 6: Bottom
     ]
 
     patternStr := ""
@@ -1310,12 +1306,6 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
         x2 := rx + Integer(rw * seg[2])
         y1 := ry + Integer(rh * seg[3])
         y2 := ry + Integer(rh * seg[4])
-
-        ; Correct x/y segment mapping
-        x1 := rx + Integer(rw * seg[3])
-        x2 := rx + Integer(rw * seg[4])
-        y1 := ry + Integer(rh * seg[1])
-        y2 := ry + Integer(rh * seg[2])
 
         totalPts := Max(1, (x2 - x1 + 1) * (y2 - y1 + 1))
         activePts := 0
