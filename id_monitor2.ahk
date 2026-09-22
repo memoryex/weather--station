@@ -642,7 +642,7 @@ ScanTargetRegionSequence() {
         UpdateSequenceProgressUI()
     }
 
-    ; 2. SKAITMENŲ EKRANĖLIO PROCESAVIMAS (Grynosios Vidinės Koordinatės)
+    ; 2. SKAITMENŲ EKRANĖLIO PROCESAVIMAS
     try {
         OverlayGui.GetPos(&x, &y, &w, &h)
     } catch {
@@ -667,8 +667,8 @@ ScanTargetRegionSequence() {
     if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
         try {
             txtTestSegmentBright.Text := liveDisplayRedBright
-            if (picBinarizedPreview != 0 && frameData.Has("imagePath") && FileExist(frameData["imagePath"])) {
-                picBinarizedPreview.Value := "*w190 *h200 " . frameData["imagePath"]
+            if (picBinarizedPreview != 0 && frameData.Has("previewPath") && FileExist(frameData["previewPath"])) {
+                picBinarizedPreview.Value := frameData["previewPath"]
             }
         } catch {
             ; Fallback
@@ -957,7 +957,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
 
             pxIdx := rowY * w + colX
 
-            if (rVal > gVal && rVal > bVal && rVal > maxRedVal)
+            if (rVal > maxRedVal)
                 maxRedVal := rVal
 
             if (rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff) && rVal >= threshRMin) {
@@ -982,7 +982,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
                     pG := (pCol >> 8) & 0xFF
                     pB := pCol & 0xFF
 
-                    if (pR > pG && pR > pB && pR > maxRedVal)
+                    if (pR > maxRedVal)
                         maxRedVal := pR
 
                     if (pR > (pG + threshRGDiff) && pR > (pB + threshRBDiff) && pR >= threshRMin) {
@@ -1063,10 +1063,12 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     ; PixelFormat32bppARGB = 0x26200A
     DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", w, "Int", h, "Int", w * 4, "Int", 0x26200A, "Ptr", binBuf, "Ptr*", &pGpBitmap)
 
+    previewImgPath := A_Temp . "\id_ocr_bin_preview.bmp"
     if (pGpBitmap) {
         clsid := Buffer(16)
         DllCall("ole32\CLSIDFromString", "WStr", "{557CF400-1A04-11D3-9A73-0000F81EF32E}", "Ptr", clsid)
         DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", tempImgPath, "Ptr", clsid, "Ptr", 0)
+        DllCall("gdiplus\GdipSaveImageToFile", "Ptr", pGpBitmap, "WStr", previewImgPath, "Ptr", clsid, "Ptr", 0)
         DllCall("gdiplus\GdipDisposeImage", "Ptr", pGpBitmap)
     }
 
@@ -1076,6 +1078,7 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
 
     result["hash"] := String(hashVal)
     result["imagePath"] := tempImgPath
+    result["previewPath"] := previewImgPath
     result["hasRed"] := (pixelHistory.Count > 0)
     result["native7Seg"] := DecodeAHK7Segment(pixelHistory, w, h)
     return result
