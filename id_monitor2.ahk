@@ -1306,28 +1306,21 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
     if (rw < 3 || rh < 6)
         return ""
 
-    ; Išskirtinė taisyklė siauram '1' skaitmeniui: jei plotis/aukštis < 0.48 ir aktyvūs pikseliai dešinėje pusėje
-    if ((rw / rh) < 0.48) {
-        leftPts := 0
-        rightPts := 0
-        midX := rx + (rw // 2)
+    ; Išskirtinė taisyklė siauram '1' skaitmeniui: 7-segmentų '1' yra pavienė vertikali juosta (siauras ROI, rw/rh < 0.65)
+    if ((rw / rh) < 0.65) {
+        activePts := 0
         yCurr := ry
         while (yCurr <= ry + rh) {
             xCurr := rx
             while (xCurr <= rx + rw) {
                 pxIdx := (yCurr * totalW) + xCurr
-                if pixelMap.Has(pxIdx) {
-                    if (xCurr >= midX)
-                        rightPts++
-                    else
-                        leftPts++
-                }
+                if pixelMap.Has(pxIdx)
+                    activePts++
                 xCurr++
             }
             yCurr++
         }
-        totalPts := leftPts + rightPts
-        if (totalPts >= 3 && rightPts >= totalPts * 0.65)
+        if (activePts >= 3)
             return "1"
     }
 
