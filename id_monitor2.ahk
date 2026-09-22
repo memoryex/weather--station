@@ -1263,14 +1263,22 @@ DecodeAHK7Segment(pixelMap, w, h) {
         return ""
 
     digitROIs := []
-    ; Tikriname stulpelių tankį (Vertical Projection Gap) tiksliam 2 skaitmenų atskyrimui
-    if (bw > bh * 0.65 && bw > 20) {
-        midStart := minX + Integer(bw * 0.25)
-        midEnd := minX + Integer(bw * 0.75)
+    maxColVal := 0
+    for _, cnt in colCounts {
+        if (cnt > maxColVal)
+            maxColVal := cnt
+    }
+
+    ; Tikriname stulpelių tankį (Vertical Projection Gap) tiksliam 2 skaitmenų atskyrimui:
+    ; Dviejų skaitmenų bendras plotis/aukštis turi būti > 0.95 ir tarp skaitmenų turi būti matomas pertrūkis (gap)
+    shouldSplit := false
+    splitCol := minX + (bw // 2)
+
+    if (bw > bh * 0.95 && bw > 20) {
+        midStart := minX + Integer(bw * 0.30)
+        midEnd := minX + Integer(bw * 0.70)
 
         minColVal := 999999
-        splitCol := minX + (bw // 2)
-
         currC := midStart
         while (currC <= midEnd) {
             cnt := (colCounts.Has(currC) ? colCounts[currC] : 0)
@@ -1281,6 +1289,13 @@ DecodeAHK7Segment(pixelMap, w, h) {
             currC++
         }
 
+        ; Skaidome tik jei tarpelyje pikselių kiekis zymiai mažesnis nei skaitmens stulpelyje
+        if (minColVal < maxColVal * 0.50 || minColVal <= bh * 0.25) {
+            shouldSplit := true
+        }
+    }
+
+    if (shouldSplit) {
         digitROIs.Push({x: minX, y: minY, w: Max(1, splitCol - minX), h: bh})
         digitROIs.Push({x: splitCol + 1, y: minY, w: Max(1, maxX - splitCol), h: bh})
     } else {
@@ -1306,8 +1321,8 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
     if (rw < 3 || rh < 6)
         return ""
 
-    ; Išskirtinė taisyklė siauram '1' skaitmeniui: 7-segmentų '1' yra pavienė vertikali juosta (siauras ROI, rw/rh < 0.65)
-    if ((rw / rh) < 0.65) {
+    ; Išskirtinė taisyklė siauram '1' skaitmeniui: 7-segmentų '1' yra labai siaura vertikali juosta (rw/rh < 0.42)
+    if ((rw / rh) < 0.42) {
         activePts := 0
         yCurr := ry
         while (yCurr <= ry + rh) {
