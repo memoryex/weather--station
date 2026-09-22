@@ -1269,6 +1269,31 @@ DecodeSingleDigitROI(pixelMap, totalW, rx, ry, rw, rh) {
     if (rw < 3 || rh < 6)
         return ""
 
+    ; Išskirtinė taisyklė siauram '1' skaitmeniui: jei plotis/aukštis < 0.48 ir aktyvūs pikseliai dešinėje pusėje
+    if ((rw / rh) < 0.48) {
+        leftPts := 0
+        rightPts := 0
+        midX := rx + (rw // 2)
+        yCurr := ry
+        while (yCurr <= ry + rh) {
+            xCurr := rx
+            while (xCurr <= rx + rw) {
+                pxIdx := (yCurr * totalW) + xCurr
+                if pixelMap.Has(pxIdx) {
+                    if (xCurr >= midX)
+                        rightPts++
+                    else
+                        leftPts++
+                }
+                xCurr++
+            }
+            yCurr++
+        }
+        totalPts := leftPts + rightPts
+        if (totalPts >= 3 && rightPts >= totalPts * 0.65)
+            return "1"
+    }
+
     segments := [
         [0.00, 0.25, 0.15, 0.85], ; 0: Top
         [0.05, 0.50, 0.00, 0.40], ; 1: Top-Left
