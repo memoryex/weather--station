@@ -1083,44 +1083,11 @@ RunNativeWinRTOCR(imagePath) {
             ; Fallback jei nepasileido Python
         }
 
-        ; Atsarginis tiesioginis šaukimas (matomame/fono langelyje be slėpimo, kad matytųsi procesas)
-        try {
-            pyCommand := 'python.exe "' . pythonScript . '" "' . imagePath . '"'
-            RunWait('cmd.exe /c "' . pyCommand . ' > "' . outPath . '""')
-            if FileExist(outPath) {
-                pyOutput := Trim(FileRead(outPath, "UTF-8"))
-                try FileDelete(outPath)
-                if (pyOutput != "")
-                    return pyOutput
-            }
-        } catch {
-            ; Fallback į WinRT
-        }
-    }
-
-    ; 2. FALLBACK: Windows Native WinRT OCR (PowerShell)
-    try {
-        psScript := "[void][Windows.Media.Ocr.OcrEngine, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]; "
-            . "$file = [Windows.Storage.StorageFile, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]::GetFileFromPathAsync('" . imagePath . "').GetResults(); "
-            . "$stream = $file.OpenAsync([Windows.Storage.FileAccessMode]::Read).GetResults(); "
-            . "$bmp = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Foundation.UniversalApiContract, ContentType = WindowsRuntime]::CreateAsync($stream).GetResults(); "
-            . "$sBmp = $bmp.GetSoftwareBitmapAsync().GetResults(); "
-            . "$ocr = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages(); "
-            . "$res = $ocr.RecognizeAsync($sBmp).GetResults(); "
-            . "if ($res -and $res.Text) { $res.Text | Out-File -FilePath '" . outPath . "' -Encoding utf8 }"
-
-        psCommand := 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "' . psScript . '"'
-        RunWait(psCommand, , "Hide")
-
-        if FileExist(outPath) {
-            ocrOutput := FileRead(outPath, "UTF-8")
-            try FileDelete(outPath)
-            return Trim(ocrOutput)
-        }
-        return ""
-    } catch {
+        ; Greitas grąžinimas nenaudojant lėtų PowerShell RunWait procesų
         return ""
     }
+
+    return ""
 }
 
 ; ==============================================================================
