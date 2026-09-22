@@ -226,15 +226,18 @@ OpenSettingsGui(*) {
     SettingsGui.Add("GroupBox", "x15 y12 w370 h165", "🎚 7-Segmentų Display Raudonos Binarizacijos Šliaužikliai")
 
     SettingsGui.Add("Text", "x30 y35 w150", "Min. Raudona (R >):")
-    txtRMinVal := SettingsGui.Add("Text", "x180 y35 w40 Right c0xC62828 bold", threshRMin)
+    txtRMinVal := SettingsGui.Add("Text", "x180 y35 w40 Right c0xC62828", threshRMin)
+    txtRMinVal.SetFont("bold")
     sldRMin := SettingsGui.Add("Slider", "x225 y32 w140 h25 Range0-255 ToolTipBottom", threshRMin)
 
     SettingsGui.Add("Text", "x30 y75 w150", "R ir G skirtumas (R - G >):")
-    txtRGDiffVal := SettingsGui.Add("Text", "x180 y75 w40 Right c0xC62828 bold", threshRGDiff)
+    txtRGDiffVal := SettingsGui.Add("Text", "x180 y75 w40 Right c0xC62828", threshRGDiff)
+    txtRGDiffVal.SetFont("bold")
     sldRGDiff := SettingsGui.Add("Slider", "x225 y72 w140 h25 Range0-100 ToolTipBottom", threshRGDiff)
 
     SettingsGui.Add("Text", "x30 y115 w150", "R ir B skirtumas (R - B >):")
-    txtRBDiffVal := SettingsGui.Add("Text", "x180 y115 w40 Right c0xC62828 bold", threshRBDiff)
+    txtRBDiffVal := SettingsGui.Add("Text", "x180 y115 w40 Right c0xC62828", threshRBDiff)
+    txtRBDiffVal.SetFont("bold")
     sldRBDiff := SettingsGui.Add("Slider", "x225 y112 w140 h25 Range0-100 ToolTipBottom", threshRBDiff)
 
     ; 2. Vizualus OCR Binarizacijos Paveikslėlio Langas (Kaip OCR mato segmentus)
@@ -663,8 +666,8 @@ ScanTargetRegionSequence() {
     if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
         try {
             txtTestSegmentBright.Text := liveDisplayRedBright
-            if (picBinarizedPreview != 0 && FileExist(tempImgPath)) {
-                picBinarizedPreview.Value := "*w190 *h200 " . tempImgPath
+            if (picBinarizedPreview != 0 && frameData.Has("imagePath") && FileExist(frameData["imagePath"])) {
+                picBinarizedPreview.Value := "*w190 *h200 " . frameData["imagePath"]
             }
         } catch {
             ; Fallback
