@@ -153,6 +153,10 @@ global txtTestOCRText := 0
 global txtTestLEDRGB := 0
 global txtTestLEDState := 0
 global txtTestSegmentBright := 0
+global picBinarizedPreview := 0
+global txtRMinVal := 0
+global txtRGDiffVal := 0
+global txtRBDiffVal := 0
 
 LoadThresholdSettings() {
     global configFile, threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
@@ -199,7 +203,8 @@ SaveThresholdSettings(edtRMin, edtRGDiff, edtRBDiff, edtBlueMin, edtBlueDiff, ed
 }
 
 OpenSettingsGui(*) {
-    global SettingsGui, txtTestOCRText, txtTestLEDRGB, txtTestLEDState
+    global SettingsGui, txtTestOCRText, txtTestLEDRGB, txtTestLEDState, picBinarizedPreview
+    global txtRMinVal, txtRGDiffVal, txtRBDiffVal
     global threshRMin, threshRGDiff, threshRBDiff, threshBlueMin, threshBlueDiff, threshRedMin, threshRedDiff
     global liveOCRText, liveLEDRGB, liveLEDStateStr, isMonitoring
 
@@ -213,72 +218,98 @@ OpenSettingsGui(*) {
         SetTimer(ScanTargetRegionSequence, 80)
     }
 
-    SettingsGui := Gui("+Owner" . MainGui.Hwnd . " +AlwaysOnTop", "Atpažinimo Nustatymai IR Live Testas")
+    SettingsGui := Gui("+Owner" . MainGui.Hwnd . " +AlwaysOnTop", "Atpažinimo Nustatymai, Šliaužikliai ir Binarizacijos Vaizdas")
     SettingsGui.SetFont("s9", "Segoe UI")
     SettingsGui.BackColor := "0xF4F6F9"
 
-    ; 1. Grupinis Rėmelis: OCR Binarizacijos Slenksčiai
-    SettingsGui.Add("GroupBox", "x15 y12 w370 h115", "7-Segmentų Raudonos Display Binarizacija")
+    ; 1. Grupinis Rėmelis: Interaktyvūs Binarizacijos Šliaužikliai
+    SettingsGui.Add("GroupBox", "x15 y12 w370 h165", "🎚 7-Segmentų Display Raudonos Binarizacijos Šliaužikliai")
 
     SettingsGui.Add("Text", "x30 y35 w150", "Min. Raudona (R >):")
-    edtRMin := SettingsGui.Add("Edit", "x180 y32 w60 Center", threshRMin)
-    SettingsGui.Add("UpDown", "Range0-255", threshRMin)
+    txtRMinVal := SettingsGui.Add("Text", "x180 y35 w40 Right c0xC62828 bold", threshRMin)
+    sldRMin := SettingsGui.Add("Slider", "x225 y32 w140 h25 Range0-255 ToolTipBottom", threshRMin)
 
-    SettingsGui.Add("Text", "x30 y62 w150", "R ir G skirtumas (R - G >):")
-    edtRGDiff := SettingsGui.Add("Edit", "x180 y59 w60 Center", threshRGDiff)
-    SettingsGui.Add("UpDown", "Range0-255", threshRGDiff)
+    SettingsGui.Add("Text", "x30 y75 w150", "R ir G skirtumas (R - G >):")
+    txtRGDiffVal := SettingsGui.Add("Text", "x180 y75 w40 Right c0xC62828 bold", threshRGDiff)
+    sldRGDiff := SettingsGui.Add("Slider", "x225 y72 w140 h25 Range0-100 ToolTipBottom", threshRGDiff)
 
-    SettingsGui.Add("Text", "x30 y89 w150", "R ir B skirtumas (R - B >):")
-    edtRBDiff := SettingsGui.Add("Edit", "x180 y86 w60 Center", threshRBDiff)
-    SettingsGui.Add("UpDown", "Range0-255", threshRBDiff)
+    SettingsGui.Add("Text", "x30 y115 w150", "R ir B skirtumas (R - B >):")
+    txtRBDiffVal := SettingsGui.Add("Text", "x180 y115 w40 Right c0xC62828 bold", threshRBDiff)
+    sldRBDiff := SettingsGui.Add("Slider", "x225 y112 w140 h25 Range0-100 ToolTipBottom", threshRBDiff)
 
-    ; 2. Grupinis Rėmelis: LED Indikatoriaus Slenksčiai
-    SettingsGui.Add("GroupBox", "x15 y135 w370 h140", "LED Indikatoriaus Spalvų Aptikimas")
+    ; 2. Vizualus OCR Binarizacijos Paveikslėlio Langas (Kaip OCR mato segmentus)
+    SettingsGui.Add("GroupBox", "x395 y12 w210 h270", "🖼 OCR Binarizacijos Vaizdas")
+    picBinarizedPreview := SettingsGui.Add("Picture", "x405 y35 w190 h200 +Border", "")
+    SettingsGui.Add("Text", "x405 y240 w190 Center c0x555555 s8", "Binarizuotas vaizdas (Juoda/Balta)")
 
-    SettingsGui.Add("Text", "x30 y158 w150", "Mėlyna Min (B >):")
-    edtBlueMin := SettingsGui.Add("Edit", "x180 y155 w60 Center", threshBlueMin)
+    ; 3. Grupinis Rėmelis: LED Indikatoriaus Slenksčiai
+    SettingsGui.Add("GroupBox", "x15 y182 w370 h100", "LED Indikatoriaus Spalvų Aptikimas")
+
+    SettingsGui.Add("Text", "x30 y205 w130", "Mėlyna Min (B >):")
+    edtBlueMin := SettingsGui.Add("Edit", "x160 y202 w50 Center", threshBlueMin)
     SettingsGui.Add("UpDown", "Range0-255", threshBlueMin)
 
-    SettingsGui.Add("Text", "x30 y185 w150", "Mėlynas Skirtumas (B-R/G):")
-    edtBlueDiff := SettingsGui.Add("Edit", "x180 y182 w60 Center", threshBlueDiff)
+    SettingsGui.Add("Text", "x220 y205 w110", "Skirtumas (B-R/G):")
+    edtBlueDiff := SettingsGui.Add("Edit", "x325 y202 w50 Center", threshBlueDiff)
     SettingsGui.Add("UpDown", "Range0-255", threshBlueDiff)
 
-    SettingsGui.Add("Text", "x30 y212 w150", "Raudona Min (R >):")
-    edtRedMin := SettingsGui.Add("Edit", "x180 y209 w60 Center", threshRedMin)
+    SettingsGui.Add("Text", "x30 y242 w130", "Raudona Min (R >):")
+    edtRedMin := SettingsGui.Add("Edit", "x160 y239 w50 Center", threshRedMin)
     SettingsGui.Add("UpDown", "Range0-255", threshRedMin)
 
-    SettingsGui.Add("Text", "x30 y239 w150", "Raudonas Skirtumas (R-B/G):")
-    edtRedDiff := SettingsGui.Add("Edit", "x180 y236 w60 Center", threshRedDiff)
+    SettingsGui.Add("Text", "x220 y242 w110", "Skirtumas (R-B/G):")
+    edtRedDiff := SettingsGui.Add("Edit", "x325 y239 w50 Center", threshRedDiff)
     SettingsGui.Add("UpDown", "Range0-255", threshRedDiff)
 
-    ; 3. Grupinis Rėmelis: LIVE TEST / DIAGNOSTIKA
-    SettingsGui.Add("GroupBox", "x15 y283 w370 h130", "🔍 TESTINIS LANGELIS (Šalia matoma ką supranta AHK)")
+    ; 4. Grupinis Rėmelis: LIVE TEST / DIAGNOSTIKA
+    SettingsGui.Add("GroupBox", "x15 y290 w590 h115", "🔍 TESTINIS LANGELIS (Live AHK būsena ir matomas tekstas)")
 
     SettingsGui.SetFont("s10 bold", "Consolas")
-    SettingsGui.Add("Text", "x30 y303 w140 c0x555555", "Šiuo metu mato OCR:")
-    txtTestOCRText := SettingsGui.Add("Text", "x175 y303 w195 c0x1976D2", liveOCRText != "" ? liveOCRText : "[ -- ]")
+    SettingsGui.Add("Text", "x30 y310 w140 c0x555555", "Šiuo metu mato OCR:")
+    txtTestOCRText := SettingsGui.Add("Text", "x175 y310 w410 c0x1976D2", liveOCRText != "" ? liveOCRText : "[ -- ]")
 
     SettingsGui.SetFont("s9 norm", "Segoe UI")
-    SettingsGui.Add("Text", "x30 y328 w140 c0x555555", "Display Raudona (R):")
-    txtTestSegmentBright := SettingsGui.Add("Text", "x175 y328 w195 c0xC62828", liveDisplayRedBright)
+    SettingsGui.Add("Text", "x30 y335 w140 c0x555555", "Display Raudona (R):")
+    txtTestSegmentBright := SettingsGui.Add("Text", "x175 y335 w410 c0xC62828", liveDisplayRedBright)
     txtTestSegmentBright.SetFont("bold")
 
-    SettingsGui.Add("Text", "x30 y353 w140 c0x555555", "LED Pikselio RGB:")
-    txtTestLEDRGB := SettingsGui.Add("Text", "x175 y353 w195 c0x2C3E50", liveLEDRGB)
+    SettingsGui.Add("Text", "x30 y360 w140 c0x555555", "LED Pikselio RGB:")
+    txtTestLEDRGB := SettingsGui.Add("Text", "x175 y360 w180 c0x2C3E50", liveLEDRGB)
 
-    SettingsGui.Add("Text", "x30 y378 w140 c0x555555", "LED Statusas:")
-    txtTestLEDState := SettingsGui.Add("Text", "x175 y378 w195 c0x2E7D32", liveLEDStateStr)
+    SettingsGui.Add("Text", "x360 y360 w90 c0x555555", "LED Statusas:")
+    txtTestLEDState := SettingsGui.Add("Text", "x450 y360 w140 c0x2E7D32", liveLEDStateStr)
+
+    ; Šliaužiklių event handlers realaus laiko binarizacijos vaizdo koregavimui
+    sldRMin.OnEvent("Change", (*) => OnSliderThresholdChange(sldRMin, sldRGDiff, sldRBDiff))
+    sldRGDiff.OnEvent("Change", (*) => OnSliderThresholdChange(sldRMin, sldRGDiff, sldRBDiff))
+    sldRBDiff.OnEvent("Change", (*) => OnSliderThresholdChange(sldRMin, sldRGDiff, sldRBDiff))
 
     ; Mygtukai
-    btnSaveSet := SettingsGui.Add("Button", "x80 y425 w110 h32", "💾 Išsaugoti")
+    btnSaveSet := SettingsGui.Add("Button", "x180 y418 w120 h32", "💾 Išsaugoti")
     btnSaveSet.SetFont("bold")
-    btnCloseSet := SettingsGui.Add("Button", "x210 y425 w110 h32", "Uždaryti")
+    btnCloseSet := SettingsGui.Add("Button", "x320 y418 w120 h32", "Uždaryti")
 
-    btnSaveSet.OnEvent("Click", (*) => SaveThresholdSettings(edtRMin, edtRGDiff, edtRBDiff, edtBlueMin, edtBlueDiff, edtRedMin, edtRedDiff))
+    btnSaveSet.OnEvent("Click", (*) => SaveThresholdSettings(sldRMin, sldRGDiff, sldRBDiff, edtBlueMin, edtBlueDiff, edtRedMin, edtRedDiff))
     btnCloseSet.OnEvent("Click", (*) => CloseSettingsGui())
     SettingsGui.OnEvent("Close", (*) => CloseSettingsGui())
 
-    SettingsGui.Show("w400 h475")
+    SettingsGui.Show("w620 h465")
+}
+
+OnSliderThresholdChange(sldR, sldRG, sldRB) {
+    global threshRMin, threshRGDiff, threshRBDiff
+    global txtRMinVal, txtRGDiffVal, txtRBDiffVal
+
+    threshRMin := Integer(sldR.Value)
+    threshRGDiff := Integer(sldRG.Value)
+    threshRBDiff := Integer(sldRB.Value)
+
+    if (txtRMinVal != 0)
+        txtRMinVal.Text := threshRMin
+    if (txtRGDiffVal != 0)
+        txtRGDiffVal.Text := threshRGDiff
+    if (txtRBDiffVal != 0)
+        txtRBDiffVal.Text := threshRBDiff
 }
 
 CloseSettingsGui() {
@@ -632,6 +663,9 @@ ScanTargetRegionSequence() {
     if (SettingsGui != 0 && WinExist(SettingsGui.Hwnd)) {
         try {
             txtTestSegmentBright.Text := liveDisplayRedBright
+            if (picBinarizedPreview != 0 && FileExist(tempImgPath)) {
+                picBinarizedPreview.Value := "*w190 *h200 " . tempImgPath
+            }
         } catch {
             ; Fallback
         }
