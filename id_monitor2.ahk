@@ -242,7 +242,7 @@ OpenSettingsGui(*) {
 
     ; 2. Vizualus OCR Binarizacijos Paveikslėlio Langas (Kaip OCR mato segmentus)
     SettingsGui.Add("GroupBox", "x395 y12 w210 h270", "🖼 OCR Binarizacijos Vaizdas")
-    picBinarizedPreview := SettingsGui.Add("Picture", "x405 y35 w190 h200 +Border", "")
+    picBinarizedPreview := SettingsGui.Add("Picture", "x405 y35 w190 h200 +0x0E +Border", "")
     txtPreviewSub := SettingsGui.Add("Text", "x405 y240 w190 Center c0x555555", "Binarizuotas vaizdas (Juoda/Balta)")
     txtPreviewSub.SetFont("s8")
 
@@ -666,14 +666,17 @@ ScanTargetRegionSequence() {
         try {
             txtTestSegmentBright.Text := liveDisplayRedBright
             if (picBinarizedPreview != 0 && frameData.Has("hBitmap") && frameData["hBitmap"]) {
-                static hPrevBmp := 0
-                hOld := DllCall("SendMessage", "Ptr", picBinarizedPreview.Hwnd, "UInt", 0x0172, "Ptr", 0, "Ptr", frameData["hBitmap"], "Ptr")
-                if (hOld && hOld != frameData["hBitmap"])
-                    DllCall("DeleteObject", "Ptr", hOld)
+                static hCurrentPreviewBmp := 0
+                picBinarizedPreview.Value := "hbitmap:" . frameData["hBitmap"]
+                if (hCurrentPreviewBmp != 0)
+                    DllCall("DeleteObject", "Ptr", hCurrentPreviewBmp)
+                hCurrentPreviewBmp := frameData["hBitmap"]
             }
         } catch {
             ; Fallback
         }
+    } else if (frameData.Has("hBitmap") && frameData["hBitmap"]) {
+        DllCall("DeleteObject", "Ptr", frameData["hBitmap"])
     }
 
     if (frameData.Has("hash") && frameData["hash"] != "") {
@@ -1012,9 +1015,8 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
     }
     pixelHistory := newHistory
 
-    ; BENDROJI OCR BINARIZACIJA / SPALVŲ PALAIKYMAS (Raudona + Pilkumo/Bet kokių tekstų atpažinimas)
+    ; BENDROJI OCR BINARIZACIJA / SPALVŲ PALAIKYMAS (Atsižvelgiama į slenksčius)
     binBuf := Buffer(w * h * 4, 0)
-    useRedBinarization := (pixelHistory.Count > 0)
 
     Loop h {
         rowY := A_Index - 1
@@ -1027,27 +1029,19 @@ CaptureAndBinarizeRedLED(x, y, w, h) {
             gVal := NumGet(pixelBuf, offset + 1, "UChar")
             rVal := NumGet(pixelBuf, offset + 2, "UChar")
 
-            if (useRedBinarization) {
-                if pixelHistory.Has(pxIdx) {
-                    NumPut("UChar", 255, binBuf, offset)     ; B
-                    NumPut("UChar", 255, binBuf, offset + 1) ; G
-                    NumPut("UChar", 255, binBuf, offset + 2) ; R
-                    NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
-                    hashVal += pxIdx
-                } else {
-                    NumPut("UChar", 0, binBuf, offset)       ; B
-                    NumPut("UChar", 0, binBuf, offset + 1)   ; G
-                    NumPut("UChar", 0, binBuf, offset + 2)   ; R
-                    NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
-                }
-            } else {
-                ; ATSARGINIS VISŲ SPALVŲ REŽIMAS: Išsaugome natūralią spalvų/kontrasto informaciją bendram OCR testavimui
-                gray := Integer((rVal * 0.299) + (gVal * 0.587) + (bVal * 0.114))
-                NumPut("UChar", gray, binBuf, offset)     ; B
-                NumPut("UChar", gray, binBuf, offset + 1) ; G
-                NumPut("UChar", gray, binBuf, offset + 2) ; R
+            isPixelActive := pixelHistory.Has(pxIdx) || (rVal > (gVal + threshRGDiff) && rVal > (bVal + threshRBDiff) && rVal >= threshRMin)
+
+            if (isPixelActive) {
+                NumPut("UChar", 255, binBuf, offset)     ; B (Balta)
+                NumPut("UChar", 255, binBuf, offset + 1) ; G
+                NumPut("UChar", 255, binBuf, offset + 2) ; R
                 NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
-                hashVal += (gray > 100 ? pxIdx : 0)
+                hashVal += pxIdx
+            } else {
+                NumPut("UChar", 0, binBuf, offset)       ; B (Juoda)
+                NumPut("UChar", 0, binBuf, offset + 1)   ; G
+                NumPut("UChar", 0, binBuf, offset + 2)   ; R
+                NumPut("UChar", 255, binBuf, offset + 3) ; Alpha = 255
             }
         }
     }
