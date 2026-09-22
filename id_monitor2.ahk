@@ -243,7 +243,8 @@ OpenSettingsGui(*) {
     ; 2. Vizualus OCR Binarizacijos Paveikslėlio Langas (Kaip OCR mato segmentus)
     SettingsGui.Add("GroupBox", "x395 y12 w210 h270", "🖼 OCR Binarizacijos Vaizdas")
     picBinarizedPreview := SettingsGui.Add("Picture", "x405 y35 w190 h200 +Border", "")
-    SettingsGui.Add("Text", "x405 y240 w190 Center c0x555555 s8", "Binarizuotas vaizdas (Juoda/Balta)")
+    txtPreviewSub := SettingsGui.Add("Text", "x405 y240 w190 Center c0x555555", "Binarizuotas vaizdas (Juoda/Balta)")
+    txtPreviewSub.SetFont("s8")
 
     ; 3. Grupinis Rėmelis: LED Indikatoriaus Slenksčiai
     SettingsGui.Add("GroupBox", "x15 y182 w370 h100", "LED Indikatoriaus Spalvų Aptikimas")
