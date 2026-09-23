@@ -31,37 +31,41 @@ MainGui.Add("Text", "x15 y12 w350 c0x1A252C", "Appliance ID Stebėjimo Skydelis"
 MainGui.SetFont("s9 norm", "Segoe UI")
 
 ; Būsenos ir Skaitiklio Rėmelis (Group)
-MainGui.Add("GroupBox", "x15 y42 w350 h85", "Būsena IR Skaitiklis")
+MainGui.Add("GroupBox", "x15 y42 w350 h105", "Būsena, Skaitiklis IR Log Būsena")
 
-MainGui.Add("Text", "x30 y65 w120 c0x555555", "Pagauta naujų ID:")
+MainGui.Add("Text", "x30 y62 w120 c0x555555", "Pagauta naujų ID:")
 MainGui.SetFont("s18 bold", "Segoe UI")
-txtCount := MainGui.Add("Text", "x150 y58 w190 c0x2E7D32", "0 vnt.")
+txtCount := MainGui.Add("Text", "x150 y55 w190 c0x2E7D32", "0 vnt.")
 MainGui.SetFont("s9 norm", "Segoe UI")
 
-MainGui.Add("Text", "x30 y98 w120 c0x555555", "Sistemos būsena:")
-txtStatus := MainGui.Add("Text", "x150 y98 w190 c0xC62828", "Sustabdyta")
+MainGui.Add("Text", "x30 y92 w120 c0x555555", "Sistemos būsena:")
+txtStatus := MainGui.Add("Text", "x150 y92 w190 c0xC62828", "Sustabdyta")
 txtStatus.SetFont("bold")
 
+MainGui.Add("Text", "x30 y118 w120 c0x555555", "Log Failas (Tinklas):")
+txtLogConnStatus := MainGui.Add("Text", "x150 y118 w190 c0x2E7D32", "● Pasiekiamas")
+txtLogConnStatus.SetFont("bold")
+
 ; Paskutinio Pamatyto ID Langas (Su Sumirksėjimo Efektu)
-MainGui.Add("GroupBox", "x15 y135 w350 h90", "Paskutinis Gautas ID")
+MainGui.Add("GroupBox", "x15 y152 w350 h90", "Paskutinis Gautas ID")
 
 ; Progress baras su Range0-100 žaliu užpildymu mirksėjimui
-idBoxBg := MainGui.Add("Progress", "x30 y158 w320 h52 BackgroundFFFFFF c0x27AE60 Range0-100", 0)
+idBoxBg := MainGui.Add("Progress", "x30 y175 w320 h52 BackgroundFFFFFF c0x27AE60 Range0-100", 0)
 MainGui.SetFont("s16 bold", "Consolas")
-txtLastID := MainGui.Add("Text", "x35 y170 w310 Center BackgroundTrans c0x2C3E50", "------------")
+txtLastID := MainGui.Add("Text", "x35 y187 w310 Center BackgroundTrans c0x2C3E50", "------------")
 MainGui.SetFont("s9 norm", "Segoe UI")
 
 ; Valdymo Mygtukai
-btnStart := MainGui.Add("Button", "x15 y235 w110 h32", "▶ Pradėti")
+btnStart := MainGui.Add("Button", "x15 y252 w110 h32", "▶ Pradėti")
 btnStart.SetFont("bold")
-btnOverlay := MainGui.Add("Button", "x135 y235 w110 h32", "🔲 Rėmelis")
-btnLogFile := MainGui.Add("Button", "x255 y235 w110 h32", "📁 Log Failas")
+btnOverlay := MainGui.Add("Button", "x135 y252 w110 h32", "🔲 Rėmelis")
+btnLogFile := MainGui.Add("Button", "x255 y252 w110 h32", "📁 Log Failas")
 
 ; Registruotų ID Sąrašas (ListView)
 MainGui.SetFont("bold")
-MainGui.Add("Text", "x15 y280 w200 c0x333333", "Pagautų ID Istorija:")
+MainGui.Add("Text", "x15 y297 w200 c0x333333", "Pagautų ID Istorija:")
 MainGui.SetFont("norm")
-lvHistory := MainGui.Add("ListView", "x15 y300 w350 h135 Grid", ["Laikas", "Appliance ID"])
+lvHistory := MainGui.Add("ListView", "x15 y317 w350 h135 Grid", ["Laikas", "Appliance ID"])
 lvHistory.ModifyCol(1, 140)
 lvHistory.ModifyCol(2, 190)
 
@@ -87,8 +91,12 @@ CreateOverlayWindow()
 ; Įkeliame esamo logo duomenis
 LoadExistingLog()
 
+; Periodinis log failo / tinklo pasiekiamumo tikrintuvas (kas 3 sek.)
+SetTimer(CheckLogConnectionStatus, 3000)
+CheckLogConnectionStatus()
+
 ; Parodome pagrindinį langą
-MainGui.Show("x100 y100 w380 h480")
+MainGui.Show("x100 y100 w380 h500")
 
 ; ==============================================================================
 ; LOG FAILO IR OVERLAY POS PERSISTENCE
@@ -541,8 +549,48 @@ AppendToLogFile(timestamp, id) {
     }
 }
 
+CheckLogConnectionStatus() {
+    global logFilePath, txtLogConnStatus
+    bufferFilePath := A_ScriptDir . "\id_buffer.txt"
+    isBufferPresent := FileExist(bufferFilePath)
+
+    ; Mėginame nuskaityti arba patikrinti failo pasiekiamumą
+    isAccessible := false
+    if (logFilePath != "") {
+        try {
+            ; Tikriname ar įmanoma atidaryti log failą skaitymui/rašymui
+            f := FileOpen(logFilePath, "a", "UTF-8")
+            if (IsObject(f)) {
+                isAccessible := true
+                f.Close()
+            }
+        } catch {
+            isAccessible := false
+        }
+    }
+
+    if (isAccessible) {
+        if (isBufferPresent) {
+            txtLogConnStatus.Text := "● Atsikūrė (Sinchronizuojama...)"
+            txtLogConnStatus.SetFont("c0x1976D2 bold")
+            FlushLocalBuffer()
+        } else {
+            txtLogConnStatus.Text := "● Pasiekiamas"
+            txtLogConnStatus.SetFont("c0x2E7D32 bold")
+        }
+    } else {
+        if (isBufferPresent) {
+            txtLogConnStatus.Text := "▲ Nepasiekiamas (Kaupiama)"
+            txtLogConnStatus.SetFont("c0xE67E22 bold")
+        } else {
+            txtLogConnStatus.Text := "✖ Nepasiekiamas / Offline"
+            txtLogConnStatus.SetFont("c0xC62828 bold")
+        }
+    }
+}
+
 FlushLocalBuffer() {
-    global logFilePath, sbStatus
+    global logFilePath, sbStatus, txtLogConnStatus
     bufferFilePath := A_ScriptDir . "\id_buffer.txt"
 
     if (!FileExist(bufferFilePath))
@@ -555,6 +603,8 @@ FlushLocalBuffer() {
             ; Sėkmingai perkelta į tinklą! Triname lokalų buferį
             try FileDelete(bufferFilePath)
             sbStatus.Text := " ✔️ Lokalaus buferio įrašai sėkmingai perkelti į tinklo logą!"
+            txtLogConnStatus.Text := "● Pasiekiamas"
+            txtLogConnStatus.SetFont("c0x2E7D32 bold")
         } else {
             try FileDelete(bufferFilePath)
         }
