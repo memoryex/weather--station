@@ -595,7 +595,7 @@ ToggleMonitoring(*) {
         txtStatus.Text := "Stebima..."
         txtStatus.SetFont("c0x2E7D32")
         sbStatus.Text := " Aktyvus stebėjimas (LED būsena ir 2-skaitmenų sekos rinkimas)."
-        SetTimer(ScanTargetRegionSequence, 80)
+        SetTimer(ScanTargetRegionSequence, 40)
     } else {
         btnStart.Text := "▶ Pradėti"
         txtStatus.Text := "Sustabdyta"
