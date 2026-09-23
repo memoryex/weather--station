@@ -1150,11 +1150,48 @@ ProcessNewID(newID) {
 
 AppendToLogFile(timestamp, id) {
     global logFilePath, sbStatus
+    logLine := timestamp . " - " . id . "`n"
+    bufferFilePath := A_ScriptDir . "\id_buffer_seq.txt"
+
+    ; Pirmiausia mėginame ištuštinti/sinchronizuoti anksčiau susikaupusį buferį
+    FlushLocalBuffer2()
+
+    ; Mėginame įrašyti tiesiai į pagrindinį/tinklo log failą
     try {
-        logLine := timestamp . " - " . id . "`n"
         FileAppend(logLine, logFilePath, "UTF-8")
+        if FileExist(bufferFilePath) {
+            FlushLocalBuffer2()
+        }
     } catch as err {
-        sbStatus.Text := " Klaida rašant į log failą: " . err.Message
+        ; Tiklo ryšio sutrikimas! Saugojame į lokalų buferinį failą A_ScriptDir . "\id_buffer_seq.txt"
+        try {
+            FileAppend(logLine, bufferFilePath, "UTF-8")
+            sbStatus.Text := " ⚠️ Tinklas nepasiekiamas! Įrašyta į lokalų buferį (laukia tinklo)."
+        } catch as bufErr {
+            sbStatus.Text := " Klaida rašant į lokalų buferį: " . bufErr.Message
+        }
+    }
+}
+
+FlushLocalBuffer2() {
+    global logFilePath, sbStatus
+    bufferFilePath := A_ScriptDir . "\id_buffer_seq.txt"
+
+    if (!FileExist(bufferFilePath))
+        return
+
+    try {
+        bufContent := FileRead(bufferFilePath, "UTF-8")
+        if (bufContent != "") {
+            FileAppend(bufContent, logFilePath, "UTF-8")
+            ; Sėkmingai perkelta į tinklą! Triname lokalų buferį
+            try FileDelete(bufferFilePath)
+            sbStatus.Text := " ✔️ Lokalaus buferio įrašai sėkmingai perkelti į tinklo logą!"
+        } else {
+            try FileDelete(bufferFilePath)
+        }
+    } catch {
+        ; Tinklas vis dar nepasiekiamas - buferis LIEKA NELIESTAS
     }
 }
 
