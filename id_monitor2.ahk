@@ -695,7 +695,7 @@ ScanTargetRegionSequence() {
         if (frameData.Has("native7Seg") && frameData["native7Seg"] != "") {
             detectedText := frameData["native7Seg"]
         }
-        ; Vykdome pagalbinį OCR tik jei atpažinta raudona šviesa
+        ; Isorinį Python serviso pakvietimą vykdome tik jei Native AHK 7-segment geometrija negrąžino rezultato
         if (detectedText == "" && frameData.Has("hasRed") && frameData["hasRed"]) {
             detectedText := RunNativeWinRTOCR(frameData["imagePath"])
         }
