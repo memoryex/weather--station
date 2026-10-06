@@ -525,23 +525,8 @@ ShowFileDetails(LV, RowNum) {
     }
 
     try {
-        fileContent := FileRead(filePath, "UTF-8")
+        Run('notepad.exe "' filePath '"')
     } catch Error as e {
-        MsgBox("Nepavyko nuskaityti failo:`n" e.Message, "Klaida", "Iconx")
-        return
+        MsgBox("Nepavyko atidaryti failo su Notepad:`n" e.Message, "Klaida", "Iconx")
     }
-
-    DetailGui := Gui("+Owner" MainGui.Hwnd "+Resize", "Log failo informacija: " LV.GetText(RowNum, 7))
-    DetailGui.SetFont("s9", "Segoe UI")
-
-    DetailGui.Add("Text", "x10 y10", "Pilnas kelias: " filePath)
-
-    editCtrl := DetailGui.Add("Edit", "x10 y35 w700 h450 ReadOnly +HScroll +VScroll", fileContent)
-    editCtrl.SetFont("s10", "Consolas")
-
-    btnClose := DetailGui.Add("Button", "x610 y495 w100 h30 Default", "Uždaryti")
-    btnClose.OnEvent("Click", (*) => DetailGui.Destroy())
-
-    DetailGui.OnEvent("Size", (guiObj, minMax, w, h) => (minMax != -1 ? editCtrl.Move(10, 35, w - 20, h - 80) : 0))
-    DetailGui.Show("w720 h535")
 }
