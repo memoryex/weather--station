@@ -1,13 +1,5 @@
 #Requires AutoHotkey v2.0
 
-; Automatiškai užtikriname Administratoriaus teises paleidžiant skaitliuką vieną kartą:
-if (!A_IsAdmin) {
-    try {
-        Run('*RunAs "' . A_ScriptFullPath . '"')
-    }
-    ExitApp()
-}
-
 CoordMode "Mouse", "Screen"
 CoordMode "ToolTip", "Screen"
 
@@ -46,7 +38,6 @@ Global CountdownAction := ""
 Global COM_PORT := "COM3"
 Global COM_BAUD := 9600
 Global Stebimas_Katalogas := A_Desktop
-Global Info_Katalogas := A_Desktop
 Global Passed_Katalogas := ""
 Global Failed_Katalogas := ""
 Global Remote_Server_Katalogas := "\\10.12.24.50\FGT\Tests\PLX1"
@@ -93,7 +84,6 @@ LoadSettings() {
     global
     COM_PORT := IniRead(IniFile, "Settings", "ComPort", "COM3")
     Stebimas_Katalogas := IniRead(IniFile, "Settings", "Folder", A_Desktop)
-    Info_Katalogas := IniRead(IniFile, "Settings", "InfoFolder", A_Desktop)
     Passed_Katalogas := IniRead(IniFile, "Settings", "PassedFolder", "")
     Failed_Katalogas := IniRead(IniFile, "Settings", "FailedFolder", "")
     Remote_Server_Katalogas := IniRead(IniFile, "Settings", "RemoteServerFolder", "\\10.12.24.50\FGT\Tests\PLX1")
@@ -302,7 +292,7 @@ DoDecrement() {
 ; SETTINGS GUI
 ; =======================================================
 ShowSettings(*) {
-    global SettingsGui, COM_PORT, Stebimas_Katalogas, Info_Katalogas, Selected_Line
+    global SettingsGui, COM_PORT, Stebimas_Katalogas, Selected_Line
 
     ; Slaptažodžio užklausa
     PwdGui := Gui("+AlwaysOnTop", "Saugumas")
@@ -326,10 +316,10 @@ ShowSettings(*) {
 }
 
 ShowInfo(*) {
-    global Info_Katalogas
+    global Stebimas_Katalogas
     total := 0
     oldest := ""
-    Loop Files, Info_Katalogas "\*.*" {
+    Loop Files, Stebimas_Katalogas "\*.*" {
         total++
         try {
             ctime := FileGetTime(A_LoopFileFullPath, "C")
@@ -338,11 +328,11 @@ ShowInfo(*) {
         }
     }
     dateStr := (oldest == "") ? "nėra failų" : FormatTime(oldest, "yyyy-MM-dd HH:MM:ss")
-    MsgBox("Viso gaminiu pagaminta (Info kataloge): " total "`nLinija paleista nuo: " dateStr, "Informacija", "Iconi")
+    MsgBox("Viso gaminiu pagaminta: " total "`nLinija paleista nuo: " dateStr, "Informacija", "Iconi")
 }
 
 OpenSettings() {
-    global SettingsGui, COM_PORT, Stebimas_Katalogas, Info_Katalogas, Passed_Katalogas, Failed_Katalogas, Remote_Server_Katalogas, Selected_Line, Start_X, Start_Y
+    global SettingsGui, COM_PORT, Stebimas_Katalogas, Passed_Katalogas, Failed_Katalogas, Remote_Server_Katalogas, Selected_Line, Start_X, Start_Y
     SettingsGui := Gui("+AlwaysOnTop", "Nustatymai")
     SettingsGui.Add("Text", , "COM Prievadas:")
     comPorts := GetAvailableComPorts()
@@ -360,10 +350,6 @@ OpenSettings() {
     SettingsGui.Add("Text", , "Stebimas gamybos katalogas:")
     folderEdit := SettingsGui.Add("Edit", "w300 vFolder", Stebimas_Katalogas)
     SettingsGui.Add("Button", "x+5 w30", "...").OnEvent("Click", (*) => (f := SelectFolder(Stebimas_Katalogas), f ? folderEdit.Value := f : 0))
-
-    SettingsGui.Add("Text", "xm", "Informacijos stebimas katalogas (mygtukui 'i'):")
-    infoFolderEdit := SettingsGui.Add("Edit", "w300 vInfoFolder", Info_Katalogas)
-    SettingsGui.Add("Button", "x+5 w30", "...").OnEvent("Click", (*) => (f := SelectFolder(Info_Katalogas), f ? infoFolderEdit.Value := f : 0))
 
     SettingsGui.Add("Text", "xm", "Stebimas 'Passed' katalogas:")
     passedFolderEdit := SettingsGui.Add("Edit", "w300 vPassedFolder", Passed_Katalogas)
@@ -398,17 +384,16 @@ OpenSettings() {
     ProcessSave(*) {
         RegExMatch(comChoice.Text, "COM\d+", &match)
         portName := match ? match[0] : "COM3"
-        SaveAndRestart(portName, folderEdit.Value, infoFolderEdit.Value, passedFolderEdit.Value, failedFolderEdit.Value, remoteFolderEdit.Value, lineChoice.Text, editX.Value, editY.Value)
+        SaveAndRestart(portName, folderEdit.Value, passedFolderEdit.Value, failedFolderEdit.Value, remoteFolderEdit.Value, lineChoice.Text, editX.Value, editY.Value)
     }
     SettingsGui.Show()
 }
 SelectFolder(defaultDir) {
     return DirSelect(defaultDir, 3, "Pasirinkite stebimą katalogą")
 }
-SaveAndRestart(c, f, inf, pas, fai, rem, l, x, y) {
+SaveAndRestart(c, f, pas, fai, rem, l, x, y) {
     IniWrite(c, IniFile, "Settings", "ComPort")
     IniWrite(f, IniFile, "Settings", "Folder")
-    IniWrite(inf, IniFile, "Settings", "InfoFolder")
     IniWrite(pas, IniFile, "Settings", "PassedFolder")
     IniWrite(fai, IniFile, "Settings", "FailedFolder")
     IniWrite(rem, IniFile, "Settings", "RemoteServerFolder")
@@ -538,61 +523,6 @@ ResetCountColor() {
     CountText.SetFont("cWhite")
 }
 
-RestartBluetooth() {
-    btGui := Gui("+AlwaysOnTop -Caption +ToolWindow", "Bluetooth Atstatymas")
-    btGui.BackColor := "Red"
-    btGui.SetFont("s16 bold cWhite", "Arial")
-    txtStatus := btGui.Add("Text", "w350 h60 Center", "`nPerkraunamas Bluetooth...")
-    btGui.Show("w350 h60")
-
-    try {
-        btPs := A_Temp "\reset_bt.ps1"
-        if FileExist(btPs)
-            FileDelete(btPs)
-
-        scriptLines := [
-            "$ConfirmPreference = 'None'",
-            "$ErrorActionPreference = 'SilentlyContinue'",
-            "Restart-Service bthserv -Force",
-            "$btDevs = Get-PnpDevice | Where-Object { $_.Class -eq 'Bluetooth' -or $_.FriendlyName -like '*Bluetooth*' }",
-            "foreach ($d in $btDevs) {",
-            "    Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force",
-            "    pnputil /disable-device `"$($d.InstanceId)`"",
-            "}",
-            "Start-Sleep -Seconds 2",
-            "$radioDevs = Get-PnpDevice | Where-Object { ($_.Class -eq 'Bluetooth' -or $_.FriendlyName -like '*Bluetooth*') -and ($_.InstanceId -like 'USB*' -or $_.FriendlyName -like '*Intel*' -or $_.FriendlyName -like '*Adapter*') }",
-            "foreach ($d in $radioDevs) {",
-            "    Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force",
-            "    pnputil /enable-device `"$($d.InstanceId)`"",
-            "}",
-            "Start-Sleep -Seconds 2",
-            "$allBt = Get-PnpDevice | Where-Object { $_.Class -eq 'Bluetooth' -or $_.FriendlyName -like '*Bluetooth*' }",
-            "foreach ($d in $allBt) {",
-            "    Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -Force",
-            "    pnputil /enable-device `"$($d.InstanceId)`"",
-            "}"
-        ]
-
-        psContent := ""
-        for line in scriptLines
-            psContent .= line . "`r`n"
-
-        FileAppend(psContent, btPs, "UTF-8")
-
-        if (A_IsAdmin) {
-            Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . btPs . '"', , "Hide")
-        } else {
-            Run('*RunAs powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . btPs . '"', , "Hide")
-        }
-        LogAppend(FormatTS() " Paleista Bluetooth adapterio atstatymo komanda (Admin: " . (A_IsAdmin ? "Taip" : "Ne") . ")")
-    } catch Error as e {
-        LogAppend(FormatTS() " Klaida atliekant Bluetooth reset: " . e.Message)
-    }
-
-    ; Pranešimo langas užgęsta greitai (po 1.5 s), kad neužlaikytų vartotojo
-    SetTimer (*) => (btGui.Destroy()), -1500
-}
-
 Nunulinti() {
     global NewFilesCount, CountText
     NewFilesCount := 0
@@ -600,7 +530,6 @@ Nunulinti() {
     TSQueueCount(0)
     SaveState()
     SoundBeep 700, 150
-    RestartBluetooth()
 }
 CheckExternalUpdate() {
     global TS_CHANNEL_ID, TS_READ_KEY, TS_FIELD_COUNT, NewFilesCount, TS_PENDING, TS_LAST_SEND_TS
