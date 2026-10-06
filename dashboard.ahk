@@ -396,38 +396,53 @@ OnGuiSize(guiObj, minMax, width, height) {
     lvResults.Move(10, 150, width - 20, height - 180)
 }
 
-; Extract Product Number from JSON content
-ExtractProductNumber(filePath) {
+; Parse Production ID, TimeStamp, and Test Result from JSON content
+ParseJsonLogInfo(filePath, &prodNum, &logTimeStr, &statusVal) {
     prodNum := ""
+    logTimeStr := ""
+    statusVal := ""
+
+    content := ""
     try {
-        ; Try reading first line first
-        fileObj := FileOpen(filePath, "r", "UTF-8")
-        if (fileObj) {
-            firstLine := Trim(fileObj.ReadLine())
-            fileObj.Close()
+        content := FileRead(filePath, "UTF-8")
+    } catch {
+        return
+    }
 
-            ; Sanitize and clean first line
-            cleaned := RegExReplace(firstLine, '[\{\}"\,\:\s]')
-            if (SubStr(cleaned, 1, 2) = "X-" || SubStr(cleaned, 1, 2) = "x-")
-                cleaned := SubStr(cleaned, 3)
+    if (content == "")
+        return
 
-            if (RegExMatch(cleaned, "\b\d{6,9}\b", &m)) {
-                prodNum := m[0]
-            }
+    ; 1. Production ID from JSON ("production_id": "82722105")
+    if (RegExMatch(content, 'i)"production_id"\s*:\s*"(?:X-)?([A-Za-z0-9]+)"', &mProd)) {
+        prodNum := mProd[1]
+    } else {
+        ; Fallback logic if production_id field is not present
+        firstLine := StrSplit(content, "`n")[1]
+        cleaned := RegExReplace(firstLine, '[\{\}"\,\:\s]')
+        if (SubStr(cleaned, 1, 2) = "X-" || SubStr(cleaned, 1, 2) = "x-")
+            cleaned := SubStr(cleaned, 3)
+        if (RegExMatch(cleaned, "\b\d{6,9}\b", &mFallback)) {
+            prodNum := mFallback[0]
+        } else if (RegExMatch(content, "(?:X-)?(\d{6,9})", &mFallback2)) {
+            prodNum := mFallback2[1]
         }
     }
 
-    ; Fallback: read full content if first line regex didn't yield clean number
-    if (prodNum == "") {
-        try {
-            content := FileRead(filePath, "UTF-8")
-            ; Look for "X-XXXXXX" or numeric product number in entire content
-            if (RegExMatch(content, "(?:X-)?(\d{6,9})", &m)) {
-                prodNum := m[1]
-            }
-        }
+    ; 2. Time Stamp from JSON ("time_stamp": "2026-09-25T08:05:51.117161")
+    if (RegExMatch(content, 'i)"time_stamp"\s*:\s*"(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2}):(\d{2})', &mTime)) {
+        logTimeStr := mTime[1] mTime[2] mTime[3] mTime[4] mTime[5] mTime[6]
     }
-    return prodNum
+
+    ; 3. Test Result from JSON ("test_result": "passed")
+    if (RegExMatch(content, 'i)"test_result"\s*:\s*"([^"]+)"', &mRes)) {
+        resRaw := StrLower(Trim(mRes[1]))
+        if InStr(resRaw, "pass")
+            statusVal := "Passed"
+        else if InStr(resRaw, "fail")
+            statusVal := "Failed"
+        else
+            statusVal := resRaw
+    }
 }
 
 PerformSearch(*) {
@@ -465,50 +480,67 @@ PerformSearch(*) {
         fileDir := A_LoopFileDir
         fileName := A_LoopFileName
 
-        ; File time check
-        fileTime := FileGetTime(filePath, "M")
-        if (fileTime < fromDateStr || fileTime > toDateStr)
+        prodNum := ""
+        logTimeStr := ""
+        statusVal := ""
+
+        ParseJsonLogInfo(filePath, &prodNum, &logTimeStr, &statusVal)
+
+        ; Fallback for timestamp if missing in JSON
+        if (logTimeStr == "") {
+            try fileTime := FileGetTime(filePath, "M")
+            catch
+                fileTime := A_Now
+            logTimeStr := fileTime
+        }
+
+        ; Fallback for status if missing in JSON
+        if (statusVal == "") {
+            if (InStr(fileDir, "\Passed") || SubStr(fileDir, -6) == "Passed" || InStr(fileDir, "Passed"))
+                statusVal := "Passed"
+            else if (InStr(fileDir, "\Failed") || SubStr(fileDir, -6) == "Failed" || InStr(fileDir, "Failed"))
+                statusVal := "Failed"
+            else
+                statusVal := "Nenurodyta"
+        }
+
+        ; File timestamp check from JSON
+        if (logTimeStr < fromDateStr || logTimeStr > toDateStr)
             continue
 
-        ; Status filter (Passed / Failed check in directory path)
-        isPassed := InStr(fileDir, "\Passed") || SubStr(fileDir, -6) == "Passed" || InStr(fileDir, "Passed")
-        isFailed := InStr(fileDir, "\Failed") || SubStr(fileDir, -6) == "Failed" || InStr(fileDir, "Failed")
-
-        if (selectedStatus == "Passed" && !isPassed)
+        ; Status filter check from JSON
+        if (selectedStatus == "Passed" && statusVal != "Passed")
             continue
-        if (selectedStatus == "Failed" && !isFailed)
+        if (selectedStatus == "Failed" && statusVal != "Failed")
             continue
 
         ; Catalog name filter
         if (catFilter != "" && !InStr(fileDir, catFilter))
             continue
 
-        ; Product number extraction
-        prodNum := ExtractProductNumber(filePath)
-
+        ; Product number extraction filter
         if (selectedProdNum != "" && prodNum != selectedProdNum)
             continue
 
         ; Product Name lookup
         prodName := ProductMap.Has(prodNum) ? ProductMap[prodNum] : "Nežinomas gaminys (" prodNum ")"
 
-        statusLabel := isPassed ? "Passed" : (isFailed ? "Failed" : "Nenurodyta")
-        if (isPassed)
+        if (statusVal == "Passed")
             passedCount++
-        else if (isFailed)
+        else if (statusVal == "Failed")
             failedCount++
 
         matchCount++
         ResultPaths.Push(filePath)
 
-        formattedTime := FormatTime(fileTime, "yyyy-MM-dd HH:mm:ss")
+        formattedTime := FormatTime(logTimeStr, "yyyy-MM-dd HH:mm:ss")
 
         ; Subfolder relative catalog name
         relCatalog := RegExReplace(fileDir, "^\Q" targetDir "\E\\?", "")
         if (relCatalog == "")
             relCatalog := "\"
 
-        lvResults.Add(, matchCount, formattedTime, prodNum, prodName, statusLabel, relCatalog, fileName)
+        lvResults.Add(, matchCount, formattedTime, prodNum, prodName, statusVal, relCatalog, fileName)
     }
 
     sbStatus.SetText("Paieška baigta. Rasta įrašų: " matchCount " (Passed: " passedCount ", Failed: " failedCount ")")
