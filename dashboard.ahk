@@ -407,7 +407,7 @@ ExtractProductNumber(filePath) {
             fileObj.Close()
 
             ; Sanitize and clean first line
-            cleaned := RegExReplace(firstLine, "[\{\}\""\,\:\s]")
+            cleaned := RegExReplace(firstLine, '[\{\}"\,\:\s]')
             if (SubStr(cleaned, 1, 2) = "X-" || SubStr(cleaned, 1, 2) = "x-")
                 cleaned := SubStr(cleaned, 3)
 
