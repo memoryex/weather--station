@@ -17,7 +17,7 @@ global ImagesDir  := A_ScriptDir . "\images"
 ; Parts[Code] -> {Code: "A1", Name: "Skersinis", TotalQty: 10, ImagePath: "...", PricePerHour: 0.50}
 global Parts := Map()
 
-; Orders[OrderID] -> {OrderID: "1001", Tenant: "Jonas", StartTS: "20231021...", Status: "Aktyvus", EndTS: "", TotalCost: 0.0, Items: Map(Code -> RentedQty)}
+; Orders[OrderID] -> {OrderID: "0", Tenant: "Jonas", StartTS: "20231021...", Status: "Aktyvus", EndTS: "", TotalCost: 0.0, Items: Map(Code -> RentedQty)}
 global Orders := Map()
 
 ; Globalūs UI valdymo objektai
@@ -25,6 +25,7 @@ global MainGui := ""
 global TabCtrl := ""
 
 ; Tab 1 Controls
+global grpNewRental1 := "", grpNewRental2 := ""
 global edtTenantName := ""
 global lvNewRentalParts := ""
 global edtRentalQty := ""
@@ -33,13 +34,16 @@ global txtPartInfo1 := ""
 global lblSelectedPart1 := ""
 global btnStartRental := ""
 global selectedPartCode1 := ""
+global lblRentalQtyTitle := "", btnSetQty := ""
 
 ; Tab 2 Controls
+global grpActive1 := ""
 global lvActiveOrders := ""
-global txtActiveTenant := ""
-global txtActiveStart := ""
-global txtActiveDuration := ""
-global txtActiveCost := ""
+global txtActiveTenantHeader := "", txtActiveTenant := ""
+global txtActiveStartHeader := "", txtActiveStart := ""
+global txtActiveDurationHeader := "", txtActiveDuration := ""
+global txtActiveCostHeader := "", txtActiveCost := ""
+global txtActiveItemsHeader := ""
 global lvActiveItems := ""
 global picPartPreview2 := ""
 global btnReturnAll := ""
@@ -47,15 +51,18 @@ global btnCompleteReturn := ""
 global selectedActiveOrderID := ""
 
 ; Tab 3 Controls (Settings)
+global grpSettings1 := ""
 global lvSettingsParts := ""
-global edtSetCode := ""
-global edtSetName := ""
-global edtSetTotalQty := ""
-global edtSetPricePerHour := ""
-global edtSetImagePath := ""
+global lblSetCode := "", edtSetCode := ""
+global lblSetName := "", edtSetName := ""
+global lblSetQty := "", edtSetTotalQty := ""
+global lblSetPrice := "", edtSetPricePerHour := ""
+global lblSetImg := "", edtSetImagePath := "", btnBrowseImg := ""
 global picPartPreview3 := ""
+global btnAddPart := "", btnDeletePart := ""
 
 ; Tab 4 Controls (History)
+global grpHistory1 := ""
 global lvHistoryOrders := ""
 global lvHistoryItems := ""
 global txtHistoryTotalCost := ""
@@ -232,20 +239,20 @@ GetAvailableQty(code) {
 
 
 ; ==============================================================================
-; GUI SĄSAJOS KŪRIMAS
+; GUI SĄSAJOS KŪRIMAS IR AUTORESIZE LOGIKA
 ; ==============================================================================
 
 CreateMainGUI() {
     global MainGui, TabCtrl
-    global edtTenantName, lvNewRentalParts, edtRentalQty, picPartPreview1, txtPartInfo1, lblSelectedPart1, btnStartRental
-    global lvActiveOrders, txtActiveTenant, txtActiveStart, txtActiveDuration, txtActiveCost, lvActiveItems, picPartPreview2, btnReturnAll, btnCompleteReturn
-    global lvSettingsParts, edtSetCode, edtSetName, edtSetTotalQty, edtSetPricePerHour, edtSetImagePath, picPartPreview3
-    global lvHistoryOrders, lvHistoryItems, txtHistoryTotalCost
+    global edtTenantName, lvNewRentalParts, edtRentalQty, picPartPreview1, txtPartInfo1, lblSelectedPart1, btnStartRental, grpNewRental2, lblRentalQtyTitle, btnSetQty
+    global lvActiveOrders, txtActiveTenantHeader, txtActiveTenant, txtActiveStartHeader, txtActiveStart, txtActiveDurationHeader, txtActiveDuration, txtActiveCostHeader, txtActiveCost, txtActiveItemsHeader, lvActiveItems, picPartPreview2, btnReturnAll, btnCompleteReturn, grpActive1
+    global lvSettingsParts, grpSettings1, lblSetCode, edtSetCode, lblSetName, edtSetName, lblSetQty, edtSetTotalQty, lblSetPrice, edtSetPricePerHour, lblSetImg, edtSetImagePath, btnBrowseImg, picPartPreview3, btnAddPart, btnDeletePart
+    global lvHistoryOrders, lvHistoryItems, txtHistoryTotalCost, grpHistory1
 
-    MainGui := Gui("+Resize +MinSize920x660", "Priekabų ir Pastolių Nuomos Valdymas v1.2")
+    MainGui := Gui("+Resize +MinSize920x660", "Priekabų ir Pastolių Nuomos Valdymas v1.3")
     MainGui.SetFont("s10", "Segoe UI")
 
-    TabCtrl := MainGui.Add("Tab3", "x10 y10 w950 h640", ["Nauja Nuoma", "Aktyvios Nuomos ir Grąžinimas", "Detalių Nustatymai", "Užsakymų Istorija"])
+    TabCtrl := MainGui.Add("Tab3", "x10 y10 w950 h640", ["Nauja Nuoma", "Aktyvios Nuomos ir Grąžinimas", "Detalių Nustatymai", "UžsakymŲ Istorija"])
 
     ; --------------------------------------------------------------------------
     ; TAB 1: NAUJA NUOMA
@@ -263,22 +270,22 @@ CreateMainGUI() {
     MainGui.Add("Text", "x30 y120", "2. Detalių ir priekabų išsirinkimas nuomai:")
     MainGui.SetFont("s10 norm")
 
-    ; Detalių ListView lentelė su Tarifo stulpeliu
-    lvNewRentalParts := MainGui.Add("ListView", "x30 y150 w570 h380 +Grid -Multi", ["Lipdukas", "Pavadinimas", "Tarifas (€/val)", "Laisva Nuomai", "Imama Qty"])
+    ; Detalių ListView lentelė (Pervadinta "Lipdukas" -> "Numeris", "Imama Qty" -> "Įmama vnt.")
+    lvNewRentalParts := MainGui.Add("ListView", "x30 y150 w570 h380 +Grid -Multi", ["Numeris", "Pavadinimas", "Tarifas (€/val)", "Laisva Nuomai", "Įmama vnt."])
     lvNewRentalParts.ModifyCol(1, 80)
     lvNewRentalParts.ModifyCol(2, 220)
     lvNewRentalParts.ModifyCol(3, 100)
     lvNewRentalParts.ModifyCol(4, 90)
-    lvNewRentalParts.ModifyCol(5, 75)
+    lvNewRentalParts.ModifyCol(5, 80)
     lvNewRentalParts.OnEvent("ItemSelect", OnNewRentalPartSelect)
 
     ; Dešinė pusė: Detalės kiekio įvedimas ir nuotraukos peržiūra
-    MainGui.Add("GroupBox", "x620 y140 w310 h390", "Detalės Peržiūra & Kiekis")
+    grpNewRental2 := MainGui.Add("GroupBox", "x620 y140 w310 h390", "Detalės Peržiūra & Kiekis")
 
     lblSelectedPart1 := MainGui.Add("Text", "x635 y165 w280 h40", "Pasirinkite detalę iš sąrašo kairėje")
     lblSelectedPart1.SetFont("s10 bold")
 
-    MainGui.Add("Text", "x635 y215", "Pasirenkamas kiekis:")
+    lblRentalQtyTitle := MainGui.Add("Text", "x635 y215", "Pasirenkamas kiekis:")
     edtRentalQty := MainGui.Add("Edit", "x755 y212 w70 h26 Number", "0")
     btnSetQty := MainGui.Add("Button", "x833 y211 w80 h28", "Nustatyti")
     btnSetQty.OnEvent("Click", OnSetRentalQtyClick)
@@ -310,27 +317,27 @@ CreateMainGUI() {
     lvActiveOrders.OnEvent("ItemSelect", OnActiveOrderSelect)
 
     ; Dešinė pusė: Užsakymo detalės ir grąžinimo valdymas
-    MainGui.Add("GroupBox", "x480 y70 w450 h490", "Užsakymo Skaičiavimas ir Grąžinimas")
+    grpActive1 := MainGui.Add("GroupBox", "x480 y70 w450 h490", "Užsakymo Skaičiavimas ir Grąžinimas")
 
-    MainGui.Add("Text", "x495 y95", "Nuomininkas:")
+    txtActiveTenantHeader := MainGui.Add("Text", "x495 y95", "Nuomininkas:")
     txtActiveTenant := MainGui.Add("Text", "x600 y95 w310 h22", "-")
     txtActiveTenant.SetFont("s10 bold")
 
-    MainGui.Add("Text", "x495 y120", "Pradžios laikas:")
+    txtActiveStartHeader := MainGui.Add("Text", "x495 y120", "Pradžios laikas:")
     txtActiveStart := MainGui.Add("Text", "x600 y120 w310 h22", "-")
 
-    MainGui.Add("Text", "x495 y145", "Prabėgęs laikas:")
+    txtActiveDurationHeader := MainGui.Add("Text", "x495 y145", "Prabėgęs laikas:")
     txtActiveDuration := MainGui.Add("Text", "x600 y145 w310 h22", "0 d. 00:00:00")
     txtActiveDuration.SetFont("s10 bold cRed")
 
-    MainGui.Add("Text", "x495 y170", "Suma (minučių tikslumu):")
+    txtActiveCostHeader := MainGui.Add("Text", "x495 y170", "Suma (minučių tikslumu):")
     txtActiveCost := MainGui.Add("Text", "x660 y170 w250 h22", "0.00 €")
     txtActiveCost.SetFont("s11 bold cGreen")
 
-    MainGui.Add("Text", "x495 y200", "Paimtos detalės ir tarifai:")
-    lvActiveItems := MainGui.Add("ListView", "x495 y225 w420 h175 +Grid -Multi", ["Kodas", "Pavadinimas", "Tarifas", "Paimta", "Grąžinama"])
-    lvActiveItems.ModifyCol(1, 55)
-    lvActiveItems.ModifyCol(2, 175)
+    txtActiveItemsHeader := MainGui.Add("Text", "x495 y200", "Paimtos detalės ir tarifai:")
+    lvActiveItems := MainGui.Add("ListView", "x495 y225 w420 h175 +Grid -Multi", ["Numeris", "Pavadinimas", "Tarifas", "Paimta", "Grąžinama"])
+    lvActiveItems.ModifyCol(1, 65)
+    lvActiveItems.ModifyCol(2, 165)
     lvActiveItems.ModifyCol(3, 70)
     lvActiveItems.ModifyCol(4, 55)
     lvActiveItems.ModifyCol(5, 60)
@@ -352,7 +359,7 @@ CreateMainGUI() {
     MainGui.Add("Text", "x30 y50", "Pastolių Detalių ir Priekabų Katalogas (Nustatymai):")
     MainGui.SetFont("s10 norm")
 
-    lvSettingsParts := MainGui.Add("ListView", "x30 y80 w470 h480 +Grid -Multi", ["Kodas/Lipdukas", "Pavadinimas", "Kiekis", "Tarifas (€/val)", "Foto"])
+    lvSettingsParts := MainGui.Add("ListView", "x30 y80 w470 h480 +Grid -Multi", ["Numeris", "Pavadinimas", "Kiekis", "Tarifas (€/val)", "Foto"])
     lvSettingsParts.ModifyCol(1, 90)
     lvSettingsParts.ModifyCol(2, 180)
     lvSettingsParts.ModifyCol(3, 55)
@@ -361,21 +368,21 @@ CreateMainGUI() {
     lvSettingsParts.OnEvent("ItemSelect", OnSettingsPartSelect)
 
     ; Forma dešinėje
-    MainGui.Add("GroupBox", "x520 y70 w410 h490", "Redaguoti / Pridėti Detalę")
+    grpSettings1 := MainGui.Add("GroupBox", "x520 y70 w410 h490", "Redaguoti / Pridėti Detalę")
 
-    MainGui.Add("Text", "x540 y100", "Lipduko Kodas (pvz. A1/P1):")
+    lblSetCode := MainGui.Add("Text", "x540 y100", "Numeris (pvz. A1/P1):")
     edtSetCode := MainGui.Add("Edit", "x700 y97 w210 h26")
 
-    MainGui.Add("Text", "x540 y140", "Pavadinimas:")
+    lblSetName := MainGui.Add("Text", "x540 y140", "Pavadinimas:")
     edtSetName := MainGui.Add("Edit", "x700 y137 w210 h26")
 
-    MainGui.Add("Text", "x540 y180", "Visas Kiekis (Vnt):")
+    lblSetQty := MainGui.Add("Text", "x540 y180", "Visas Kiekis (Vnt):")
     edtSetTotalQty := MainGui.Add("Edit", "x700 y177 w100 h26 Number", "10")
 
-    MainGui.Add("Text", "x540 y220", "Tarifas (EUR / val.):")
+    lblSetPrice := MainGui.Add("Text", "x540 y220", "Tarifas (EUR / val.):")
     edtSetPricePerHour := MainGui.Add("Edit", "x700 y217 w100 h26", "0.50")
 
-    MainGui.Add("Text", "x540 y260", "Nuotraukos failas:")
+    lblSetImg := MainGui.Add("Text", "x540 y260", "Nuotraukos failas:")
     edtSetImagePath := MainGui.Add("Edit", "x540 y285 w280 h26")
     btnBrowseImg := MainGui.Add("Button", "x828 y284 w82 h28", "Naršyti...")
     btnBrowseImg.OnEvent("Click", OnBrowseImageClick)
@@ -407,10 +414,10 @@ CreateMainGUI() {
     lvHistoryOrders.ModifyCol(5, 80)
     lvHistoryOrders.OnEvent("ItemSelect", OnHistoryOrderSelect)
 
-    MainGui.Add("GroupBox", "x570 y70 w360 h490", "Užsakymo Detalizacija")
-    lvHistoryItems := MainGui.Add("ListView", "x585 y100 w330 h390 +Grid", ["Kodas", "Pavadinimas", "Kiekis", "Tarifas (€/val)"])
-    lvHistoryItems.ModifyCol(1, 55)
-    lvHistoryItems.ModifyCol(2, 150)
+    grpHistory1 := MainGui.Add("GroupBox", "x570 y70 w360 h490", "Užsakymo Detalizacija")
+    lvHistoryItems := MainGui.Add("ListView", "x585 y100 w330 h390 +Grid", ["Numeris", "Pavadinimas", "Kiekis", "Tarifas (€/val)"])
+    lvHistoryItems.ModifyCol(1, 65)
+    lvHistoryItems.ModifyCol(2, 140)
     lvHistoryItems.ModifyCol(3, 50)
     lvHistoryItems.ModifyCol(4, 75)
 
@@ -425,8 +432,127 @@ CreateMainGUI() {
     RefreshSettingsLV()
     RefreshHistoryLV()
 
+    MainGui.OnEvent("Size", OnMainGuiSize)
     MainGui.OnEvent("Close", (*) => ExitApp())
     MainGui.Show("w970 h670")
+}
+
+
+; ==============================================================================
+; DINAMINIS LANGŲ IR VALDIKLIŲ DYDŽIO KEITIMAS (RESIZE)
+; ==============================================================================
+
+OnMainGuiSize(guiObj, minMax, guiW, guiH) {
+    if (minMax = -1) ; Minimized
+        return
+
+    ; Pagrindinis TabCtrl apima visą langą
+    tabW := guiW - 20
+    tabH := guiH - 20
+    TabCtrl.Move(10, 10, tabW, tabH)
+
+    ; Vertikalios ribos ir aukščiai
+    availH := tabH - 100
+
+    ; --- TAB 1 REPOSITION & RESIZE ---
+    leftW1 := Integer((tabW - 60) * 0.65)
+    rightW1 := tabW - 60 - leftW1
+
+    lvNewRentalParts.Move(30, 150, leftW1, availH - 70)
+    btnStartRental.Move(30, 150 + availH - 60, leftW1, 50)
+
+    rightX1 := 40 + leftW1
+    grpNewRental2.Move(rightX1, 140, rightW1, availH)
+    lblSelectedPart1.Move(rightX1 + 15, 165, rightW1 - 30, 40)
+    lblRentalQtyTitle.Move(rightX1 + 15, 215, 130, 25)
+    edtRentalQty.Move(rightX1 + 150, 212, 70, 26)
+    btnSetQty.Move(rightX1 + 225, 211, rightW1 - 240, 28)
+
+    picH1 := availH - 180
+    if (picH1 < 100)
+        picH1 := 100
+    picPartPreview1.Move(rightX1 + 15, 255, rightW1 - 30, picH1)
+    txtPartInfo1.Move(rightX1 + 15, 260 + picH1, rightW1 - 30, 50)
+
+    ; --- TAB 2 REPOSITION & RESIZE ---
+    leftW2 := Integer((tabW - 60) * 0.48)
+    rightW2 := tabW - 60 - leftW2
+
+    lvActiveOrders.Move(30, 80, leftW2, availH + 20)
+
+    rightX2 := 40 + leftW2
+    grpActive1.Move(rightX2, 70, rightW2, availH + 30)
+
+    txtActiveTenantHeader.Move(rightX2 + 15, 95, 100, 22)
+    txtActiveTenant.Move(rightX2 + 120, 95, rightW2 - 135, 22)
+
+    txtActiveStartHeader.Move(rightX2 + 15, 120, 100, 22)
+    txtActiveStart.Move(rightX2 + 120, 120, rightW2 - 135, 22)
+
+    txtActiveDurationHeader.Move(rightX2 + 15, 145, 100, 22)
+    txtActiveDuration.Move(rightX2 + 120, 145, rightW2 - 135, 22)
+
+    txtActiveCostHeader.Move(rightX2 + 15, 170, 160, 22)
+    txtActiveCost.Move(rightX2 + 180, 170, rightW2 - 195, 22)
+
+    txtActiveItemsHeader.Move(rightX2 + 15, 200, rightW2 - 30, 22)
+
+    itemsH2 := availH - 240
+    if (itemsH2 < 100)
+        itemsH2 := 100
+    lvActiveItems.Move(rightX2 + 15, 225, rightW2 - 30, itemsH2)
+
+    btnReturnAll.Move(rightX2 + 15, 235 + itemsH2, Integer((rightW2 - 30) * 0.5), 30)
+    btnCompleteReturn.Move(rightX2 + 15, 275 + itemsH2, rightW2 - 30, 45)
+
+    ; --- TAB 3 REPOSITION & RESIZE ---
+    leftW3 := Integer((tabW - 60) * 0.52)
+    rightW3 := tabW - 60 - leftW3
+
+    lvSettingsParts.Move(30, 80, leftW3, availH + 20)
+
+    rightX3 := 40 + leftW3
+    grpSettings1.Move(rightX3, 70, rightW3, availH + 30)
+
+    lblSetCode.Move(rightX3 + 15, 100, 160, 22)
+    edtSetCode.Move(rightX3 + 180, 97, rightW3 - 195, 26)
+
+    lblSetName.Move(rightX3 + 15, 140, 160, 22)
+    edtSetName.Move(rightX3 + 180, 137, rightW3 - 195, 26)
+
+    lblSetQty.Move(rightX3 + 15, 180, 160, 22)
+    edtSetTotalQty.Move(rightX3 + 180, 177, 100, 26)
+
+    lblSetPrice.Move(rightX3 + 15, 220, 160, 22)
+    edtSetPricePerHour.Move(rightX3 + 180, 217, 100, 26)
+
+    lblSetImg.Move(rightX3 + 15, 260, rightW3 - 30, 22)
+    edtSetImagePath.Move(rightX3 + 15, 285, rightW3 - 110, 26)
+    btnBrowseImg.Move(rightX3 + rightW3 - 90, 284, 75, 28)
+
+    picH3 := availH - 280
+    if (picH3 < 100)
+        picH3 := 100
+    picPartPreview3.Move(rightX3 + 15, 325, rightW3 - 30, picH3)
+
+    btnW3 := Integer((rightW3 - 40) / 2)
+    btnAddPart.Move(rightX3 + 15, 335 + picH3, btnW3, 35)
+    btnDeletePart.Move(rightX3 + 25 + btnW3, 335 + picH3, btnW3, 35)
+
+    ; --- TAB 4 REPOSITION & RESIZE ---
+    leftW4 := Integer((tabW - 60) * 0.55)
+    rightW4 := tabW - 60 - leftW4
+
+    lvHistoryOrders.Move(30, 80, leftW4, availH + 20)
+
+    rightX4 := 40 + leftW4
+    grpHistory1.Move(rightX4, 70, rightW4, availH + 30)
+
+    itemsH4 := availH - 50
+    if (itemsH4 < 100)
+        itemsH4 := 100
+    lvHistoryItems.Move(rightX4 + 15, 100, rightW4 - 30, itemsH4)
+    txtHistoryTotalCost.Move(rightX4 + 15, 110 + itemsH4, rightW4 - 30, 30)
 }
 
 
@@ -524,7 +650,8 @@ OnStartRentalClick(guiCtrl, info) {
         return
     }
 
-    maxID := 1000
+    ; ID skaičiuojamas nuo 0 (pvz. 0, 1, 2...)
+    maxID := -1
     for ordID, ordObj in Orders {
         if IsNumber(ordID) && Integer(ordID) > maxID
             maxID := Integer(ordID)
@@ -859,7 +986,6 @@ CalculateRentalCost(startTS, endTS, itemsMap) {
     if (secDiff < 0)
         secDiff := 0
 
-    ; Skaičiuojama minučių tikslumu (sekundės verčiamos į dalinę minutę arba minutes)
     minutes := secDiff / 60.0
     hours := minutes / 60.0
 
