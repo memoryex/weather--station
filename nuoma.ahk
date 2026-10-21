@@ -451,37 +451,40 @@ OnMainGuiSize(guiObj, minMax, guiW, guiH) {
     tabH := guiH - 20
     TabCtrl.Move(10, 10, tabW, tabH)
 
-    ; Vertikalios ribos ir aukščiai
-    availH := tabH - 100
-
     ; --- TAB 1 REPOSITION & RESIZE ---
     leftW1 := Integer((tabW - 60) * 0.65)
     rightW1 := tabW - 60 - leftW1
 
-    lvNewRentalParts.Move(30, 150, leftW1, availH - 70)
-    btnStartRental.Move(30, 150 + availH - 60, leftW1, 50)
+    lvH1 := tabH - 220
+    if (lvH1 < 100)
+        lvH1 := 100
+    lvNewRentalParts.Move(30, 150, leftW1, lvH1)
+    btnStartRental.Move(30, tabH - 60, leftW1, 50)
 
     rightX1 := 40 + leftW1
-    grpNewRental2.Move(rightX1, 140, rightW1, availH)
+    grpNewRental2.Move(rightX1, 140, rightW1, tabH - 150)
     lblSelectedPart1.Move(rightX1 + 15, 165, rightW1 - 30, 40)
     lblRentalQtyTitle.Move(rightX1 + 15, 215, 130, 25)
     edtRentalQty.Move(rightX1 + 150, 212, 70, 26)
     btnSetQty.Move(rightX1 + 225, 211, rightW1 - 240, 28)
 
-    picH1 := availH - 180
+    picH1 := tabH - 320
     if (picH1 < 100)
         picH1 := 100
     picPartPreview1.Move(rightX1 + 15, 255, rightW1 - 30, picH1)
-    txtPartInfo1.Move(rightX1 + 15, 260 + picH1, rightW1 - 30, 50)
+    txtPartInfo1.Move(rightX1 + 15, tabH - 60, rightW1 - 30, 50)
 
     ; --- TAB 2 REPOSITION & RESIZE ---
     leftW2 := Integer((tabW - 60) * 0.48)
     rightW2 := tabW - 60 - leftW2
 
-    lvActiveOrders.Move(30, 80, leftW2, availH + 20)
+    lvH2 := tabH - 95
+    if (lvH2 < 100)
+        lvH2 := 100
+    lvActiveOrders.Move(30, 80, leftW2, lvH2)
 
     rightX2 := 40 + leftW2
-    grpActive1.Move(rightX2, 70, rightW2, availH + 30)
+    grpActive1.Move(rightX2, 70, rightW2, tabH - 85)
 
     txtActiveTenantHeader.Move(rightX2 + 15, 95, 100, 22)
     txtActiveTenant.Move(rightX2 + 120, 95, rightW2 - 135, 22)
@@ -497,22 +500,25 @@ OnMainGuiSize(guiObj, minMax, guiW, guiH) {
 
     txtActiveItemsHeader.Move(rightX2 + 15, 200, rightW2 - 30, 22)
 
-    itemsH2 := availH - 240
-    if (itemsH2 < 100)
-        itemsH2 := 100
+    itemsH2 := tabH - 330
+    if (itemsH2 < 80)
+        itemsH2 := 80
     lvActiveItems.Move(rightX2 + 15, 225, rightW2 - 30, itemsH2)
 
-    btnReturnAll.Move(rightX2 + 15, 235 + itemsH2, Integer((rightW2 - 30) * 0.5), 30)
-    btnCompleteReturn.Move(rightX2 + 15, 275 + itemsH2, rightW2 - 30, 45)
+    btnReturnAll.Move(rightX2 + 15, tabH - 98, Integer((rightW2 - 30) * 0.5), 32)
+    btnCompleteReturn.Move(rightX2 + 15, tabH - 60, rightW2 - 30, 45)
 
     ; --- TAB 3 REPOSITION & RESIZE ---
     leftW3 := Integer((tabW - 60) * 0.52)
     rightW3 := tabW - 60 - leftW3
 
-    lvSettingsParts.Move(30, 80, leftW3, availH + 20)
+    lvH3 := tabH - 95
+    if (lvH3 < 100)
+        lvH3 := 100
+    lvSettingsParts.Move(30, 80, leftW3, lvH3)
 
     rightX3 := 40 + leftW3
-    grpSettings1.Move(rightX3, 70, rightW3, availH + 30)
+    grpSettings1.Move(rightX3, 70, rightW3, tabH - 85)
 
     lblSetCode.Move(rightX3 + 15, 100, 160, 22)
     edtSetCode.Move(rightX3 + 180, 97, rightW3 - 195, 26)
@@ -530,29 +536,32 @@ OnMainGuiSize(guiObj, minMax, guiW, guiH) {
     edtSetImagePath.Move(rightX3 + 15, 285, rightW3 - 110, 26)
     btnBrowseImg.Move(rightX3 + rightW3 - 90, 284, 75, 28)
 
-    picH3 := availH - 280
-    if (picH3 < 100)
-        picH3 := 100
+    picH3 := tabH - 385
+    if (picH3 < 80)
+        picH3 := 80
     picPartPreview3.Move(rightX3 + 15, 325, rightW3 - 30, picH3)
 
     btnW3 := Integer((rightW3 - 40) / 2)
-    btnAddPart.Move(rightX3 + 15, 335 + picH3, btnW3, 35)
-    btnDeletePart.Move(rightX3 + 25 + btnW3, 335 + picH3, btnW3, 35)
+    btnAddPart.Move(rightX3 + 15, tabH - 55, btnW3, 35)
+    btnDeletePart.Move(rightX3 + 25 + btnW3, tabH - 55, btnW3, 35)
 
     ; --- TAB 4 REPOSITION & RESIZE ---
     leftW4 := Integer((tabW - 60) * 0.55)
     rightW4 := tabW - 60 - leftW4
 
-    lvHistoryOrders.Move(30, 80, leftW4, availH + 20)
+    lvH4 := tabH - 95
+    if (lvH4 < 100)
+        lvH4 := 100
+    lvHistoryOrders.Move(30, 80, leftW4, lvH4)
 
     rightX4 := 40 + leftW4
-    grpHistory1.Move(rightX4, 70, rightW4, availH + 30)
+    grpHistory1.Move(rightX4, 70, rightW4, tabH - 85)
 
-    itemsH4 := availH - 50
+    itemsH4 := tabH - 150
     if (itemsH4 < 100)
         itemsH4 := 100
     lvHistoryItems.Move(rightX4 + 15, 100, rightW4 - 30, itemsH4)
-    txtHistoryTotalCost.Move(rightX4 + 15, 110 + itemsH4, rightW4 - 30, 30)
+    txtHistoryTotalCost.Move(rightX4 + 15, tabH - 45, rightW4 - 30, 30)
 }
 
 
