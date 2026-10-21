@@ -66,6 +66,7 @@ global grpHistory1 := ""
 global lvHistoryOrders := ""
 global lvHistoryItems := ""
 global txtHistoryTotalCost := ""
+global btnExportHistory := ""
 
 ; Pasiruošimas direktorijoms ir duomenims
 InitDirectories()
@@ -252,7 +253,7 @@ CreateMainGUI() {
     MainGui := Gui("+Resize +MinSize920x660", "Priekabų ir Pastolių Nuomos Valdymas v1.3")
     MainGui.SetFont("s10", "Segoe UI")
 
-    TabCtrl := MainGui.Add("Tab3", "x10 y10 w950 h640", ["Nauja Nuoma", "Aktyvios Nuomos ir Grąžinimas", "Detalių Nustatymai", "UžsakymŲ Istorija"])
+    TabCtrl := MainGui.Add("Tab3", "x10 y10 w950 h640", ["Nauja Nuoma", "Aktyvios Nuomos ir Grąžinimas", "Detalių Nustatymai", "Užsakymų Istorija"])
 
     ; --------------------------------------------------------------------------
     ; TAB 1: NAUJA NUOMA
@@ -406,13 +407,17 @@ CreateMainGUI() {
     MainGui.Add("Text", "x30 y50", "Užbaigtų Nuomų Istorija ir Įplaukos:")
     MainGui.SetFont("s10 norm")
 
-    lvHistoryOrders := MainGui.Add("ListView", "x30 y80 w520 h480 +Grid -Multi", ["ID", "Nuomininkas", "Pradžia", "Pabaiga", "Viso (€)"])
+    lvHistoryOrders := MainGui.Add("ListView", "x30 y80 w520 h440 +Grid -Multi", ["ID", "Nuomininkas", "Pradžia", "Pabaiga", "Viso (€)"])
     lvHistoryOrders.ModifyCol(1, 45)
     lvHistoryOrders.ModifyCol(2, 150)
     lvHistoryOrders.ModifyCol(3, 115)
     lvHistoryOrders.ModifyCol(4, 115)
     lvHistoryOrders.ModifyCol(5, 80)
     lvHistoryOrders.OnEvent("ItemSelect", OnHistoryOrderSelect)
+
+    btnExportHistory := MainGui.Add("Button", "x30 y530 w520 h40", "Eksportuoti Istoriją į Excel (.xlsx / .csv)...")
+    btnExportHistory.SetFont("s10 bold")
+    btnExportHistory.OnEvent("Click", ExportHistoryToExcel)
 
     grpHistory1 := MainGui.Add("GroupBox", "x570 y70 w360 h490", "Užsakymo Detalizacija")
     lvHistoryItems := MainGui.Add("ListView", "x585 y100 w330 h390 +Grid", ["Numeris", "Pavadinimas", "Kiekis", "Tarifas (€/val)"])
@@ -549,10 +554,11 @@ OnMainGuiSize(guiObj, minMax, guiW, guiH) {
     leftW4 := Integer((tabW - 60) * 0.55)
     rightW4 := tabW - 60 - leftW4
 
-    lvH4 := tabH - 95
+    lvH4 := tabH - 145
     if (lvH4 < 100)
         lvH4 := 100
     lvHistoryOrders.Move(30, 80, leftW4, lvH4)
+    btnExportHistory.Move(30, tabH - 55, leftW4, 40)
 
     rightX4 := 40 + leftW4
     grpHistory1.Move(rightX4, 70, rightW4, tabH - 85)
@@ -948,6 +954,74 @@ OnHistoryOrderSelect(guiCtrl, itemIndex, selected) {
     }
 
     txtHistoryTotalCost.Text := "Gauta nuomos suma: " . Format("{:.2f} EUR", ord.TotalCost)
+}
+
+ExportHistoryToExcel(guiCtrl, info) {
+    global Orders, Parts
+
+    completedOrders := []
+    for ordID, ord in Orders {
+        if (ord.Status = "Grąžintas") {
+            completedOrders.Push(ord)
+        }
+    }
+
+    if (completedOrders.Length = 0) {
+        MsgBox("Nėra užbaigtų užsakymų istorijos eksportavimui!", "Dėmesio", "48")
+        return
+    }
+
+    defaultFileName := "Uzsakymu_Istorija_" . FormatTime(A_Now, "yyyyMMdd_HHmmss") . ".csv"
+    savePath := FileSelect(16, defaultFileName, "Išsaugoti užsakymų istoriją", "Excel CSV failas (*.csv);;Tekstinis failas (*.txt)")
+    if (savePath = "")
+        return
+
+    if (!InStr(savePath, "."))
+        savePath .= ".csv"
+
+    csvContent := "Užsakymo ID;Nuomininkas;Pradžios Laikas;Pabaigos Laikas;Trukmė;Paimtos Detalės;Viso Suma (€)`n"
+
+    for ord in completedOrders {
+        fStart := FormatTimestamp(ord.StartTS)
+        fEnd   := FormatTimestamp(ord.EndTS)
+        durStr := CalculateDuration(ord.StartTS, ord.EndTS)
+
+        itemsStr := ""
+        for code, qty in ord.Items {
+            pName := Parts.Has(code) ? Parts[code].Name : code
+            itemsStr .= (itemsStr = "" ? "" : ", ") . pName . " (" . code . "): " . qty . " vnt."
+        }
+
+        rowStr := ord.OrderID . ";"
+        rowStr .= '"' . StrReplace(ord.Tenant, '"', '""') . '";'
+        rowStr .= '"' . fStart . '";'
+        rowStr .= '"' . fEnd . '";'
+        rowStr .= '"' . durStr . '";'
+        rowStr .= '"' . StrReplace(itemsStr, '"', '""') . '";'
+        rowStr .= '"' . Format("{:.2f}", ord.TotalCost) . '"`n'
+
+        csvContent .= rowStr
+    }
+
+    try {
+        if FileExist(savePath)
+            FileDelete(savePath)
+
+        fileObj := FileOpen(savePath, "w", "UTF-8")
+        if fileObj {
+            fileObj.Write(csvContent)
+            fileObj.Close()
+
+            res := MsgBox("Istorija sėkmingai eksportuota į failą:`n" . savePath . "`n`nAr norite atidaryti šį failą?", "Eksportas Baigtas", "36")
+            if (res = "Yes") {
+                Run(savePath)
+            }
+        } else {
+            MsgBox("Nepavyko atidaryti failo įrašymui!", "Klaida", "48")
+        }
+    } catch err {
+        MsgBox("Įvyko klaida eksportuojant istoriją: " . err.Message, "Klaida", "48")
+    }
 }
 
 
