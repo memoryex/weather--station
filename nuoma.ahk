@@ -105,9 +105,11 @@ LoadPartsFromConfig() {
     }
 
     ; Nuskaitome iš [Parts] sekcijos raktus
-    try partsData := IniRead(ConfigFile, "Parts")
-    catch
+    try {
+        partsData := IniRead(ConfigFile, "Parts")
+    } catch {
         partsData := ""
+    }
     if (partsData != "") {
         loop parse, partsData, "`n", "`r"
         {
@@ -693,8 +695,11 @@ OnSettingsPartSelect(guiCtrl, itemIndex, selected) {
     edtSetImagePath.Value := pObj.ImagePath
 
     if (pObj.ImagePath != "" && FileExist(pObj.ImagePath)) {
-        try picPartPreview3.Value := pObj.ImagePath
-        catch picPartPreview3.Value := ""
+        try {
+            picPartPreview3.Value := pObj.ImagePath
+        } catch {
+            picPartPreview3.Value := ""
+        }
     } else {
         picPartPreview3.Value := ""
     }
@@ -705,8 +710,11 @@ OnBrowseImageClick(guiCtrl, info) {
     selectedFile := FileSelect(1, ImagesDir, "Pasirinkite detalės nuotrauką", "Paveikslėliai (*.png; *.jpg; *.jpeg; *.bmp)")
     if (selectedFile != "") {
         edtSetImagePath.Value := selectedFile
-        try picPartPreview3.Value := selectedFile
-        catch picPartPreview3.Value := ""
+        try {
+            picPartPreview3.Value := selectedFile
+        } catch {
+            picPartPreview3.Value := ""
+        }
     }
 }
 
