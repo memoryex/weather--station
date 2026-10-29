@@ -23,6 +23,8 @@ global g_RxBuffer := ""
 global g_PingStartTime := 0
 global g_LastPingSeq := 0
 global g_CurrentRssi := -70
+global g_TxPower1m := -40.0
+global g_PathLossN := 2.7
 
 ; Langelio sukūrimas (GUI Setup)
 mainGui := Gui("+Resize +MinSize540x840", "LoRa DX-LR22 (868MHz) - Valdymo Skydelis v3")
@@ -49,7 +51,7 @@ txtHeap := mainGui.AddText("x30 y172 w230", "Laisva RAM: --- KB")
 txtLatency := mainGui.AddText("x270 y172 w230", "Ryšio Vėlavimas: --- ms")
 
 ; --- LoRa Signalo Stiprumas (RSSI) ir Atstumo Testavimas ---
-mainGui.AddGroupBox("w500 h160 x15 y220", "LoRa Ryšio Kokybė & Atstumo Įvertinimas")
+mainGui.AddGroupBox("w500 h195 x15 y220", "LoRa Ryšio Kokybė & Atstumo Įvertinimas ir Kalibravimas")
 txtRssiDbm := mainGui.AddText("x30 y245 w230", "Signalo Stiprumas: -70 dBm")
 txtRssiPct := mainGui.AddText("x270 y245 w230", "Kokybė: 56 %")
 txtRssiPct.SetFont("s10 bold", "Segoe UI")
@@ -63,73 +65,80 @@ sldRssi.OnEvent("Change", (*) => OnRssiSliderChange())
 btnSendRssi := mainGui.AddButton("x415 y293 w85 h26", "Siųsti RSSI")
 btnSendRssi.OnEvent("Click", (*) => SendCmd("SET_RSSI:" . sldRssi.Value))
 
-txtDistance := mainGui.AddText("x30 y332 w470", "Apskaičiuotas Atstumas: ~42 m (Log-Path Loss n=2.7)")
+; Kalibravimo Valdikliai
+mainGui.AddText("x30 y332 w140", "Tikras Atstumas (m):")
+edtKnownDist := mainGui.AddEdit("x170 y328 w80 h26", "2.0")
+btnCalibrate := mainGui.AddButton("x260 y328 w120 h26", "🎯 Kalibruoti")
+btnCalibrate.OnEvent("Click", (*) => CalibrateDistance())
+txtCalibRef := mainGui.AddText("x390 y332 w110", "1m: -40.0 dBm")
+
+txtDistance := mainGui.AddText("x30 y367 w470", "Apskaičiuotas Atstumas: ~42 m (Log-Path Loss n=2.7)")
 txtDistance.SetFont("s10 bold cNavy", "Segoe UI")
 
 ; --- RGB Valdymas & Efektai ---
-mainGui.AddGroupBox("w500 h220 x15 y360", "RGB Neopixel Valdymas & Efektai (Pin 8)")
+mainGui.AddGroupBox("w500 h220 x15 y425", "RGB Neopixel Valdymas & Efektai (Pin 8)")
 
 ; Greiti mygtukai
-mainGui.AddButton("x30 y385 w85 h30", "Raudona").OnEvent("Click", (*) => SetRGB(255, 0, 0))
-mainGui.AddButton("x125 y385 w85 h30", "Žalia").OnEvent("Click", (*) => SetRGB(0, 255, 0))
-mainGui.AddButton("x220 y385 w85 h30", "Mėlyna").OnEvent("Click", (*) => SetRGB(0, 0, 255))
-mainGui.AddButton("x315 y385 w85 h30", "Geltona").OnEvent("Click", (*) => SetRGB(255, 255, 0))
-mainGui.AddButton("x410 y385 w85 h30", "Išjungti").OnEvent("Click", (*) => SetRGB(0, 0, 0))
+mainGui.AddButton("x30 y450 w85 h30", "Raudona").OnEvent("Click", (*) => SetRGB(255, 0, 0))
+mainGui.AddButton("x125 y450 w85 h30", "Žalia").OnEvent("Click", (*) => SetRGB(0, 255, 0))
+mainGui.AddButton("x220 y450 w85 h30", "Mėlyna").OnEvent("Click", (*) => SetRGB(0, 0, 255))
+mainGui.AddButton("x315 y450 w85 h30", "Geltona").OnEvent("Click", (*) => SetRGB(255, 255, 0))
+mainGui.AddButton("x410 y450 w85 h30", "Išjungti").OnEvent("Click", (*) => SetRGB(0, 0, 0))
 
 ; RGB Šliaužikliai (Sliders)
-mainGui.AddText("x30 y430 w20", "R:")
-sldR := mainGui.AddSlider("x50 y425 w210 Range0-255", 0)
-txtRVal := mainGui.AddText("x265 y430 w30", "0")
+mainGui.AddText("x30 y495 w20", "R:")
+sldR := mainGui.AddSlider("x50 y490 w210 Range0-255", 0)
+txtRVal := mainGui.AddText("x265 y495 w30", "0")
 
-mainGui.AddText("x30 y460 w20", "G:")
-sldG := mainGui.AddSlider("x50 y455 w210 Range0-255", 0)
-txtGVal := mainGui.AddText("x265 y460 w30", "0")
+mainGui.AddText("x30 y525 w20", "G:")
+sldG := mainGui.AddSlider("x50 y520 w210 Range0-255", 0)
+txtGVal := mainGui.AddText("x265 y525 w30", "0")
 
-mainGui.AddText("x30 y490 w20", "B:")
-sldB := mainGui.AddSlider("x50 y485 w210 Range0-255", 0)
-txtBVal := mainGui.AddText("x265 y490 w30", "0")
+mainGui.AddText("x30 y555 w20", "B:")
+sldB := mainGui.AddSlider("x50 y550 w210 Range0-255", 0)
+txtBVal := mainGui.AddText("x265 y555 w30", "0")
 
 sldR.OnEvent("Change", (*) => OnSliderChange())
 sldG.OnEvent("Change", (*) => OnSliderChange())
 sldB.OnEvent("Change", (*) => OnSliderChange())
 
-btnSendRGB := mainGui.AddButton("x310 y430 w185 h30", "Siųsti RGB Spalvą")
+btnSendRGB := mainGui.AddButton("x310 y490 w185 h30", "Siųsti RGB Spalvą")
 btnSendRGB.OnEvent("Click", (*) => SetRGB(sldR.Value, sldG.Value, sldB.Value))
 
 ; Spalvos peržiūros blokas (Color Preview Box)
-picPreview := mainGui.AddProgress("x310 y465 w185 h15 Background000000", 0)
+picPreview := mainGui.AddProgress("x310 y525 w185 h15 Background000000", 0)
 
 ; LED Efektai
-mainGui.AddText("x30 y525 w60", "Efektai:")
-mainGui.AddButton("x95 y520 w115 h30", "🌈 Varivara").OnEvent("Click", (*) => SendCmd("EFFECT:RAINBOW"))
-mainGui.AddButton("x220 y520 w115 h30", "💡 Mirksėjimas").OnEvent("Click", (*) => SendCmd("EFFECT:BLINK"))
-mainGui.AddButton("x345 y520 w150 h30", "⚡ Stroboskopas").OnEvent("Click", (*) => SendCmd("EFFECT:STROBE"))
+mainGui.AddText("x30 y590 w60", "Efektai:")
+mainGui.AddButton("x95 y585 w115 h30", "🌈 Varivara").OnEvent("Click", (*) => SendCmd("EFFECT:RAINBOW"))
+mainGui.AddButton("x220 y585 w115 h30", "💡 Mirksėjimas").OnEvent("Click", (*) => SendCmd("EFFECT:BLINK"))
+mainGui.AddButton("x345 y585 w150 h30", "⚡ Stroboskopas").OnEvent("Click", (*) => SendCmd("EFFECT:STROBE"))
 
 ; --- Komandų Valdymas Ir Įrankiai ---
-mainGui.AddGroupBox("w500 h90 x15 y590", "Komandų Valdymas Ir Įrankiai")
-edtCustomCmd := mainGui.AddEdit("x30 y615 w210", "SYS_INFO")
-btnSendCustom := mainGui.AddButton("x250 y614 w80 h28", "Siųsti")
+mainGui.AddGroupBox("w500 h90 x15 y655", "Komandų Valdymas Ir Įrankiai")
+edtCustomCmd := mainGui.AddEdit("x30 y680 w210", "SYS_INFO")
+btnSendCustom := mainGui.AddButton("x250 y679 w80 h28", "Siųsti")
 btnSendCustom.OnEvent("Click", (*) => SendCustomCommand())
 
-btnSysInfo := mainGui.AddButton("x340 y614 w75 h28", "Info")
+btnSysInfo := mainGui.AddButton("x340 y679 w75 h28", "Info")
 btnSysInfo.OnEvent("Click", (*) => SendCmd("SYS_INFO"))
 
-btnPing := mainGui.AddButton("x425 y614 w75 h28", "PING")
+btnPing := mainGui.AddButton("x425 y679 w75 h28", "PING")
 btnPing.OnEvent("Click", (*) => MeasurePing())
 
-btnReset := mainGui.AddButton("x30 y648 w125 h26", "🔄 Perkrauti ESP32")
+btnReset := mainGui.AddButton("x30 y713 w125 h26", "🔄 Perkrauti ESP32")
 btnReset.OnEvent("Click", (*) => ConfirmReset())
 
-btnGetTemp := mainGui.AddButton("x165 y648 w135 h26", "🌡️ Gauti Temp")
+btnGetTemp := mainGui.AddButton("x165 y713 w135 h26", "🌡️ Gauti Temp")
 btnGetTemp.OnEvent("Click", (*) => SendCmd("GET_TEMP"))
 
 ; --- Komunikacijos Žurnalas (Log Console - Slenka Žemyn) ---
-mainGui.AddGroupBox("w500 h190 x15 y690", "Įvykių Žurnalas (Eina Žemyn ⬇️)")
-edtLog := mainGui.AddEdit("x30 y715 w470 h125 ReadOnly Multi +VScroll")
-btnClearLog := mainGui.AddButton("x385 y848 w115 h25", "Valyti Žurnalą")
+mainGui.AddGroupBox("w500 h190 x15 y755", "Įvykių Žurnalas (Eina Žemyn ⬇️)")
+edtLog := mainGui.AddEdit("x30 y780 w470 h125 ReadOnly Multi +VScroll")
+btnClearLog := mainGui.AddButton("x385 y913 w115 h25", "Valyti Žurnalą")
 btnClearLog.OnEvent("Click", (*) => (edtLog.Value := ""))
 
-mainGui.Show("w530 h885")
+mainGui.Show("w530 h950")
 
 ; Periodinė Win32 COM Buffer patikra (20ms laikmatis)
 SetTimer(PollComPort, 20)
@@ -149,8 +158,31 @@ OnRssiSliderChange() {
     UpdateRssiDisplay(val)
 }
 
+CalibrateDistance() {
+    global g_CurrentRssi, g_TxPower1m, g_PathLossN
+
+    try {
+        knownMeters := Float(Trim(edtKnownDist.Value))
+        if (knownMeters <= 0) {
+            LogMessage("Klaida: Tikras atstumas turi būti > 0m", "KLAIDA")
+            return
+        }
+
+        ; Formula to calibrate 1-meter reference power:
+        ; TxPower_1m = RSSI + (10 * n * log10(d_known))
+        g_TxPower1m := Float(g_CurrentRssi) + (10.0 * g_PathLossN * (Log(knownMeters) / Log(10.0)))
+
+        txtCalibRef.Value := Format("1m: {:.1f} dBm", g_TxPower1m)
+        LogMessage(Format("Kalibruota! 1m bazinė galia = {:.1f} dBm pamatavus {:.1f}m atstumu", g_TxPower1m, knownMeters), "KALIBRACIJA")
+
+        UpdateRssiDisplay(g_CurrentRssi)
+    } catch {
+        LogMessage("Kalibravimo klaida: Neteisingas atstumo skaičius", "KLAIDA")
+    }
+}
+
 UpdateRssiDisplay(rssiDbm) {
-    global g_CurrentRssi
+    global g_CurrentRssi, g_TxPower1m, g_PathLossN
     g_CurrentRssi := rssiDbm
 
     try {
@@ -179,24 +211,20 @@ UpdateRssiDisplay(rssiDbm) {
         barRssi.Opt("cRed")
     }
 
-    ; Distance Calculation using Log-Distance Path Loss Model for SX1262 (+22dBm TxPower, -134dBm sensitivity):
-    ; d = 10 ^ ((TxPower_at_1m - RSSI) / (10 * n))
-    ; Parameters for +22dBm output: TxPower_1m = -20 dBm, outdoor path loss exponent n = 2.7
-    txPower1m := -20.0
-    pathLossN := 2.7
-
+    ; Distance Calculation using Log-Distance Path Loss Model:
+    ; d = 10 ^ ((TxPower_1m - RSSI) / (10 * n))
     try {
-        exponent := (txPower1m - Float(rssiDbm)) / (10.0 * pathLossN)
+        exponent := (g_TxPower1m - Float(rssiDbm)) / (10.0 * g_PathLossN)
         distMeters := 10.0 ** exponent
 
         if (distMeters >= 1000.0) {
             distKm := Round(distMeters / 1000.0, 2)
-            txtDistance.Value := "Apskaičiuotas Atstumas: ~" . distKm . " km (SX1262 +22dBm / Max 8km)"
-        } else if (distMeters >= 1.0) {
+            txtDistance.Value := "Apskaičiuotas Atstumas: ~" . distKm . " km (1m Galia: " . Round(g_TxPower1m, 1) . " dBm)"
+        } else if (distMeters >= 0.1) {
             distM := Round(distMeters, 1)
-            txtDistance.Value := "Apskaičiuotas Atstumas: ~" . distM . " m (SX1262 +22dBm / Max 8km)"
+            txtDistance.Value := "Apskaičiuotas Atstumas: ~" . distM . " m (1m Galia: " . Round(g_TxPower1m, 1) . " dBm)"
         } else {
-            txtDistance.Value := "Apskaičiuotas Atstumas: < 1 m (Arti vienas kito)"
+            txtDistance.Value := "Apskaičiuotas Atstumas: < 0.1 m (Arti vienas kito)"
         }
     } catch {
         txtDistance.Value := "Apskaičiuotas Atstumas: N/A"

@@ -38,10 +38,11 @@
    - Apskaičiuoja signalo kokybės procentus $0\% - 100\%$ (skalėje nuo $-120\text{ dBm}$ iki $-30\text{ dBm}$).
    - Dinaminė spalvota signalo progreso juosta (Žalia > 65%, Oranžinė `cFF8C00` > 35%, Raudona <= 35%).
 
-2. **Atstumo Įvertinimas (Log-Distance Path Loss Modelis):**
+2. **Atstumo Įvertinimas & Įrankio Kalibravimas:**
    - Skaičiuoja atstumą metrais ir kilometrais pagal fizikinį modelį:
      $$d = 10^{\frac{\text{TxPower}_{1m} - \text{RSSI}}{10 \cdot n}}$$
-     *kur $\text{TxPower}_{1m} = -40\text{ dBm}$ ir aplinkos slopinimo indeksas $n = 2.7$.*
+   - **Tiesioginis Kalibravimas:** Įveskite žinomą faktinį atstumą (pvz., `2.0` m) ir spustelėkite **🎯 Kalibruoti**. Programa automatiškai perskaičiuos atskaitos galią 1 metrui:
+     $$\text{TxPower}_{1m} = \text{RSSI} + (10 \cdot n \cdot \log_{10}(d_{\text{žinomas}}))$$
 
 3. **Automatinis Periodinis Telemetrijos & Ping Atnaujinimas:**
    - ESP32-C3 automatiškai kas 5s siunčia pilną **`SYS_INFO`** telemetriją (CPU Temp, Uptime, Laisva RAM, RSSI).
