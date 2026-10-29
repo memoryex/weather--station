@@ -35,7 +35,7 @@
 
 1. **Signalo Stiprumas (RSSI dBm ir Procentai):**
    - Rodo tikslų signalo lygį decibelais millivatais (dBm) (pvz. `-70 dBm`).
-   - Apskaičiuoja signalo kokybės procentus $0\% - 100\%$ (skalėje nuo $-120\text{ dBm}$ iki $-30\text{ dBm}$).
+   - Apskaičiuoja signalo kokybės procentus $0\% - 100\%$ (skalėje nuo $-134\text{ dBm}$ iki $-70\text{ dBm}$, kur $-70\text{ dBm}$ ir daugiau rodo $100\%$ kokybę).
    - Dinaminė spalvota signalo progreso juosta (Žalia > 65%, Oranžinė `cFF8C00` > 35%, Raudona <= 35%).
 
 2. **Atstumo Įvertinimas & Įrankio Kalibravimas:**

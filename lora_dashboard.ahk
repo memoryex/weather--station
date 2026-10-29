@@ -51,94 +51,96 @@ txtHeap := mainGui.AddText("x30 y172 w230", "Laisva RAM: --- KB")
 txtLatency := mainGui.AddText("x270 y172 w230", "Ryšio Vėlavimas: --- ms")
 
 ; --- LoRa Signalo Stiprumas (RSSI) ir Atstumo Testavimas ---
-mainGui.AddGroupBox("w500 h195 x15 y220", "LoRa Ryšio Kokybė & Atstumo Įvertinimas ir Kalibravimas")
+mainGui.AddGroupBox("w500 h215 x15 y220", "LoRa Ryšio Kokybė & Atstumo Įvertinimas ir Kalibravimas")
 txtRssiDbm := mainGui.AddText("x30 y245 w230", "Signalo Stiprumas: -70 dBm")
-txtRssiPct := mainGui.AddText("x270 y245 w230", "Kokybė: 56 %")
+txtRssiPct := mainGui.AddText("x270 y245 w230", "Kokybė: 100 % (Puikus 📶)")
 txtRssiPct.SetFont("s10 bold", "Segoe UI")
 
-barRssi := mainGui.AddProgress("x30 y270 w470 h18 Range0-100 BackgroundE0E0E0 cGreen", 56)
+barRssi := mainGui.AddProgress("x30 y270 w470 h18 Range0-100 BackgroundE0E0E0 cGreen", 100)
+txtRssiGuide := mainGui.AddText("x30 y292 w470", "💡 dBm skala: -30..-70 dBm = Puikus 🟢 | -71..-90 dBm = Geras | -91..-110 dBm = Vidutinis 🟠 | < -110 dBm = Silpnas 🔴")
+txtRssiGuide.SetFont("s8 cGray", "Segoe UI")
 
-mainGui.AddText("x30 y298 w140", "Nustatyti RSSI (dBm):")
-sldRssi := mainGui.AddSlider("x170 y293 w240 Range-120--30", -70)
+mainGui.AddText("x30 y312 w140", "Nustatyti RSSI (dBm):")
+sldRssi := mainGui.AddSlider("x170 y307 w240 Range-120--30", -70)
 sldRssi.OnEvent("Change", (*) => OnRssiSliderChange())
 
-btnSendRssi := mainGui.AddButton("x415 y293 w85 h26", "Siųsti RSSI")
+btnSendRssi := mainGui.AddButton("x415 y307 w85 h26", "Siųsti RSSI")
 btnSendRssi.OnEvent("Click", (*) => SendCmd("SET_RSSI:" . sldRssi.Value))
 
 ; Kalibravimo Valdikliai
-mainGui.AddText("x30 y332 w140", "Tikras Atstumas (m):")
-edtKnownDist := mainGui.AddEdit("x170 y328 w80 h26", "2.0")
-btnCalibrate := mainGui.AddButton("x260 y328 w120 h26", "🎯 Kalibruoti")
+mainGui.AddText("x30 y346 w140", "Tikras Atstumas (m):")
+edtKnownDist := mainGui.AddEdit("x170 y342 w80 h26", "2.0")
+btnCalibrate := mainGui.AddButton("x260 y342 w120 h26", "🎯 Kalibruoti")
 btnCalibrate.OnEvent("Click", (*) => CalibrateDistance())
-txtCalibRef := mainGui.AddText("x390 y332 w110", "1m: -40.0 dBm")
+txtCalibRef := mainGui.AddText("x390 y346 w110", "1m: -40.0 dBm")
 
-txtDistance := mainGui.AddText("x30 y367 w470", "Apskaičiuotas Atstumas: ~42 m (Log-Path Loss n=2.7)")
+txtDistance := mainGui.AddText("x30 y381 w470", "Apskaičiuotas Atstumas: ~42 m (Log-Path Loss n=2.7)")
 txtDistance.SetFont("s10 bold cNavy", "Segoe UI")
 
 ; --- RGB Valdymas & Efektai ---
-mainGui.AddGroupBox("w500 h220 x15 y425", "RGB Neopixel Valdymas & Efektai (Pin 8)")
+mainGui.AddGroupBox("w500 h220 x15 y445", "RGB Neopixel Valdymas & Efektai (Pin 8)")
 
 ; Greiti mygtukai
-mainGui.AddButton("x30 y450 w85 h30", "Raudona").OnEvent("Click", (*) => SetRGB(255, 0, 0))
-mainGui.AddButton("x125 y450 w85 h30", "Žalia").OnEvent("Click", (*) => SetRGB(0, 255, 0))
-mainGui.AddButton("x220 y450 w85 h30", "Mėlyna").OnEvent("Click", (*) => SetRGB(0, 0, 255))
-mainGui.AddButton("x315 y450 w85 h30", "Geltona").OnEvent("Click", (*) => SetRGB(255, 255, 0))
-mainGui.AddButton("x410 y450 w85 h30", "Išjungti").OnEvent("Click", (*) => SetRGB(0, 0, 0))
+mainGui.AddButton("x30 y470 w85 h30", "Raudona").OnEvent("Click", (*) => SetRGB(255, 0, 0))
+mainGui.AddButton("x125 y470 w85 h30", "Žalia").OnEvent("Click", (*) => SetRGB(0, 255, 0))
+mainGui.AddButton("x220 y470 w85 h30", "Mėlyna").OnEvent("Click", (*) => SetRGB(0, 0, 255))
+mainGui.AddButton("x315 y470 w85 h30", "Geltona").OnEvent("Click", (*) => SetRGB(255, 255, 0))
+mainGui.AddButton("x410 y470 w85 h30", "Išjungti").OnEvent("Click", (*) => SetRGB(0, 0, 0))
 
 ; RGB Šliaužikliai (Sliders)
-mainGui.AddText("x30 y495 w20", "R:")
-sldR := mainGui.AddSlider("x50 y490 w210 Range0-255", 0)
-txtRVal := mainGui.AddText("x265 y495 w30", "0")
+mainGui.AddText("x30 y515 w20", "R:")
+sldR := mainGui.AddSlider("x50 y510 w210 Range0-255", 0)
+txtRVal := mainGui.AddText("x265 y515 w30", "0")
 
-mainGui.AddText("x30 y525 w20", "G:")
-sldG := mainGui.AddSlider("x50 y520 w210 Range0-255", 0)
-txtGVal := mainGui.AddText("x265 y525 w30", "0")
+mainGui.AddText("x30 y545 w20", "G:")
+sldG := mainGui.AddSlider("x50 y540 w210 Range0-255", 0)
+txtGVal := mainGui.AddText("x265 y545 w30", "0")
 
-mainGui.AddText("x30 y555 w20", "B:")
-sldB := mainGui.AddSlider("x50 y550 w210 Range0-255", 0)
-txtBVal := mainGui.AddText("x265 y555 w30", "0")
+mainGui.AddText("x30 y575 w20", "B:")
+sldB := mainGui.AddSlider("x50 y570 w210 Range0-255", 0)
+txtBVal := mainGui.AddText("x265 y575 w30", "0")
 
 sldR.OnEvent("Change", (*) => OnSliderChange())
 sldG.OnEvent("Change", (*) => OnSliderChange())
 sldB.OnEvent("Change", (*) => OnSliderChange())
 
-btnSendRGB := mainGui.AddButton("x310 y490 w185 h30", "Siųsti RGB Spalvą")
+btnSendRGB := mainGui.AddButton("x310 y510 w185 h30", "Siųsti RGB Spalvą")
 btnSendRGB.OnEvent("Click", (*) => SetRGB(sldR.Value, sldG.Value, sldB.Value))
 
 ; Spalvos peržiūros blokas (Color Preview Box)
-picPreview := mainGui.AddProgress("x310 y525 w185 h15 Background000000", 0)
+picPreview := mainGui.AddProgress("x310 y545 w185 h15 Background000000", 0)
 
 ; LED Efektai
-mainGui.AddText("x30 y590 w60", "Efektai:")
-mainGui.AddButton("x95 y585 w115 h30", "🌈 Varivara").OnEvent("Click", (*) => SendCmd("EFFECT:RAINBOW"))
-mainGui.AddButton("x220 y585 w115 h30", "💡 Mirksėjimas").OnEvent("Click", (*) => SendCmd("EFFECT:BLINK"))
-mainGui.AddButton("x345 y585 w150 h30", "⚡ Stroboskopas").OnEvent("Click", (*) => SendCmd("EFFECT:STROBE"))
+mainGui.AddText("x30 y610 w60", "Efektai:")
+mainGui.AddButton("x95 y605 w115 h30", "🌈 Varivara").OnEvent("Click", (*) => SendCmd("EFFECT:RAINBOW"))
+mainGui.AddButton("x220 y605 w115 h30", "💡 Mirksėjimas").OnEvent("Click", (*) => SendCmd("EFFECT:BLINK"))
+mainGui.AddButton("x345 y605 w150 h30", "⚡ Stroboskopas").OnEvent("Click", (*) => SendCmd("EFFECT:STROBE"))
 
 ; --- Komandų Valdymas Ir Įrankiai ---
-mainGui.AddGroupBox("w500 h90 x15 y655", "Komandų Valdymas Ir Įrankiai")
-edtCustomCmd := mainGui.AddEdit("x30 y680 w210", "SYS_INFO")
-btnSendCustom := mainGui.AddButton("x250 y679 w80 h28", "Siųsti")
+mainGui.AddGroupBox("w500 h90 x15 y675", "Komandų Valdymas Ir Įrankiai")
+edtCustomCmd := mainGui.AddEdit("x30 y700 w210", "SYS_INFO")
+btnSendCustom := mainGui.AddButton("x250 y699 w80 h28", "Siųsti")
 btnSendCustom.OnEvent("Click", (*) => SendCustomCommand())
 
-btnSysInfo := mainGui.AddButton("x340 y679 w75 h28", "Info")
+btnSysInfo := mainGui.AddButton("x340 y699 w75 h28", "Info")
 btnSysInfo.OnEvent("Click", (*) => SendCmd("SYS_INFO"))
 
-btnPing := mainGui.AddButton("x425 y679 w75 h28", "PING")
+btnPing := mainGui.AddButton("x425 y699 w75 h28", "PING")
 btnPing.OnEvent("Click", (*) => MeasurePing())
 
-btnReset := mainGui.AddButton("x30 y713 w125 h26", "🔄 Perkrauti ESP32")
+btnReset := mainGui.AddButton("x30 y733 w125 h26", "🔄 Perkrauti ESP32")
 btnReset.OnEvent("Click", (*) => ConfirmReset())
 
-btnGetTemp := mainGui.AddButton("x165 y713 w135 h26", "🌡️ Gauti Temp")
+btnGetTemp := mainGui.AddButton("x165 y733 w135 h26", "🌡️ Gauti Temp")
 btnGetTemp.OnEvent("Click", (*) => SendCmd("GET_TEMP"))
 
 ; --- Komunikacijos Žurnalas (Log Console - Slenka Žemyn) ---
-mainGui.AddGroupBox("w500 h190 x15 y755", "Įvykių Žurnalas (Eina Žemyn ⬇️)")
-edtLog := mainGui.AddEdit("x30 y780 w470 h125 ReadOnly Multi +VScroll")
-btnClearLog := mainGui.AddButton("x385 y913 w115 h25", "Valyti Žurnalą")
+mainGui.AddGroupBox("w500 h190 x15 y775", "Įvykių Žurnalas (Eina Žemyn ⬇️)")
+edtLog := mainGui.AddEdit("x30 y800 w470 h125 ReadOnly Multi +VScroll")
+btnClearLog := mainGui.AddButton("x385 y933 w115 h25", "Valyti Žurnalą")
 btnClearLog.OnEvent("Click", (*) => (edtLog.Value := ""))
 
-mainGui.Show("w530 h950")
+mainGui.Show("w530 h970")
 
 ; Periodinė Win32 COM Buffer patikra (20ms laikmatis)
 SetTimer(PollComPort, 20)
@@ -191,22 +193,36 @@ UpdateRssiDisplay(rssiDbm) {
 
     txtRssiDbm.Value := "Signalo Stiprumas: " . rssiDbm . " dBm"
 
-    ; Signal Quality Percentage Calculation for SEMTECH SX1262 (Sensitivity down to -134 dBm)
-    ; Map -134 dBm (0%) to -30 dBm (100%)
-    pct := Floor(((rssiDbm - (-134)) / ((-30) - (-134))) * 100)
+    ; Signal Quality Percentage Calculation for SEMTECH SX1262
+    ; Map -134 dBm (0%) to -70 dBm (100% signal quality)
+    pct := Floor(((rssiDbm - (-134)) / ((-70) - (-134))) * 100)
     if (pct < 0)
         pct := 0
     if (pct > 100)
         pct := 100
 
-    txtRssiPct.Value := "Kokybė: " . pct . " %"
+    ; Signal Quality Text Rating & Indicator
+    sigRating := ""
+    if (rssiDbm >= -70) {
+        sigRating := " (Puikus 📶)"
+    } else if (rssiDbm >= -90) {
+        sigRating := " (Geras 🟢)"
+    } else if (rssiDbm >= -110) {
+        sigRating := " (Vidutinis 🟠)"
+    } else {
+        sigRating := " (Silpnas 🔴)"
+    }
+
+    txtRssiPct.Value := "Kokybė: " . pct . " %" . sigRating
     barRssi.Value := pct
 
     ; Dynamically set bar color based on RSSI strength
-    if (pct > 65) {
+    if (rssiDbm >= -70) {
         barRssi.Opt("cGreen")
-    } else if (pct > 35) {
-        barRssi.Opt("cFF8C00") ; Orange in Hex RGB format
+    } else if (rssiDbm >= -90) {
+        barRssi.Opt("c008000") ; Dark Green
+    } else if (rssiDbm >= -110) {
+        barRssi.Opt("cFF8C00") ; Orange
     } else {
         barRssi.Opt("cRed")
     }
