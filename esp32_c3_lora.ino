@@ -16,6 +16,7 @@ unsigned long lastTemp = 0;
 const unsigned long TEMP_INTERVAL = 5000; // Send telemetry every 5 seconds
 
 String inputBuffer = "";
+int lastRssi = -70; // Simulated/Received RSSI in dBm
 
 // LED animation state variables
 enum LedMode { MODE_SOLID, MODE_RAINBOW, MODE_BLINK, MODE_STROBE };
@@ -37,6 +38,14 @@ void processCommand(String msg) {
 
   Serial.print("Received command: ");
   Serial.println(msg);
+
+  // Parse attached RSSI if module or gateway appends it (e.g. CMD,RSSI=-75)
+  if (msg.indexOf(",RSSI=") != -1) {
+    int rssiIdx = msg.indexOf(",RSSI=");
+    String rssiStr = msg.substring(rssiIdx + 6);
+    lastRssi = rssiStr.toInt();
+    msg = msg.substring(0, rssiIdx);
+  }
 
   if (msg.startsWith("RGB:")) {
     int r = 0, g = 0, b = 0;
@@ -78,28 +87,27 @@ void processCommand(String msg) {
     }
   }
   else if (msg.startsWith("PING")) {
-    // If command is PING:<seq> return PONG:<seq>
     if (msg.startsWith("PING:")) {
       String seq = msg.substring(5);
       LoRa.print("PONG:");
-      LoRa.println(seq);
+      LoRa.print(seq);
+      LoRa.printf(",RSSI=%d\n", lastRssi);
     } else {
-      LoRa.println("PONG");
+      LoRa.printf("PONG,RSSI=%d\n", lastRssi);
     }
-    Serial.println("Replied PONG");
+    Serial.println("Replied PONG with RSSI");
   }
   else if (msg.equalsIgnoreCase("GET_TEMP")) {
     float cpuTemp = temperatureRead();
-    LoRa.print("CPU_TEMP:");
-    LoRa.println(cpuTemp, 1);
+    LoRa.printf("CPU_TEMP:%.1f,RSSI=%d\n", cpuTemp, lastRssi);
   }
   else if (msg.equalsIgnoreCase("SYS_INFO")) {
     float cpuTemp = temperatureRead();
     unsigned long uptimeSec = millis() / 1000;
     uint32_t freeHeap = ESP.getFreeHeap();
 
-    LoRa.printf("SYS_INFO:TEMP=%.1f,UPTIME=%lu,HEAP=%u\n", cpuTemp, uptimeSec, freeHeap);
-    Serial.printf("SYS_INFO sent: Temp=%.1f C, Uptime=%lu s, Heap=%u bytes\n", cpuTemp, uptimeSec, freeHeap);
+    LoRa.printf("SYS_INFO:TEMP=%.1f,UPTIME=%lu,HEAP=%u,RSSI=%d\n", cpuTemp, uptimeSec, freeHeap, lastRssi);
+    Serial.printf("SYS_INFO sent: Temp=%.1f C, Uptime=%lu s, Heap=%u B, RSSI=%d dBm\n", cpuTemp, uptimeSec, freeHeap, lastRssi);
   }
   else if (msg.equalsIgnoreCase("RESET")) {
     LoRa.println("SYS_RESETTING");
@@ -121,15 +129,15 @@ void updateLedEffects() {
   unsigned long now = millis();
 
   if (currentMode == MODE_RAINBOW) {
-    if (now - lastEffectUpdate >= 20) { // ~50 FPS rainbow speed
+    if (now - lastEffectUpdate >= 20) { // ~50 FPS rainbow
       lastEffectUpdate = now;
-      rainbowHue += 256; // advance color
+      rainbowHue += 256;
       pixel.setPixelColor(0, pixel.gamma32(pixel.ColorHSV(rainbowHue)));
       pixel.show();
     }
   }
   else if (currentMode == MODE_BLINK) {
-    if (now - lastEffectUpdate >= 500) { // 1 Hz toggle
+    if (now - lastEffectUpdate >= 500) { // 1 Hz
       lastEffectUpdate = now;
       blinkState = !blinkState;
       if (blinkState) {
@@ -155,7 +163,7 @@ void updateLedEffects() {
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("Starting ESP32-C3 LoRa Node v2...");
+  Serial.println("Starting ESP32-C3 LoRa Node v3...");
 
   pixel.begin();
   pixel.clear();
@@ -178,16 +186,14 @@ void loop() {
   // Update non-blocking LED animation modes
   updateLedEffects();
 
-  // Periodic telemetry transmission (Temperature, Uptime, Heap)
+  // Periodic telemetry transmission
   if (millis() - lastTemp >= TEMP_INTERVAL) {
     lastTemp = millis();
 
     float cpuTemp = temperatureRead();
-    unsigned long uptimeSec = millis() / 1000;
-    uint32_t freeHeap = ESP.getFreeHeap();
 
-    LoRa.printf("CPU_TEMP:%.1f\n", cpuTemp);
-    Serial.printf("Telemetry sent: CPU_TEMP:%.1f | Uptime:%lu s | Heap:%u B\n", cpuTemp, uptimeSec, freeHeap);
+    LoRa.printf("CPU_TEMP:%.1f,RSSI=%d\n", cpuTemp, lastRssi);
+    Serial.printf("Telemetry sent: CPU_TEMP:%.1f | RSSI:%d dBm\n", cpuTemp, lastRssi);
   }
 
   // Non-blocking LoRa serial command reader
