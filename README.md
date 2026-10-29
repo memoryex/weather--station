@@ -1,4 +1,4 @@
-# LoRa DX-LR22 (868MHz) ir ESP32-C3 Valdymo Sistema (Dashboard)
+# LoRa DX-LR22 (868MHz) ir ESP32-C3 Valdymo Sistema (Dashboard v2.0)
 
 Ši sistema skirta dvikypčiam ryšiui tarp **AutoHotkey v2** valdymo pulto (Dashboard) kompiuteryje ir **ESP32-C3** mikrokontrolerio su **DX-LR22 868MHz LoRa** moduliu bei **RGB Neopixel** šviesos diodu.
 
@@ -26,8 +26,18 @@
 ## 📁 Projekto Failai
 
 - `esp32_c3_lora.ino` – ESP32-C3 mikrokontrolerio programa (Arduino IDE / PlatformIO).
-- `lora_dashboard.ahk` – AutoHotkey 2.0 valdymo skydelis (Dashboard) kompiuteriui.
+- `lora_dashboard.ahk` – AutoHotkey 2.0 valdymo skydelis (Dashboard v2.0) kompiuteriui.
 - `README.md` – Projekto dokumentacija ir instrukcijos.
+
+---
+
+## ✨ Naujos V2.0 Ypatybės ir Patobulinimai
+
+1. **Žurnalas slenka žemyn (Downwards scrolling log console):** Naujausi įvykiai ir žinutės pridedami apačioje su automatiniu prasukimu (auto-scroll).
+2. **Ping ryšio vėlavimo matavimas (Latency):** Siunčiama `PING:<seq>` ir matuojamas tikslus atsakymo laikas milisekundėmis (ms).
+3. **Platesnė telemetrija:** Rodoma CPU temperatūra (°C), veikimo laikas (*Uptime* valandomis/minutėmis/sekundėmis) bei laisva RAM atmintis (KB).
+4. **Šviesos efektai:** Palaikomi animuoti šviesos diodo efektai (`EFFECT:RAINBOW`, `EFFECT:BLINK`, `EFFECT:STROBE`).
+5. **ESP32 Nuotolinis Perkrovimas:** Galimybė saugiai perkrauti mikrokontrolerį komanda `RESET`.
 
 ---
 
@@ -51,8 +61,11 @@
 
 | Komanda | Siuntėjas | Aprašymas / Atsakymas |
 | :--- | :--- | :--- |
-| `RGB:r,g,b` | Kompiuteris | Nustato RGB LED spalvą (pvz., `RGB:255,0,0`). Atsakymas: `RGB_OK:r,g,b` |
-| `PING` | Kompiuteris | Patikrina ryšį. Atsakymas: `PONG` |
+| `RGB:r,g,b` | Kompiuteris | Nustato statinę RGB LED spalvą (pvz., `RGB:255,0,0`). Atsakymas: `RGB_OK:r,g,b` |
+| `EFFECT:<pavadinimas>` | Kompiuteris | Paleidžia efektą: `RAINBOW`, `BLINK`, `STROBE`, `OFF`. Atsakymas: `EFFECT_OK:<pavadinimas>` |
+| `PING` / `PING:<id>` | Kompiuteris | Patikrina ryšį ir matuoja vėlavimą. Atsakymas: `PONG` / `PONG:<id>` |
+| `SYS_INFO` | Kompiuteris | Užklausia sistemos info. Atsakymas: `SYS_INFO:TEMP=xx.x,UPTIME=sec,HEAP=bytes` |
 | `GET_TEMP` | Kompiuteris | Užklausia CPU temperatūros. Atsakymas: `CPU_TEMP:xx.x` |
+| `RESET` | Kompiuteris | Perkrauna ESP32-C3. Atsakymas: `SYS_RESETTING` |
 | `OFF` | Kompiuteris | Išjungia RGB LED. Atsakymas: `RGB_OK:0,0,0` |
 | `CPU_TEMP:xx.x` | ESP32-C3 | Automatinis periodinis (kas 5s) temperatūros siuntimas. |

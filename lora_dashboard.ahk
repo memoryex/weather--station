@@ -2,14 +2,15 @@
 
 /*
     ========================================================================
-    LoRa DX-LR22 868MHz - Valdymo ir Stebėsenos Skydelis (Dashboard)
+    LoRa DX-LR22 868MHz - Valdymo ir Stebėsenos Skydelis (Dashboard v2.0)
     ========================================================================
     - Tiesioginė Win32 serijinio prievado (COM Port) komunikacija per kernel32.dll
     - Automatinis COM prievadų aptikimas iš Windows registro
-    - ESP32-C3 CPU temperatūros ir būsenos gavimas realiuoju laiku
-    - Interaktyvus RGB LED valdymas (spalvų pasirinkimas, RGB šliaužikliai)
-    - PING / PONG ryšio tikrinimas ir komandų siuntimas
-    - Būsenos žurnalas (Log Console) su laiko žymomis
+    - ESP32-C3 CPU temperatūros, Uptime, Heap atminties gavimas realiuoju laiku
+    - Signalų kokybės / RSSI & Ping vėlavimo indikatorius
+    - Interaktyvus RGB LED valdymas + Efektai (Maitagala/Rainbow, Mirksėjimas, Strobas)
+    - Išplėstinis komandų rinkinys (SYS_INFO, RESET, EFFECT, PING)
+    - Įvykių žurnalas (Log Console) slenkantis ŽEMYN (seniausi viršuje, naujausi apačioje) su auto-scroll
 */
 
 ; 全局 Global Variables
@@ -18,83 +19,103 @@ global g_BaudRate := 9600
 global g_hCom := -1
 global g_IsConnected := false
 global g_RxBuffer := ""
-global g_CurrentTemp := "---"
+global g_PingStartTime := 0
+global g_LastPingSeq := 0
 
 ; Langelio sukūrimas (GUI Setup)
-mainGui := Gui("+Resize +MinSize480x520", "LoRa DX-LR22 (868MHz) - Dashboard")
+mainGui := Gui("+Resize +MinSize520x760", "LoRa DX-LR22 (868MHz) - Valdymo Skydelis v2")
 mainGui.SetFont("s10", "Segoe UI")
 mainGui.OnEvent("Close", (*) => OnGuiClose())
 
 ; --- COM Prievado Pasirinkimas ---
-mainGui.AddGroupBox("w440 h70 x15 y10", "Serijinis Prievadas (COM Port)")
+mainGui.AddGroupBox("w480 h70 x15 y10", "Serijinis Prievadas (COM Port)")
 mainGui.AddText("x30 y35", "Prievadas:")
 cbComPorts := mainGui.AddComboBox("x100 y31 w120", GetAvailableComPorts())
 cbComPorts.Text := g_ComPort
-btnConnect := mainGui.AddButton("x230 y30 w90 h28", "Prisijungti")
+btnConnect := mainGui.AddButton("x230 y30 w100 h28", "Prisijungti")
 btnConnect.OnEvent("Click", (*) => ToggleConnection())
-btnRefresh := mainGui.AddButton("x330 y30 w110 h28", "Atnaujinti Sąrašą")
+btnRefresh := mainGui.AddButton("x340 y30 w130 h28", "Atnaujinti Sąrašą")
 btnRefresh.OnEvent("Click", (*) => RefreshComList())
 
 ; --- Telemetrija ir Būsenos ---
-mainGui.AddGroupBox("w440 h100 x15 y90", "ESP32 Telemetrija & Būsena")
-txtStatus := mainGui.AddText("x30 y115 w380", "Būsena: Neprisijungta 🔴")
-txtTemp := mainGui.AddText("x30 y145 w380", "CPU Temperatūra: --- °C")
-txtTemp.SetFont("s12 bold", "Segoe UI")
+mainGui.AddGroupBox("w480 h130 x15 y90", "ESP32 Telemetrija & Būsena")
+txtStatus := mainGui.AddText("x30 y115 w440", "Būsena: Neprisijungta 🔴")
+txtTemp := mainGui.AddText("x30 y145 w230", "CPU Temp: --- °C")
+txtTemp.SetFont("s11 bold", "Segoe UI")
+txtUptime := mainGui.AddText("x270 y145 w210", "Uptime: ---")
+txtHeap := mainGui.AddText("x30 y180 w230", "Laisva RAM: --- KB")
+txtLatency := mainGui.AddText("x270 y180 w210", "Ryšio Vėlavimas: --- ms")
 
-; --- RGB Valdymas ---
-mainGui.AddGroupBox("w440 h180 x15 y200", "RGB Neopixel Valdymas (Pin 8)")
+; --- RGB Valdymas & Efektai ---
+mainGui.AddGroupBox("w480 h220 x15 y230", "RGB Neopixel Valdymas & Efektai (Pin 8)")
 
 ; Greiti mygtukai
-mainGui.AddButton("x30 y225 w80 h30", "Raudona").OnEvent("Click", (*) => SetRGB(255, 0, 0))
-mainGui.AddButton("x120 y225 w80 h30", "Žalia").OnEvent("Click", (*) => SetRGB(0, 255, 0))
-mainGui.AddButton("x210 y225 w80 h30", "Mėlyna").OnEvent("Click", (*) => SetRGB(0, 0, 255))
-mainGui.AddButton("x300 y225 w60 h30", "Geltona").OnEvent("Click", (*) => SetRGB(255, 255, 0))
-mainGui.AddButton("x370 y225 w70 h30", "Išjungti").OnEvent("Click", (*) => SetRGB(0, 0, 0))
+mainGui.AddButton("x30 y255 w80 h30", "Raudona").OnEvent("Click", (*) => SetRGB(255, 0, 0))
+mainGui.AddButton("x120 y255 w80 h30", "Žalia").OnEvent("Click", (*) => SetRGB(0, 255, 0))
+mainGui.AddButton("x210 y255 w80 h30", "Mėlyna").OnEvent("Click", (*) => SetRGB(0, 0, 255))
+mainGui.AddButton("x300 y255 w80 h30", "Geltona").OnEvent("Click", (*) => SetRGB(255, 255, 0))
+mainGui.AddButton("x390 y255 w80 h30", "Išjungti").OnEvent("Click", (*) => SetRGB(0, 0, 0))
 
 ; RGB Šliaužikliai (Sliders)
-mainGui.AddText("x30 y270 w20", "R:")
-sldR := mainGui.AddSlider("x50 y265 w200 Range0-255", 0)
-txtRVal := mainGui.AddText("x255 y270 w30", "0")
+mainGui.AddText("x30 y300 w20", "R:")
+sldR := mainGui.AddSlider("x50 y295 w200 Range0-255", 0)
+txtRVal := mainGui.AddText("x255 y300 w30", "0")
 
-mainGui.AddText("x30 y300 w20", "G:")
-sldG := mainGui.AddSlider("x50 y295 w200 Range0-255", 0)
-txtGVal := mainGui.AddText("x255 y300 w30", "0")
+mainGui.AddText("x30 y330 w20", "G:")
+sldG := mainGui.AddSlider("x50 y325 w200 Range0-255", 0)
+txtGVal := mainGui.AddText("x255 y330 w30", "0")
 
-mainGui.AddText("x30 y330 w20", "B:")
-sldB := mainGui.AddSlider("x50 y325 w200 Range0-255", 0)
-txtBVal := mainGui.AddText("x255 y330 w30", "0")
+mainGui.AddText("x30 y360 w20", "B:")
+sldB := mainGui.AddSlider("x50 y355 w200 Range0-255", 0)
+txtBVal := mainGui.AddText("x255 y360 w30", "0")
 
 sldR.OnEvent("Change", (*) => OnSliderChange())
 sldG.OnEvent("Change", (*) => OnSliderChange())
 sldB.OnEvent("Change", (*) => OnSliderChange())
 
-btnSendRGB := mainGui.AddButton("x295 y270 w145 h40", "Siųsti RGB")
+btnSendRGB := mainGui.AddButton("x295 y300 w175 h30", "Siųsti RGB Spalvą")
 btnSendRGB.OnEvent("Click", (*) => SetRGB(sldR.Value, sldG.Value, sldB.Value))
 
 ; Spalvos peržiūros blokas (Color Preview Box)
-picPreview := mainGui.AddProgress("x295 y320 w145 h20 Background000000", 0)
+picPreview := mainGui.AddProgress("x295 y335 w175 h15 Background000000", 0)
 
-; --- Komandų Siuntimas Ir Testavimas ---
-mainGui.AddGroupBox("w440 h70 x15 y390", "Siųsti Pasirinktinę Komandą")
-edtCustomCmd := mainGui.AddEdit("x30 y415 w230", "PING")
-btnSendCustom := mainGui.AddButton("x270 y414 w80 h28", "Siųsti")
+; LED Efektai
+mainGui.AddText("x30 y395 w60", "Efektai:")
+mainGui.AddButton("x95 y390 w110 h30", "🌈 Varivara").OnEvent("Click", (*) => SendCmd("EFFECT:RAINBOW"))
+mainGui.AddButton("x215 y390 w110 h30", "💡 Mirksėjimas").OnEvent("Click", (*) => SendCmd("EFFECT:BLINK"))
+mainGui.AddButton("x335 y390 w135 h30", "⚡ Stroboskopas").OnEvent("Click", (*) => SendCmd("EFFECT:STROBE"))
+
+; --- Komandų Valdymas Ir Įrankiai ---
+mainGui.AddGroupBox("w480 h90 x15 y460", "Komandų Valdymas Ir Įrankiai")
+edtCustomCmd := mainGui.AddEdit("x30 y485 w200", "SYS_INFO")
+btnSendCustom := mainGui.AddButton("x240 y484 w75 h28", "Siųsti")
 btnSendCustom.OnEvent("Click", (*) => SendCustomCommand())
-btnPing := mainGui.AddButton("x355 y414 w85 h28", "PING")
-btnPing.OnEvent("Click", (*) => SendCmd("PING"))
 
-; --- Komunikacijos Žurnalas (Log Console) ---
-mainGui.AddGroupBox("w440 h180 x15 y470", "Komunikacijos Žurnalas")
-edtLog := mainGui.AddEdit("x30 y495 w410 h120 ReadOnly Multi +0x100000") ; WS_VSCROLL
-btnClearLog := mainGui.AddButton("x340 y620 w100 h25", "Valyti žurnalą")
+btnSysInfo := mainGui.AddButton("x325 y484 w70 h28", "Info")
+btnSysInfo.OnEvent("Click", (*) => SendCmd("SYS_INFO"))
+
+btnPing := mainGui.AddButton("x400 y484 w80 h28", "PING")
+btnPing.OnEvent("Click", (*) => MeasurePing())
+
+btnReset := mainGui.AddButton("x30 y518 w120 h26", "🔄 Perkrauti ESP32")
+btnReset.OnEvent("Click", (*) => ConfirmReset())
+
+btnGetTemp := mainGui.AddButton("x160 y518 w130 h26", "🌡️ Gauti Temp")
+btnGetTemp.OnEvent("Click", (*) => SendCmd("GET_TEMP"))
+
+; --- Komunikacijos Žurnalas (Log Console - Slenka Žemyn) ---
+mainGui.AddGroupBox("w480 h200 x15 y560", "Įvykių Žurnalas (Eina Žemyn ⬇️)")
+edtLog := mainGui.AddEdit("x30 y585 w450 h135 ReadOnly Multi +0x100000") ; WS_VSCROLL
+btnClearLog := mainGui.AddButton("x370 y725 w110 h25", "Valyti Žurnalą")
 btnClearLog.OnEvent("Click", (*) => (edtLog.Value := ""))
 
-mainGui.Show("w470 h655")
+mainGui.Show("w510 h765")
 
 ; Periodinė Win32 COM Buffer patikra (20ms laikmatis)
 SetTimer(PollComPort, 20)
 
 ; ------------------------------------------------------------------------
-;  Funkcijos: RGB ir GUI valdymas
+;  Funkcijos: RGB, Efektai ir GUI
 ; ------------------------------------------------------------------------
 
 OnSliderChange() {
@@ -106,7 +127,6 @@ OnSliderChange() {
     txtGVal.Value := g
     txtBVal.Value := b
 
-    ; Atnaujiname spalvos peržiūrą (HEX BGR formatas progress controlui)
     hexColor := Format("0x{:02X}{:02X}{:02X}", r, g, b)
     picPreview.Opt("+c" hexColor)
 }
@@ -128,10 +148,31 @@ SendCustomCommand() {
     }
 }
 
+MeasurePing() {
+    global g_PingStartTime, g_LastPingSeq
+    g_LastPingSeq := Random(100, 999)
+    g_PingStartTime := A_TickCount
+    SendCmd("PING:" . g_LastPingSeq)
+}
+
+ConfirmReset() {
+    res := MsgBox("Ar tikrai norite perkrauti ESP32-C3 mikrokontrolerį?", "Perkrovimo patvirtinimas", "YesNo IconExclamation")
+    if (res == "Yes") {
+        SendCmd("RESET")
+    }
+}
+
+; Slenkantis žemyn žurnalo įrašymas (Appends to bottom and auto-scrolls)
 LogMessage(msg, type := "INFO") {
     timeStr := FormatTime(, "HH:mm:ss")
     line := Format("[{}] [{}] {}\r\n", timeStr, type, msg)
-    edtLog.Value := line . edtLog.Value
+
+    ; Pridedame į pabaigą (Eina žemyn)
+    edtLog.Value .= line
+
+    ; Nustumiame žymeklį į teksto pabaigą (EM_SETSEL = 0x00B1, EM_SCROLLCARET = 0x00B7)
+    DllCall("User32.dll\SendMessage", "Ptr", edtLog.Hwnd, "UInt", 0x00B1, "Ptr", -1, "Ptr", -1)
+    DllCall("User32.dll\SendMessage", "Ptr", edtLog.Hwnd, "UInt", 0x00B7, "Ptr", 0, "Ptr", 0)
 }
 
 ; ------------------------------------------------------------------------
@@ -175,8 +216,6 @@ OpenComPort(portName) {
     g_ComPort := portName
     portPath := "\\.\" . portName
 
-    ; GENERIC_READ = 0x80000000, GENERIC_WRITE = 0x40000000
-    ; OPEN_EXISTING = 3
     g_hCom := DllCall("Kernel32.dll\CreateFileW",
         "Str", portPath,
         "UInt", 0x80000000 | 0x40000000,
@@ -195,10 +234,8 @@ OpenComPort(portName) {
         return
     }
 
-    ; Konfigūruojame DCB (Device Control Block)
-    ; DCB dydis AHK 64-bit/32-bit aplinkoje ~28 bytes minimum (sukuriam Buffer 28 bytes)
     dcb := Buffer(28, 0)
-    NumPut("UInt", 28, dcb, 0) ; DCBlength
+    NumPut("UInt", 28, dcb, 0)
 
     if !DllCall("Kernel32.dll\GetCommState", "Ptr", g_hCom, "Ptr", dcb) {
         LogMessage("Nepavyko gauti DCB būsenos", "KLAIDA")
@@ -206,11 +243,6 @@ OpenComPort(portName) {
         return
     }
 
-    ; BaudRate (offset 4) = 9600
-    ; fBinary (bitfield offset 8) = 1
-    ; ByteSize (offset 18) = 8
-    ; Parity (offset 19) = 0 (NOPARITY)
-    ; StopBits (offset 20) = 0 (ONESTOPBIT)
     NumPut("UInt", g_BaudRate, dcb, 4)
     NumPut("UChar", 8, dcb, 18)
     NumPut("UChar", 0, dcb, 19)
@@ -222,14 +254,12 @@ OpenComPort(portName) {
         return
     }
 
-    ; Nustatome Timeouts (COMMTIMEOUTS struct 20 bytes)
-    ; ReadIntervalTimeout = MAXDWORD (0xFFFFFFFF)
     timeouts := Buffer(20, 0)
-    NumPut("UInt", 0xFFFFFFFF, timeouts, 0) ; ReadIntervalTimeout
-    NumPut("UInt", 0, timeouts, 4)          ; ReadTotalTimeoutMultiplier
-    NumPut("UInt", 0, timeouts, 8)          ; ReadTotalTimeoutConstant
-    NumPut("UInt", 0, timeouts, 12)         ; WriteTotalTimeoutMultiplier
-    NumPut("UInt", 1000, timeouts, 16)      ; WriteTotalTimeoutConstant
+    NumPut("UInt", 0xFFFFFFFF, timeouts, 0)
+    NumPut("UInt", 0, timeouts, 4)
+    NumPut("UInt", 0, timeouts, 8)
+    NumPut("UInt", 0, timeouts, 12)
+    NumPut("UInt", 1000, timeouts, 16)
 
     DllCall("Kernel32.dll\SetCommTimeouts", "Ptr", g_hCom, "Ptr", timeouts)
 
@@ -287,7 +317,6 @@ PollComPort() {
     if (!g_IsConnected || g_hCom == -1)
         return
 
-    ; Nusaitome galimus gauti duomenis
     buf := Buffer(512, 0)
     bytesRead := 0
 
@@ -302,7 +331,6 @@ PollComPort() {
         chunk := StrGet(buf, bytesRead, "UTF-8")
         g_RxBuffer .= chunk
 
-        ; Tikriname ar gavome eilutės pabaigą (`\n`)
         while InStr(g_RxBuffer, "`n") {
             pos := InStr(g_RxBuffer, "`n")
             line := SubStr(g_RxBuffer, 1, pos - 1)
@@ -317,14 +345,15 @@ PollComPort() {
 }
 
 ProcessIncomingLine(line) {
+    global g_PingStartTime
+
     LogMessage("RX << " . line, "GAUTA")
 
     if InStr(line, "CPU_TEMP:") {
         tempVal := StrReplace(line, "CPU_TEMP:")
         tempVal := Trim(tempVal)
-        txtTemp.Value := "CPU Temperatūra: " . tempVal . " °C"
+        txtTemp.Value := "CPU Temp: " . tempVal . " °C"
 
-        ; Keičiame teksto spalvą priklausomai nuo temperatūros
         try {
             valNum := Float(tempVal)
             if (valNum > 60.0) {
@@ -336,11 +365,45 @@ ProcessIncomingLine(line) {
             }
         }
     }
-    else if (line == "PONG") {
+    else if InStr(line, "SYS_INFO:") {
+        ; SYS_INFO:TEMP=42.5,UPTIME=120,HEAP=230400
+        infoStr := StrReplace(line, "SYS_INFO:")
+        parts := StrSplit(infoStr, ",")
+        for idx, part in parts {
+            kv := StrSplit(part, "=")
+            if (kv.Length == 2) {
+                k := Trim(kv[1])
+                v := Trim(kv[2])
+                if (k == "TEMP") {
+                    txtTemp.Value := "CPU Temp: " . v . " °C"
+                } else if (k == "UPTIME") {
+                    sec := Integer(v)
+                    min := Floor(sec / 60)
+                    hrs := Floor(min / 60)
+                    txtUptime.Value := Format("Uptime: {}h {}m {}s", hrs, Mod(min, 60), Mod(sec, 60))
+                } else if (k == "HEAP") {
+                    kb := Round(Integer(v) / 1024, 1)
+                    txtHeap.Value := "Laisva RAM: " . kb . " KB"
+                }
+            }
+        }
+    }
+    else if InStr(line, "PONG") {
+        if (g_PingStartTime > 0) {
+            elapsed := A_TickCount - g_PingStartTime
+            txtLatency.Value := "Ryšio Vėlavimas: " . elapsed . " ms"
+            g_PingStartTime := 0
+        }
         txtStatus.Value := "Būsena: PONG gautas! Ryšys aktyvus 🟢"
+    }
+    else if InStr(line, "EFFECT_OK") {
+        txtStatus.Value := "Būsena: LED Efektas aktyvuotas (" . line . ") 🟢"
     }
     else if InStr(line, "RGB_OK") {
         txtStatus.Value := "Būsena: RGB spalva pakeista (" . line . ") 🟢"
+    }
+    else if InStr(line, "SYS_RESETTING") {
+        txtStatus.Value := "Būsena: ESP32 perkraunamas... 🔄"
     }
     else if InStr(line, "ESP32 READY") {
         txtStatus.Value := "Būsena: ESP32 Modulis paruoštas darbui 🟢"
