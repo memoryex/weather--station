@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Messenger Cleaner V23.0 (Ultra-Safe Surgical)
+// @name         Messenger Cleaner V23.1 (Ultra-Safe Surgical)
 // @namespace    http://tampermonkey.net/
-// @version      23.0
+// @version      23.1
 // @description  Blokuoja Shorts/Reels/TikTok/FB nuotraukas ir Forwarded nuorodas bei susijusias gretimas žinutes.
 // @author       Jules
 // @match        https://www.messenger.com/*
@@ -13,7 +13,7 @@
 (function() {
     'use strict';
 
-    console.log("Messenger Cleaner V23.0: Startuoja (Ultra-Safe Surgical)...");
+    console.log("Messenger Cleaner V23.1: Startuoja (Ultra-Safe Surgical)...");
 
     // --- 1. CSS ---
     const style = document.createElement('style');
@@ -116,27 +116,24 @@
 
     function getSmallMessageContainer(node) {
         if (!node || !(node instanceof HTMLElement)) return null;
-        // Ieškome TIK labai specifinių žinučių burbulų / konteinerių
+
         let container = node.closest('[data-testid="message-container"]') ||
                         node.closest('[data-testid="msg_batch"]') ||
-                        node.closest('[role="none"].x1n2onr6.x1iyjqo2') ||
-                        node.closest('[role="row"]');
+                        node.closest('[role="row"]') ||
+                        node.closest('[role="none"].x1n2onr6.x1iyjqo2');
 
         if (container) {
-            // SAUGIKLIAI: niekada neslepiame didelių layout blokų ar elementų su ID (išskyrus žinučių elementus)
-            if (container.id && !container.getAttribute('data-testid')) return null;
+            // SAUGIKLIS: Niekada neslepiame pagrindinių puslapio layout blokų su ID
+            if (container.id && !container.getAttribute('data-testid') && container.id !== 'facebook') return null;
 
             const role = container.getAttribute('role');
             if (role && role !== 'none' && role !== 'gridcell' && role !== 'row') return null;
 
-            // Tikriname matmenis santykinai su langu
+            // Tikriname matmenis santykinai su langu (saugo nuo viso pokalbių lango paslėpimo)
             const rect = container.getBoundingClientRect();
-            if (rect.width > (window.innerWidth * 0.75)) return null;
-            if (rect.height > (window.innerHeight * 0.75)) return null;
-            if (rect.height > 650 || rect.width > 850) return null;
-
-            // Žinutės burbulas neturi turėti per daug vaikų (ne visas pokalbių medis)
-            if (container.querySelectorAll('*').length > 60) return null;
+            if (rect.width > (window.innerWidth * 0.85)) return null;
+            if (rect.height > (window.innerHeight * 0.85)) return null;
+            if (rect.height > 750 || rect.width > 950) return null;
         }
 
         return container;
@@ -151,7 +148,10 @@
             if (node.getAttribute('data-cleaner-hidden') === 'true') return false;
             if (isInsideSidebar(node)) return false;
 
-            // Neturi turėti kitų gerų / neblokuojamų nuorodų
+            // Niekada neslepiame, jei turi ID (išskyrus pranešimų konteinerius)
+            if (node.id && !node.getAttribute('data-testid')) return false;
+
+            // Niekada neslepiame, jei turi kitą gerą / neblokuojamą išorinę nuorodą
             const links = node.querySelectorAll('a[href]');
             for (let a of links) {
                 const href = a.getAttribute('href');
@@ -160,14 +160,13 @@
                 }
             }
 
-            // Saugumo patikrinimas: dydis ir vaikų skaičius
+            // Saugumo patikrinimas: matmenys
             const rect = node.getBoundingClientRect();
-            if (rect.height > 400 || rect.width > 800) return false;
-            if (node.querySelectorAll('*').length > 40) return false;
+            if (rect.height > 500 || rect.width > 900) return false;
 
-            // Turi turėti teksto arba atrodyti kaip žinutės elementas
+            // Teksto ilgis: gretimas tekstas būna trumpas pranešimas (pvz. "ziurek ka tau atsiunciau")
             const text = (node.innerText || '').trim();
-            if (text.length > 350) return false; // Neperbraukiame labai ilgų nesusijusių pastraipų
+            if (text.length > 500) return false;
 
             return true;
         }
@@ -175,44 +174,51 @@
         function doHide(node) {
             if (!node) return;
             const target = getSmallMessageContainer(node) || node;
-            target.setAttribute('data-cleaner-hidden', 'true');
-            target.style.display = 'none';
-        }
-
-        // Tikriname iki 2 gretimų elementų aukštyn (prieš nuorodą)
-        let prev = container.previousElementSibling;
-        for (let i = 0; i < 2 && prev; i++) {
-            if (isCandidate(prev)) {
-                const toHide = prev;
-                prev = prev.previousElementSibling;
-                doHide(toHide);
-            } else {
-                break;
+            if (target && target instanceof HTMLElement && target.getAttribute('data-cleaner-hidden') !== 'true') {
+                target.setAttribute('data-cleaner-hidden', 'true');
+                target.style.display = 'none';
             }
         }
 
-        // Tikriname iki 2 gretimų elementų žemyn (po nuorodos)
-        let next = container.nextElementSibling;
-        for (let i = 0; i < 2 && next; i++) {
-            if (isCandidate(next)) {
-                const toHide = next;
-                next = next.nextElementSibling;
-                doHide(toHide);
-            } else {
-                break;
+        // 1. Tikriname tiesioginius kaimynus tame pačiame lygyje
+        function checkSiblings(elem) {
+            if (!elem || !(elem instanceof HTMLElement)) return;
+
+            // Tikriname elementus AUKŠČIAU (prieš nuorodą)
+            let prev = elem.previousElementSibling;
+            for (let i = 0; i < 2 && prev; i++) {
+                if (isCandidate(prev)) {
+                    const toHide = prev;
+                    prev = prev.previousElementSibling;
+                    doHide(toHide);
+                } else {
+                    break;
+                }
+            }
+
+            // Tikriname elementus ŽEMIAU (po nuorodos)
+            let next = elem.nextElementSibling;
+            for (let i = 0; i < 2 && next; i++) {
+                if (isCandidate(next)) {
+                    const toHide = next;
+                    next = next.nextElementSibling;
+                    doHide(toHide);
+                } else {
+                    break;
+                }
             }
         }
 
-        // Jei konteineris yra sub-grupės viduje, patikriname ir pačios sub-grupės kaimynus
-        const parent = container.parentElement;
-        if (parent && parent.children.length <= 3) {
-            let parentPrev = parent.previousElementSibling;
-            if (parentPrev && isCandidate(parentPrev)) {
-                doHide(parentPrev);
-            }
-            let parentNext = parent.nextElementSibling;
-            if (parentNext && isCandidate(parentNext)) {
-                doHide(parentNext);
+        // Tikriname esamo konteinerio kaimynus
+        checkSiblings(container);
+
+        // 2. Tikriname tėvinių konteinerių kaimynus (walk up 2 levels)
+        let parent1 = container.parentElement;
+        if (parent1 && !isInsideSidebar(parent1)) {
+            checkSiblings(parent1);
+            let parent2 = parent1.parentElement;
+            if (parent2 && !isInsideSidebar(parent2)) {
+                checkSiblings(parent2);
             }
         }
     }
@@ -249,7 +255,7 @@
         if (container) {
             container.setAttribute('data-cleaner-hidden', 'true');
             container.style.display = 'none';
-            // Paslepia ir gretimas žinutes (prieš/po aukščiau ir žemiau)
+            // Paslepia ir gretimas žinutes (prieš/po aukščiau ir žemiau prie įvairių tėvinių lygų)
             hideAdjacentMessages(container);
         } else {
             // Jei neradome saugaus konteinerio, paslepiame TIK nuorodą / elementą ir patikriname tėvinį konteinerį
