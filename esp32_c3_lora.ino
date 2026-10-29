@@ -186,14 +186,16 @@ void loop() {
   // Update non-blocking LED animation modes
   updateLedEffects();
 
-  // Periodic telemetry transmission
+  // Periodic telemetry transmission (Sends full SYS_INFO every 5 seconds)
   if (millis() - lastTemp >= TEMP_INTERVAL) {
     lastTemp = millis();
 
     float cpuTemp = temperatureRead();
+    unsigned long uptimeSec = millis() / 1000;
+    uint32_t freeHeap = ESP.getFreeHeap();
 
-    LoRa.printf("CPU_TEMP:%.1f,RSSI=%d\n", cpuTemp, lastRssi);
-    Serial.printf("Telemetry sent: CPU_TEMP:%.1f | RSSI:%d dBm\n", cpuTemp, lastRssi);
+    LoRa.printf("SYS_INFO:TEMP=%.1f,UPTIME=%lu,HEAP=%u,RSSI=%d\n", cpuTemp, uptimeSec, freeHeap, lastRssi);
+    Serial.printf("Telemetry sent: TEMP=%.1f C | Uptime=%lu s | Heap=%u B | RSSI=%d dBm\n", cpuTemp, uptimeSec, freeHeap, lastRssi);
   }
 
   // Non-blocking LoRa serial command reader

@@ -117,7 +117,7 @@ btnGetTemp.OnEvent("Click", (*) => SendCmd("GET_TEMP"))
 
 ; --- Komunikacijos Žurnalas (Log Console - Slenka Žemyn) ---
 mainGui.AddGroupBox("w500 h190 x15 y690", "Įvykių Žurnalas (Eina Žemyn ⬇️)")
-edtLog := mainGui.AddEdit("x30 y715 w470 h125 ReadOnly Multi +0x100000") ; WS_VSCROLL
+edtLog := mainGui.AddEdit("x30 y715 w470 h125 ReadOnly Multi +VScroll")
 btnClearLog := mainGui.AddButton("x385 y848 w115 h25", "Valyti Žurnalą")
 btnClearLog.OnEvent("Click", (*) => (edtLog.Value := ""))
 
@@ -125,6 +125,9 @@ mainGui.Show("w530 h885")
 
 ; Periodinė Win32 COM Buffer patikra (20ms laikmatis)
 SetTimer(PollComPort, 20)
+
+; Automatinis periodinis PING laikmatis ryšio vėlavimui matuoti (kas 4s)
+SetTimer(AutoPingTimer, 4000)
 
 ; Nuolatinis pratinis RSSI atnaujinimas
 UpdateRssiDisplay(g_CurrentRssi)
@@ -192,8 +195,8 @@ OnSliderChange() {
     txtGVal.Value := g
     txtBVal.Value := b
 
-    hexColor := Format("0x{:02X}{:02X}{:02X}", r, g, b)
-    picPreview.Opt("+c" hexColor)
+    hexColor := Format("{:02X}{:02X}{:02X}", r, g, b)
+    picPreview.Opt("c" . hexColor)
 }
 
 SetRGB(r, g, b) {
@@ -220,8 +223,15 @@ MeasurePing() {
     SendCmd("PING:" . g_LastPingSeq)
 }
 
+AutoPingTimer() {
+    global g_IsConnected
+    if (g_IsConnected) {
+        MeasurePing()
+    }
+}
+
 ConfirmReset() {
-    res := MsgBox("Ar tikrai norite perkrauti ESP32-C3 mikrokontrolerį?", "Perkrovimo patvirtinimas", "YesNo IconExclamation")
+    res := MsgBox("Ar tikrai norite perkrauti ESP32-C3 mikrokontrolerį?", "Perkrovimo patvirtinimas", "YesNo Icon!")
     if (res == "Yes") {
         SendCmd("RESET")
     }
@@ -230,7 +240,7 @@ ConfirmReset() {
 ; Slenkantis žemyn žurnalo įrašymas
 LogMessage(msg, type := "INFO") {
     timeStr := FormatTime(, "HH:mm:ss")
-    line := Format("[{}] [{}] {}\r\n", timeStr, type, msg)
+    line := Format("[{}] [{}] {}`r`n", timeStr, type, msg)
 
     edtLog.Value .= line
 
