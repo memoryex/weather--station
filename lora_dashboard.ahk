@@ -48,14 +48,22 @@ txtUptime := mainGui.AddText("x270 y138 w230", "Uptime: ---")
 txtHeap := mainGui.AddText("x30 y172 w230", "Laisva RAM: --- KB")
 txtLatency := mainGui.AddText("x270 y172 w230", "Ryšio Vėlavimas: --- ms")
 
-; --- LoRa Signalo Stiprumas (RSSI) ir Atstumas ---
-mainGui.AddGroupBox("w500 h130 x15 y220", "LoRa Ryšio Kokybė & Atstumo Įvertinimas")
+; --- LoRa Signalo Stiprumas (RSSI) ir Atstumo Testavimas ---
+mainGui.AddGroupBox("w500 h160 x15 y220", "LoRa Ryšio Kokybė & Atstumo Įvertinimas")
 txtRssiDbm := mainGui.AddText("x30 y245 w230", "Signalo Stiprumas: -70 dBm")
 txtRssiPct := mainGui.AddText("x270 y245 w230", "Kokybė: 56 %")
 txtRssiPct.SetFont("s10 bold", "Segoe UI")
 
-barRssi := mainGui.AddProgress("x30 y275 w470 h18 Range0-100 BackgroundE0E0E0 cGreen", 56)
-txtDistance := mainGui.AddText("x30 y302 w470", "Apskaičiuotas Atstumas: ~42 m (Log-Path Loss n=2.7)")
+barRssi := mainGui.AddProgress("x30 y270 w470 h18 Range0-100 BackgroundE0E0E0 cGreen", 56)
+
+mainGui.AddText("x30 y298 w140", "Nustatyti RSSI (dBm):")
+sldRssi := mainGui.AddSlider("x170 y293 w240 Range-120--30", -70)
+sldRssi.OnEvent("Change", (*) => OnRssiSliderChange())
+
+btnSendRssi := mainGui.AddButton("x415 y293 w85 h26", "Siųsti RSSI")
+btnSendRssi.OnEvent("Click", (*) => SendCmd("SET_RSSI:" . sldRssi.Value))
+
+txtDistance := mainGui.AddText("x30 y332 w470", "Apskaičiuotas Atstumas: ~42 m (Log-Path Loss n=2.7)")
 txtDistance.SetFont("s10 bold cNavy", "Segoe UI")
 
 ; --- RGB Valdymas & Efektai ---
@@ -136,15 +144,24 @@ UpdateRssiDisplay(g_CurrentRssi)
 ;  Funkcijos: RSSI, Atstumo Apskaičiavimas ir GUI
 ; ------------------------------------------------------------------------
 
+OnRssiSliderChange() {
+    val := sldRssi.Value
+    UpdateRssiDisplay(val)
+}
+
 UpdateRssiDisplay(rssiDbm) {
     global g_CurrentRssi
     g_CurrentRssi := rssiDbm
 
+    try {
+        sldRssi.Value := rssiDbm
+    }
+
     txtRssiDbm.Value := "Signalo Stiprumas: " . rssiDbm . " dBm"
 
-    ; Signal Quality Percentage Calculation
-    ; Map -120 dBm (0%) to -30 dBm (100%)
-    pct := Floor(((rssiDbm - (-120)) / ((-30) - (-120))) * 100)
+    ; Signal Quality Percentage Calculation for SEMTECH SX1262 (Sensitivity down to -134 dBm)
+    ; Map -134 dBm (0%) to -30 dBm (100%)
+    pct := Floor(((rssiDbm - (-134)) / ((-30) - (-134))) * 100)
     if (pct < 0)
         pct := 0
     if (pct > 100)
@@ -162,10 +179,10 @@ UpdateRssiDisplay(rssiDbm) {
         barRssi.Opt("cRed")
     }
 
-    ; Distance Calculation using Log-Distance Path Loss Model:
+    ; Distance Calculation using Log-Distance Path Loss Model for SX1262 (+22dBm TxPower, -134dBm sensitivity):
     ; d = 10 ^ ((TxPower_at_1m - RSSI) / (10 * n))
-    ; Standard outdoor parameters: TxPower_1m = -40 dBm, path loss exponent n = 2.7
-    txPower1m := -40.0
+    ; Parameters for +22dBm output: TxPower_1m = -20 dBm, outdoor path loss exponent n = 2.7
+    txPower1m := -20.0
     pathLossN := 2.7
 
     try {
@@ -174,10 +191,10 @@ UpdateRssiDisplay(rssiDbm) {
 
         if (distMeters >= 1000.0) {
             distKm := Round(distMeters / 1000.0, 2)
-            txtDistance.Value := "Apskaičiuotas Atstumas: ~" . distKm . " km (Log-Path Loss n=2.7)"
+            txtDistance.Value := "Apskaičiuotas Atstumas: ~" . distKm . " km (SX1262 +22dBm / Max 8km)"
         } else if (distMeters >= 1.0) {
             distM := Round(distMeters, 1)
-            txtDistance.Value := "Apskaičiuotas Atstumas: ~" . distM . " m (Log-Path Loss n=2.7)"
+            txtDistance.Value := "Apskaičiuotas Atstumas: ~" . distM . " m (SX1262 +22dBm / Max 8km)"
         } else {
             txtDistance.Value := "Apskaičiuotas Atstumas: < 1 m (Arti vienas kito)"
         }

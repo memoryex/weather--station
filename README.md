@@ -81,5 +81,6 @@
 | `PING` / `PING:<id>` | Kompiuteris | Patikrina ryšį ir matuoja vėlavimą. Atsakymas: `PONG,RSSI=x` / `PONG:<id>,RSSI=x` |
 | `SYS_INFO` | Kompiuteris / ESP32 | Užklausia / automatiškai kas 5s siunčia sistemos info. Atsakymas: `SYS_INFO:TEMP=x,UPTIME=sec,HEAP=bytes,RSSI=x` |
 | `GET_TEMP` | Kompiuteris | Užklausia CPU temperatūros. Atsakymas: `CPU_TEMP:x,RSSI=x` |
+| `SET_RSSI:<dbm>` | Kompiuteris | Nustato / testuoja Bazinį RSSI lygį dBm. Atsakymas: `RSSI_OK:<dbm>` |
 | `RESET` | Kompiuteris | Perkrauna ESP32-C3. Atsakymas: `SYS_RESETTING` |
 | `OFF` | Kompiuteris | Išjungia RGB LED. Atsakymas: `RGB_OK:0,0,0` |

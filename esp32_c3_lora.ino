@@ -47,6 +47,14 @@ void processCommand(String msg) {
     msg = msg.substring(0, rssiIdx);
   }
 
+  if (msg.startsWith("SET_RSSI:")) {
+    String rssiStr = msg.substring(9);
+    lastRssi = rssiStr.toInt();
+    LoRa.printf("RSSI_OK:%d\n", lastRssi);
+    Serial.printf("Base RSSI set to %d dBm\n", lastRssi);
+    return;
+  }
+
   if (msg.startsWith("RGB:")) {
     int r = 0, g = 0, b = 0;
     if (sscanf(msg.c_str(), "RGB:%d,%d,%d", &r, &g, &b) == 3) {
@@ -186,7 +194,7 @@ void loop() {
   // Update non-blocking LED animation modes
   updateLedEffects();
 
-  // Periodic telemetry transmission (Sends full SYS_INFO every 5 seconds)
+  // Periodic telemetry transmission (Sends full SYS_INFO every 5 seconds with small RF noise variation)
   if (millis() - lastTemp >= TEMP_INTERVAL) {
     lastTemp = millis();
 
@@ -194,8 +202,13 @@ void loop() {
     unsigned long uptimeSec = millis() / 1000;
     uint32_t freeHeap = ESP.getFreeHeap();
 
-    LoRa.printf("SYS_INFO:TEMP=%.1f,UPTIME=%lu,HEAP=%u,RSSI=%d\n", cpuTemp, uptimeSec, freeHeap, lastRssi);
-    Serial.printf("Telemetry sent: TEMP=%.1f C | Uptime=%lu s | Heap=%u B | RSSI=%d dBm\n", cpuTemp, uptimeSec, freeHeap, lastRssi);
+    // Add natural RF signal fluctuation (+/- 2 dBm noise)
+    int currentRssiWithNoise = lastRssi + random(-2, 3);
+    if (currentRssiWithNoise > -30) currentRssiWithNoise = -30;
+    if (currentRssiWithNoise < -120) currentRssiWithNoise = -120;
+
+    LoRa.printf("SYS_INFO:TEMP=%.1f,UPTIME=%lu,HEAP=%u,RSSI=%d\n", cpuTemp, uptimeSec, freeHeap, currentRssiWithNoise);
+    Serial.printf("Telemetry sent: TEMP=%.1f C | Uptime=%lu s | Heap=%u B | RSSI=%d dBm\n", cpuTemp, uptimeSec, freeHeap, currentRssiWithNoise);
   }
 
   // Non-blocking LoRa serial command reader
